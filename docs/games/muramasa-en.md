@@ -752,6 +752,20 @@ and the build prints one line per argument passed and not read
 
 ## History
 
+### Boot logos (2026-10-18)
+
+`sys_titlelogo.nut` `main` runs `LogoSet` while `TitleFirstLogo` isn't
+set (the first title of each run; `boot.nut` itself shows nothing).
+`LogoSet` (`nut.py`; the disassembler's opcodes from `BITW` up read 4
+higher): black at once; `warning.png` (English `cg.npk`, full screen) in
+300, `WaitKey(8000)`, `FadeDelete` 300; the black held 300 more;
+`nitroplus-logo.png` in 1000, `WaitKey(4000)`, `FadeDelete` 1000;
+`Wait(100)`. No JAST logo, no movie. `MURAMASA_EN`'s `boot_logos` is
+this, written in NSS with the library's `CreateColorEX`,
+`CreateTextureEX`, `FadeDelete` (`muramasa.rs`). `--real-time` trace:
+15,036 ms to the title against the script's 15,000.
+
+
 ### The port's DrawTransition edge (2026-10-18)
 
 The port draws `DrawTransition`'s rule through Mware's

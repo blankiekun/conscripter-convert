@@ -374,6 +374,9 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     writeln!(out, "nsa").unwrap();
     writeln!(out, "globalon").unwrap();
     writeln!(out, "{}", notice::DEFINE).unwrap();
+    if boot::keeps_bgm(script) {
+        writeln!(out, "{}", boot::DEFINE).unwrap();
+    }
     writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
     writeln!(out, "{}", names_define()).unwrap();
     writeln!(out, "{}", links_define()).unwrap();
@@ -465,7 +468,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     if script.settings.as_ref().is_some_and(|s| s.skip_unread_label.is_some()) || script.picture_settings.as_ref().is_some_and(picture_settings::skips_unread) {
         writeln!(out, "kidokuskip").unwrap();
     }
-    if script.title_screen.as_ref().is_some_and(|t| !t.openings.is_empty()) {
+    if script.title_screen.as_ref().is_some_and(|t| !t.openings.is_empty()) || boot::once(script) {
         writeln!(out, "mov {TITLE_SHOWN},0").unwrap();
     }
     if !script.language.is_empty() {
@@ -529,7 +532,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     boot::emit(&mut out, script, border);
     notice::emit(&mut out, script.width, script.height);
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay);
+        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay, boot::keeps_bgm(script));
     }
     let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
     if back_to_choice {
@@ -716,7 +719,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
 #[allow(clippy::too_many_arguments)]
 /// `replay_back`: a picture extras' replay may `reset` back to its list
 /// ([`picture_replay::BACK_TO_LIST`]).
-fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool, border: u32, replay_back: bool) {
+fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool, border: u32, replay_back: bool, boot_bgm: bool) {
     if replay_back {
         writeln!(out, "{}", picture_replay::after_reset()).unwrap();
     }
@@ -740,7 +743,13 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     }
     writeln!(out, "*{TITLE_DRAW}").unwrap();
     if let Some(bgm) = t.bgm.as_ref().filter(|_| t.movies.is_empty()) {
-        writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
+        // Left playing by the boot's logos: it goes on.
+        let on = boot::BGM_ON;
+        let only = if boot_bgm { format!("if {on} == 0 ") } else { String::new() };
+        writeln!(out, "{only}bgm \"{}\"", path(bgm)).unwrap();
+        if boot_bgm {
+            writeln!(out, "mov {on},0").unwrap();
+        }
     }
     title_movies(out, t, true, border);
     if picture_extras {
@@ -2294,6 +2303,23 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             if %9 == 3 end\n\
             goto *conv_title\n*conv_title_start\ncsp -1\nbg black,2\nあ\\\n";
         assert!(out.contains(expected), "{out}");
+    }
+
+    #[test]
+    fn boot_logos_once_before_the_title_music_kept() {
+        let bgm = "sound/bgm/title.ogg";
+        let mut s = script(vec![Op::Label("conv_boot".into()), Op::BgmPlay { file: bgm.into(), fade_in_ms: 0 }, Op::Return]);
+        s.boot = vec![conv_core::ir::BootStep { gosub: Some("conv_boot".into()), ..Default::default() }];
+        s.title_screen = Some(TitleScreen { background: "system/title.png".into(), bgm: Some(bgm.into()), ..Default::default() });
+        let out = emit(&s);
+        assert!(out.contains("defvar conv_boot_bgm\n"), "{out}");
+        assert!(out.contains("mov %2960,0\n"), "{out}");
+        assert!(out.contains("if %2960 == 0 gosub *conv_boot:mov %2960,1:mov %conv_boot_bgm,1\n"), "{out}");
+        assert!(out.contains("if %conv_boot_bgm == 0 bgm \"sound\\bgm\\title.ogg\"\nmov %conv_boot_bgm,0\n"), "{out}");
+        // Music the boot stops isn't kept.
+        s.ops.insert(2, Op::BgmStop { fade_out_ms: 0 });
+        let out = emit(&s);
+        assert!(out.contains("if %2960 == 0 gosub *conv_boot:mov %2960,1\n") && !out.contains("conv_boot_bgm"), "{out}");
     }
 
     #[test]

@@ -218,6 +218,11 @@ pub struct Game {
     /// Full Metal Daemon Muramasa's English port's `DrawTransition` edge
     /// (Mware's `psUpdateTransitionRule`, [`transition::diesel_table`]).
     diesel_transition: bool,
+    /// A script file and the NSS source of a function played once each
+    /// launch before the first title, as if in that file (its functions
+    /// callable): the game's logos and warnings ([`compile_boot`]). An
+    /// empty source: none.
+    boot_logos: (&'static str, &'static str),
 }
 
 impl Game {
@@ -248,6 +253,7 @@ impl Game {
         diesel_shake: false,
         diesel_transition: false,
         fade_tempo: None,
+        boot_logos: ("", ""),
     };
 
     /// Fills `script`'s system screens.
@@ -415,6 +421,42 @@ pub struct Replay {
     pub set: Vec<(String, i64)>,
 }
 
+/// The label of the [`Game::boot_logos`] subroutine ([`conv_core::ir::BootStep::gosub`]).
+pub const BOOT_LABEL: &str = "conv_boot";
+
+/// Compiles the game's [`Game::boot_logos`] into a subroutine at
+/// [`BOOT_LABEL`], jumped over, from the story's `initial` state (the
+/// state now put back after it). At the end of the ops, so the story's
+/// own output stays as it is.
+fn compile_boot<'a>(c: &mut Compiler<'a, '_>, files: &'a BTreeMap<String, NssFile>, game: &'static Game, initial: &State<'a>) {
+    let (file, source) = game.boot_logos;
+    if source.is_empty() {
+        return;
+    }
+    let Some((boot, _)) = files.get_key_value(file) else {
+        c.note(format!("boot_logos: no {file}"));
+        return;
+    };
+    // Leaked once a build: the compiler borrows what it runs for its lifetime.
+    let src: &'static NssFile = Box::leak(Box::new(super::nss::parse(source).expect("boot_logos parses")));
+    let Some(f) = src.items.iter().find_map(|item| match item {
+        Item::Function(f) => Some(f),
+        _ => None,
+    }) else {
+        return;
+    };
+    let before = c.snapshot();
+    c.restore(initial.clone());
+    let end = "conv_boot_end";
+    c.ops.push(Op::Jump(end.to_string()));
+    c.ops.push(Op::Label(BOOT_LABEL.to_string()));
+    c.call_function(boot, f, Vec::new());
+    c.sync(0);
+    c.ops.push(Op::Return);
+    c.ops.push(Op::Label(end.to_string()));
+    c.restore(before);
+}
+
 /// Compiles scene `scene` of `file` (`ma01_001.nss`, `ma01_001.nss`).
 pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str, game: &'static Game, assets: &mut dyn Assets) -> Result<Compiled, String> {
     let (file, _) = files.get_key_value(file).ok_or_else(|| format!("no script {file}"))?;
@@ -451,6 +493,7 @@ pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     c.ops.push(Op::Jump(RUN_END.to_string()));
     let base = c.next_dynamic;
     c.subroutines(&initial, base);
+    compile_boot(&mut c, files, game, &initial);
     // The story ends back at the title, as the boot script's loop does.
     c.ops.push(Op::Label(RUN_END.to_string()));
     if !game.story_end.is_empty() {
@@ -654,6 +697,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     for name in not_compiled {
         c.ops.push(Op::Label(file_label(&name)));
     }
+    compile_boot(&mut c, files, game, &initial);
     c.ops.push(Op::Label(RUN_END.to_string()));
     Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes, source_map: c.source_map }, played))
 }
