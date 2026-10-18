@@ -392,6 +392,21 @@ rather than by browsing:
     it runs for hundreds of pages unattended. 最果てのイマ:
     `research/xuse/tracedll/` (`xtrace.sh`, docs/games/saihate-no-ima.md,
     "Running the original under wine").
+23. **Diff the two traces**: with the converter's `--source-map <file>`
+    (each 0.txt line's `<script>:<instruction>`; the engine's lowering
+    fills `Script::source_map`, as `xuse/convert.rs`'s `lower_script`
+    does), `research/tools/trace_diff.py orig.jsonl ours.jsonl --map
+    <file>` pairs the pages by the instruction that shows them and
+    prints, per page, the text that differs, the instructions one side
+    ran and the other didn't, and the times from one command to the
+    next off by more than a frame. Ours: a `--dry-run` build's
+    `--trace --auto-play N --real-time` (no click then ends an effect,
+    so its times are real); the same choices as the original's run.
+    Times use the original's frame count (`--fps`), not its clock (wine
+    stalled 134 s once between two frames). A `missing` command that
+    had nothing to change (a `csp -1` with no sprites) is no finding:
+    ours writes an `ev` only for a change. 最果てのイマ:
+    docs/games/saihate-no-ima.md, "Trace diff".
 
 ### Checklist: behaviours to map
 
