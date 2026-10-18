@@ -2,7 +2,40 @@
 
 use std::fmt::Write;
 
-use conv_core::ir::{BootStep, Script};
+use conv_core::ir::{BootStep, Op, Script};
+
+use crate::TITLE_SHOWN;
+
+/// A local, 1 from a [`BootStep::gosub`]'s end to the title's music: the
+/// boot left it playing, so the title doesn't start it again (`reset`
+/// clears it).
+pub(crate) const BGM_ON: &str = "%conv_boot_bgm";
+/// Its declaration, in the define section.
+pub(crate) const DEFINE: &str = "defvar conv_boot_bgm";
+
+/// A step is gosubbed once a run ([`TITLE_SHOWN`] 0 until the title is up).
+pub(crate) fn once(script: &Script) -> bool {
+    script.boot.iter().any(|s| s.gosub.is_some())
+}
+
+/// A [`BootStep::gosub`] leaves the title's music playing.
+pub(crate) fn keeps_bgm(script: &Script) -> bool {
+    let Some(bgm) = script.title_screen.as_ref().and_then(|t| t.bgm.as_ref()) else {
+        return false;
+    };
+    let mut playing = None;
+    for label in script.boot.iter().filter_map(|s| s.gosub.as_ref()) {
+        let body = script.ops.iter().skip_while(|op| !matches!(op, Op::Label(l) if l == label)).take_while(|op| !matches!(op, Op::Return));
+        for op in body {
+            match op {
+                Op::BgmPlay { file, .. } | Op::BgmCrossfade { file, .. } => playing = Some(file),
+                Op::BgmStop { .. } => playing = None,
+                _ => {}
+            }
+        }
+    }
+    playing == Some(bgm)
+}
 
 /// The steps in order. A click cuts a fade only where the step says
 /// (`effectskip`); a skippable hold is a `wait` for its fixed part, then a
@@ -18,12 +51,29 @@ pub(crate) fn emit(out: &mut String, script: &Script, border: u32) {
             writeln!(out, "mov {tmp},0:if {} mov {tmp},1", cond.join(" && ")).unwrap();
             writeln!(out, "if {tmp} == 0 goto *conv_boot_skip{i}").unwrap();
         }
-        step(out, s);
+        match &s.gosub {
+            Some(label) => gosub(out, script, label),
+            None => step(out, s),
+        }
         if !s.when.is_empty() {
             writeln!(out, "*conv_boot_skip{i}").unwrap();
         }
     }
     writeln!(out, "effectskip 1").unwrap();
+}
+
+/// While the title hasn't been shown in this run; the title's openings
+/// then mark it shown, else this does.
+fn gosub(out: &mut String, script: &Script, label: &str) {
+    let mut then = format!("gosub *{label}");
+    if script.title_screen.as_ref().is_none_or(|t| t.openings.is_empty()) {
+        write!(then, ":mov {TITLE_SHOWN},1").unwrap();
+    }
+    if keeps_bgm(script) {
+        write!(then, ":mov {BGM_ON},1").unwrap();
+    }
+    writeln!(out, "effectskip 0").unwrap();
+    writeln!(out, "if {TITLE_SHOWN} == 0 {then}").unwrap();
 }
 
 fn step(out: &mut String, s: &BootStep) {

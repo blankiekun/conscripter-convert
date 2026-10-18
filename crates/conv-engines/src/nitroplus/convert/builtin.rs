@@ -801,18 +801,22 @@ impl Compiler<'_, '_> {
                     }
                 }
             }
-            "WaitKey" => {
-                self.sync(0);
-                match arg(0) {
-                    Value::Null => self.ops.push(Op::ClickWait { skippable: true }),
-                    ms => {
-                        let ms = self.movie_wait(ms.int().max(0) as u32);
-                        if ms > 0 {
-                            self.ops.push(Op::Wait { ms });
-                        }
+            "WaitKey" => match arg(0) {
+                Value::Null => {
+                    self.sync(0);
+                    self.ops.push(Op::ClickWait { skippable: true });
+                }
+                ms => {
+                    // As `Wait`: the actions still running count in its
+                    // time (a fade out, then `WaitKey` a little longer).
+                    let ms = self.movie_wait(ms.int().max(0) as u32);
+                    let shown = std::mem::take(&mut self.pending_ms).min(ms);
+                    self.sync(shown);
+                    if ms > shown {
+                        self.ops.push(Op::Wait { ms: ms - shown });
                     }
                 }
-            }
+            },
             "WaitPlay" => {
                 // Until the movie's end: what played as a movie has ended.
                 // Until a sound's end, or at most the limit in ms (the exe:

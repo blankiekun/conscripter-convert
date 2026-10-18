@@ -34,8 +34,17 @@ pub const DJANGO: Game = Game {
     menus: screens::menus,
     shake_jolts: true,
     fade_tempo: Some(super::tempo),
+    boot_logos: ("boot.nss", BOOT_LOGOS),
     ..Game::PLAIN
 };
+
+/// The logos at launch: boot.nss's loop makes the music objects
+/// (`InitBGM`), then `TitleLogo` (only while `$Logo` is 0: the first title
+/// of a run) shows them and starts the title's music under the Nitroplus
+/// logo, shot away. Its pictures are deleted after it (at opacity 0 in the
+/// original), the gunshot left to play out.
+// src: boot.nss main (InitBGM, TitleCongratulations, TitleLogo, TitleSet), TitleLogo
+const BOOT_LOGOS: &str = "function BootLogos() { InitBGM(); TitleLogo(); Delete(\"タイトルメディア*\"); }";
 
 /// The functions compiled as the game's own: the battle's movies, its
 /// counter and its muzzle flashes, the looping shakes, the strobe, the

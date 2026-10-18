@@ -511,6 +511,11 @@ Open, not fixed:
 
 ### Next
 
+0. Boot logos (History, "Boot logos"): the Nitroplus logo's fade-out
+   during its flight is lost (it goes at the flight's end), and its
+   `Rotate` @60 isn't drawn; `TitleSet`'s first-title opening (the
+   background in over 4.9 s, the logo slammed in, the tumbleweed) isn't
+   converted: the title fades in over 1 s.
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
@@ -557,6 +562,21 @@ Open, not fixed:
       the wait; the six such calls take 0 ms.
 
 ## History
+
+### Boot logos (2026-10-18)
+
+`boot.nss`'s loop: `InitBGM` (the music objects), `TitleCongratulations`,
+then `TitleLogo` while `$Logo` is 0 (the first title of each run; set by
+`TitleSet`; no save flag): `media_a.jpg` in 500, `WaitKey(2000)`;
+`media_b.jpg` cross-fades in 500, `WaitKey(2000)`, out 500; `Wait(500)`,
+`WaitKey(1000)`; the title's music `dj23_harmonica` starts; `nitroplus.jpg`
+in 1000, `Wait(3000)`, a gunshot, the logo shot away in 500
+(`BezierMove`, `Zoom` to 500, `Rotate` @60, fading). Then `TitleSet`'s
+first-title opening. Converted from the script (`Game::boot_logos`, a
+`BootStep::gosub` once a run); the music goes on into the title instead
+of starting again. `--real-time` trace: the music at 7,027 ms (script
+7,000), the shot at 11,036 (11,000), the title at 11,536 (11,500).
+
 
 - **Unwaited fades run on** (2026-10-17, trace diff): dja001_01:126-128
   (`Fade("黒幕", 3000, 1000, null, false)`, then `TypeBegin`): the

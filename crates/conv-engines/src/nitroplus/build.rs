@@ -7,7 +7,7 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use conv_core::ir::Script;
+use conv_core::ir::{BootStep, Op, Script};
 
 use super::assets::{NpaAssets, PICTURE_DIRS};
 use super::convert::{self, Game};
@@ -148,6 +148,8 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         }
     }
     let story = convert::Story { flags: &compiled.flags, voice_classes: &compiled.voice_classes, files: &files };
+    let boot_label = compiled.ops.iter().any(|op| matches!(op, Op::Label(l) if l == convert::BOOT_LABEL)).then(|| convert::BOOT_LABEL.to_string());
+    let boot = boot_label.map(|l| BootStep { gosub: Some(l), ..Default::default() }).into_iter().collect();
     let mut ir = Script {
         title: opts.title.to_string(),
         width: g.screen.0 as u32,
@@ -158,6 +160,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         source_map: compiled.source_map,
         single_byte_text: run.english.is_some(),
         language: if run.english.is_some() { "en" } else { "ja" }.into(),
+        boot,
         ..Default::default()
     };
     g.menus(&mut assets, &mut ir, &story);

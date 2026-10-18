@@ -1071,4 +1071,9 @@ pub struct BootStep {
     pub until_click: bool,
     /// A click cuts the fades short (else they always run their time).
     pub click_skips_fades: bool,
+    /// A label in [`Script::ops`] gosubbed in place of a picture, once a
+    /// run (not again on coming back to the title): the game's boot
+    /// compiled from its own script, ending in [`Op::Return`]. The title's
+    /// music, when it leaves it playing, goes on into the title.
+    pub gosub: Option<String>,
 }

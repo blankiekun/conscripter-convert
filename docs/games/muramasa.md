@@ -1278,6 +1278,30 @@ out on purpose.
 
 ## History
 
+### Boot logos (2026-10-18)
+
+`0_boot.nss` runs `TitleLogo` before `TitleSet` while `$Logo` is 0: at
+the first title of each run (`$Logo` is a local, set once a game has been
+started; no first-launch-only step, no save flag). Steps, ms: white over
+black 300; `media_a.jpg` in 500, `WaitKey(3000)`; `media_b.jpg` cross-fades
+in 500, `WaitKey(3000)`; out to white 500; `Wait(1000)` (no click);
+`Nitroplus-logo.jpg` in 1000, `WaitKey(3000)`, out to black 500;
+`Wait(500)`; `注意事項.jpg` in 1000 with `WaitKey(1100)`, `WaitKey(8000)`,
+out 500 with `WaitKey(600)`; `Wait(100)`; then the title's opening. A
+click ends a `WaitKey` hold (and the fade under it), never a waiting
+`Fade` or a `Wait`. Before this PR none of it converted (the dry run went
+from the notice to the title).
+
+Now `Game::boot_logos` compiles `TitleLogo` from the script into a
+subroutine (`conv_boot`) that a `BootStep::gosub` runs once a run,
+before the title (`%2960`, as the title's openings). Checked with a
+`--real-time` trace (`--file ma00_000.nss --chain 1` build): each step's
+time is the script's within 10 ms, 23,672 ms in all against 23,600.
+Also: `WaitKey(ms)` after a fade that doesn't wait now counts the fade in
+its time, as `Wait` did (the fade was dropped before: `print 1` and the
+whole wait).
+
+
 ### Eased sound ramps (2026-10-18)
 
 `SetVolume` and `SetFrequency` build their steps by the tempo as `Move`

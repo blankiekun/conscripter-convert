@@ -20,7 +20,35 @@ pub mod screens;
 mod subtitles;
 
 /// The game's hooks; the CLI uses them for a game with `Muramasa.exe`.
-pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, loaded_textures: true, fade_tempo: Some(super::tempo), ..Game::PLAIN };
+/// The logos and the warning at launch: 0_boot.nss `TitleLogo` (only
+/// while `$Logo` is 0: at the first title of a run), its pictures then
+/// deleted (they stay at opacity 0 in the original).
+// src: 0_boot.nss main (TitleLogo before TitleSet), TitleLogo
+const BOOT_LOGOS: &str = "function BootLogos() { TitleLogo(); Delete(\"タイトル*\"); }";
+
+/// The English port's: `sys_titlelogo.nut` `LogoSet` (while
+/// `TitleFirstLogo` isn't set: the first title of a run), its Diesel calls
+/// as the NSS library's of the same names.
+// src: sys_titlelogo.nut LogoSet (nut.py), main (if !TitleFirstLogo LogoSet)
+const BOOT_LOGOS_EN: &str = r#"function BootLogos()
+{
+	CreateColorEX("背景黒", 100, "BLACK");
+	CreateTextureEX("背景４", 100, Center, Middle, "en/cg/sys/title/warning.png");
+	CreateTextureEX("背景５", 100, Center, Middle, "en/cg/sys/title/nitroplus-logo.png");
+	Fade("背景黒", 0, 1000, null, true);
+	Fade("背景４", 300, 1000, null, true);
+	WaitKey(8000);
+	FadeDelete("背景４", 300, true);
+	Fade("背景黒", 300, 1000, null, true);
+	Delete("背景黒");
+	Fade("背景５", 1000, 1000, null, true);
+	WaitKey(4000);
+	FadeDelete("背景５", 1000, true);
+	Wait(100);
+	Delete("背景*");
+}"#;
+
+pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, loaded_textures: true, fade_tempo: Some(super::tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS), ..Game::PLAIN };
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
 /// scripts): its port writes the vertical text boxes horizontally, 280
@@ -29,7 +57,7 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// click icon at 500: 12 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
 // src: function_textbox.nut text0 (280 wide, font 20, rowSpace 1); text_drop 2: shot en/orig-page1
-pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, diesel_shake: true, diesel_transition: true, fade_tempo: Some(diesel_tempo), ..MURAMASA };
+pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, diesel_shake: true, diesel_transition: true, fade_tempo: Some(diesel_tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS_EN), ..MURAMASA };
 
 /// The port's tempo of a `Fade` or `Transition` (its `DrawTransition`), as
 /// [`super::tempo`]: the port's scenes name the NSS's tempos as their
