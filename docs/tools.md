@@ -36,12 +36,14 @@ bullet you need.
   the Switch one with `IDLEA=0.3` (`docs/new-game.md`, "Trace speeds").
 - Frames mid-effect: the trace's `--shot-effects 25,50,75`. The older
   patched-script runs: `docs/new-game.md` step 9 and "When the trace
-  can't do it". On Xvfb always set
-  `WAYLAND_DISPLAY=`, or the window opens on the user's desktop.
-  Never hard-code the display (agents collide); Xvfb picks a free one:
-  `Xvfb -displayfd 3 -screen 0 1280x800x24 -nolisten tcp 3>"$T/xvfb.d" & XP=$!;
-  until [ -s "$T/xvfb.d" ]; do sleep 0.1; done; export DISPLAY=:$(cat "$T/xvfb.d") WAYLAND_DISPLAY=`
-  (`$T` your scratch dir); stop it with `kill $XP`, never `pkill Xvfb` (other agents' displays).
+  can't do it". Anything that needs a display (Xvfb, wine, Vita3K,
+  Ryujinx) runs only through `research/tools/headless-run.sh <cmd>
+  [args...]`: it starts its own Xvfb on a free display (`-displayfd`),
+  unsets `WAYLAND_DISPLAY`, gives an empty `XDG_RUNTIME_DIR`, no D-Bus,
+  no-op `xdg-open`/`gio`, dummy SDL audio, no pulse/oss in wine (the trace scripts keep a null ALSA device, so voices still time their waits), and kills Xvfb
+  on exit. It sets `HEADLESS=1` and `DISPLAY`; `xtrace.sh`, `ntrace.sh`,
+  `vita-emu.sh` and `switch-emu.sh` re-run themselves under it. Never
+  `pkill Xvfb` (other agents' displays).
 - What a frame costs: `--trace-perf` adds a `perf` record per page
   (frames presented, the wall-clock ms worked for them, the slowest
   frame); `--dump-frames frames.tsv` writes a line per present (game ms,

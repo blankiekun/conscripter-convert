@@ -19,6 +19,7 @@
 # addrs arms one-shot breakpoints ("hit" records; cover.py mark turns them
 # into the findings table's marks). Records: research/xuse/tracedll/xtrace.c.
 set -e
+[ -n "${HEADLESS:-}" ] || exec "$(dirname "$0")/../../../research/tools/headless-run.sh" "$0" "$@"
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${XTRACE_HOME:-$repo/out/xtrace}
@@ -30,17 +31,13 @@ while [ $# -gt 0 ]; do case $1 in
 [ -n "$OUT" ] && [ -d "$GAME/HD" ] || { echo "need -o and GAME=<install folder>" >&2; exit 2; }
 
 mkdir -p "$H/build"
-# a free display of its own (docs/tools.md), never a fixed number
-rm -f "$H/xvfb.d"
-Xvfb -displayfd 3 -screen 0 1024x768x24 -nolisten tcp 3>"$H/xvfb.d" >/dev/null 2>&1 & xpid=$!
-cleanup() { WINEPREFIX=$H/prefix wineserver -k 2>/dev/null || true; kill $xpid 2>/dev/null || true; }
+cleanup() { WINEPREFIX=$H/prefix wineserver -k 2>/dev/null || true; }
 trap cleanup EXIT
-until [ -s "$H/xvfb.d" ]; do sleep 0.1; done
 
-export WINEPREFIX=$H/prefix WINEDEBUG=-all WINEARCH=win64 DISPLAY=:$(cat "$H/xvfb.d") WAYLAND_DISPLAY=
+export WINEPREFIX=$H/prefix WINEDEBUG=-all WINEARCH=win64
 export LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8 PULSE_SERVER=unix:/nonexistent
 export ALSA_CONFIG_PATH=$H/alsa-null.conf
-export WINEDLLOVERRIDES="winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"
+export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;winemenubuilder.exe=d"
 echo 'pcm.!default { type null }' > "$ALSA_CONFIG_PATH"
 
 for f in xtrace.c xlaunch.c; do  # rebuild when the source is newer

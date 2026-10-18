@@ -31,6 +31,7 @@
 # --pages stops after N pages (default 60), --seconds after S seconds
 # (default 900). Records: ntrace.c.
 set -e
+[ -n "${HEADLESS:-}" ] || exec "$(dirname "$0")/../../../research/tools/headless-run.sh" "$0" "$@"
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${NTRACE_HOME:-$repo/out/ntrace}
@@ -42,10 +43,10 @@ EXE_NAME=Muramasa.exe; [ -f "$GAME/Django.exe" ] && EXE_NAME=Django.exe
 [ -n "$OUT" ] && [ -f "$GAME/$EXE_NAME" ] || { echo "need -o and GAME=<folder of Muramasa.exe or Django.exe>" >&2; exit 2; }
 [ $EXE_NAME = Muramasa.exe ] || [ -f "$EXE" ] || { echo "Django: need EXE=<the unpacked 1.01 Django.exe>" >&2; exit 2; }
 
-export WINEPREFIX=$H/prefix WINEDEBUG=-all WINEARCH=win64 WAYLAND_DISPLAY=
+export WINEPREFIX=$H/prefix WINEDEBUG=-all WINEARCH=win64
 export LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8 PULSE_SERVER=unix:/nonexistent
 export ALSA_CONFIG_PATH=$H/alsa-null.conf
-export WINEDLLOVERRIDES="winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"
+export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;winemenubuilder.exe=d"
 mkdir -p "$H/build"
 printf 'pcm.!default { type null }\nctl.!default { type hw card 0 }\n' > "$ALSA_CONFIG_PATH"
 
@@ -105,11 +106,7 @@ PY
 fi
 $npa --pack "$H/patch/nss" "$H/nss.npa" >/dev/null
 
-rm -f "$H/xvfb.d"
-Xvfb -displayfd 3 -screen 0 1280x800x24 -nolisten tcp 3>"$H/xvfb.d" 2>/dev/null & xpid=$!
-until [ -s "$H/xvfb.d" ]; do sleep 0.1; done
-export DISPLAY=:$(cat "$H/xvfb.d")
-cleanup() { wineserver -k 2>/dev/null || true; kill "$xpid" 2>/dev/null || true; }
+cleanup() { wineserver -k 2>/dev/null || true; }
 trap cleanup EXIT
 
 C=$WINEPREFIX/drive_c
