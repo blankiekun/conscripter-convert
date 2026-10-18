@@ -822,7 +822,16 @@ Config on the title.
    counts. Splitting sprites into body and face crops is out unless
    the user asks.
 2. The Gallery's other modes (Music Player, Movie, Ending List,
-   Flowchart; drawn in its menu, not clickable), and in the CG gallery
+   Flowchart; drawn in its menu, not clickable). None is small: each
+   needs its table, its `allui` parts and its screen read from the
+   exe, then an IR screen (`SoundRoom` fits the music and movie
+   lists). `FUN_00107f38` opens them by the menu row: 1
+   `cGalleryMusic` (`FUN_00119518`, its list `cGalleryMusicList`
+   and panel `cGalleryMusicPanel`), 2 `cFlowchart` (`FUN_0010f8fc`,
+   `cFlowchartScene`; the 495 `GALLERY_FC_TH*` thumbnails), 3
+   `cGalleryMovie` (`FUN_00117cd0`, the player `FUN_00104f28`
+   `cGalleryMoviePlayer`), 4 `cGalleryEnding` (`FUN_0010d5e8`,
+   `FUN_0010daf8`/`FUN_0010dda4` reading scene-read flags). In the CG gallery
    what is left out (History, 2026-10-18, "the CG gallery"): the
    viewer's zoom and pan (`FUN_0010c56c`: the right stick or a pinch
    zooms between fitted and 1:1, a button toggles fitted and filling
