@@ -9,6 +9,7 @@ name = "conscripter-convert"
 path = "src/main.rs"
 
 [dependencies]
+ab_glyph.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 memmap2.workspace = true
