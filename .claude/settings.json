@@ -31,6 +31,7 @@
     ]
   },
   "enabledPlugins": {
-    "frontend-design@anthropic-plugin-directory": false
+    "frontend-design@anthropic-plugin-directory": false,
+    "engineering@anthropic-plugin-directory": false
   }
 }
