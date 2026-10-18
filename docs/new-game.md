@@ -448,8 +448,9 @@ rather than by browsing:
     does), `research/tools/trace_diff.py orig.jsonl ours.jsonl --map
     <file>` pairs the pages by the instruction that shows them and
     prints, per page, the text that differs, the instructions one side
-    ran and the other didn't (a `missing` one whose ops ours emits
-    under a later command's mark of the page is counted as `merged`), and the times from one command to the
+    ran and the other didn't (`--merge-into OP[,OP]`: a `missing` one whose ops ours emits
+    under the next command of the page, if that is one of those ops,
+    counts as `merged`), and the times from one command to the
     next off by more than a frame. Ours: a `--dry-run` build's
     `--trace --auto-play N --real-time` (no click then ends an effect,
     so its times are real); the same choices as the original's run.

@@ -2,7 +2,7 @@
 """Compare a trace of the original game with CONscripter's debug trace.
 
     trace_diff.py ORIG.jsonl OURS.jsonl --map MAP [--pages N] [--fps F]
-                  [--ms] [--thread T] [--max K] [--self-test]
+                  [--ms] [--merge-into OP[,OP]] [--thread T] [--max K] [--self-test]
 
 ORIG: the original's trace, "cmd" and "page" records whose "at" is
 "<script>:<instruction>" and whose "f" counts frames (Xuse:
@@ -21,8 +21,10 @@ page, between it and the page before:
 - missing: an instruction the original ran that none of our commands
   came from (the page's own message left out), for opcodes that did give one of ours elsewhere in the run
   (variables and jumps never do);
-- merged: a missing one before a later command of the page that has ours: our
-  ops for it sit under that command's mark (counted, not a finding);
+- merged: a missing one whose next command of the page that has ours
+  is one of --merge-into's ops (those that commit staged changes, e.g.
+  Tsukihime's _FADS): our ops for it sit under that command's mark
+  (counted, not a finding). Without the option, none;
 - extra: an instruction ours ran a command from that the original
   didn't run there;
 - time: the time from one command both ran to the next one off by more
@@ -140,7 +142,7 @@ def pair(orig, ours, look=5):
     return out
 
 
-def compare(orig, ours, fps, unit=None):
+def compare(orig, ours, fps, unit=None, merge_into=()):
     """unit: ms per step of the original's clock (default: a frame)."""
     frame = 1000.0 / fps
     unit = unit or frame
@@ -161,7 +163,7 @@ def compare(orig, ours, fps, unit=None):
         for i, (k, op) in enumerate(o['ops'].items()):
             if k not in p['ends'] and op in visible and k != o['at']:
                 nxt = next((y for y in keys[i + 1:] if y in p['ends']), None)
-                if nxt:  # ours emits its ops under the next command's mark
+                if nxt and o['ops'][nxt] in merge_into:  # ours emits its ops under the next command's mark
                     findings.append((o['pg'], 'merged', f"{where}: {k} (op {op}) credited to {nxt}"))
                 else:
                     findings.append((o['pg'], 'missing', f"{where}: {k} (op {op}) gave none of ours"))
@@ -205,7 +207,10 @@ def self_test():
     orig[0]['ops'] = {'4:0': '0x76', '4:8': '0x76', '4:9': '0x76'}
     orig[0]['ends'] = {'4:0': 10, '4:9': 400}
     ours[0]['ends'] = {'4:0': 0, '4:9': 400, '4:1': 400}
-    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['merged', 'page'], compare(orig, ours, 60.0, 1.0)
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['missing', 'page']
+    orig[0]['ops']['4:9'] = '_FADS'
+    got = sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0, {'_FADS'}))
+    assert got == ['merged', 'page'], got
     # a continued page: the original's text is its own lines
     ours[0].update(text='za', own='a')
     assert 'text' not in [k for _, k, _ in compare(orig, ours, 60.0, 1.0)]
@@ -221,6 +226,7 @@ def main():
     ap.add_argument('--fps', type=float, default=30.1, help="the original's frames a second (Xuse: 30.1; Nitroplus NSS: 60); the time tolerance is one frame")
     ap.add_argument('--ms', action='store_true', help="time the original by its \"ms\" (Nitroplus NSS: its waits are timeGetTime waits), not its frames")
     ap.add_argument('--thread', type=int, help='only the original\'s records of this "th" (Nitroplus NSS: 0, the story; the others are processes)')
+    ap.add_argument('--merge-into', default='', help="the original's ops that commit staged changes (Tsukihime: _FADS): a missing command before one that has ours is 'merged'")
     ap.add_argument('--max', type=int, default=20, help='findings shown per kind (default 20)')
     ap.add_argument('--self-test', action='store_true')
     a = ap.parse_args()
@@ -230,7 +236,7 @@ def main():
         ap.error('ORIG, OURS and --map are needed')
     m = read_map(a.map)
     orig = orig_side(a.orig, a.pages, 'ms' if a.ms else 'f', a.thread)
-    findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None)
+    findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None, set(filter(None, a.merge_into.split(','))))
     shown = {}
     for pg, kind, text in sorted(findings, key=lambda f: f[0]):
         shown[kind] = shown.get(kind, 0) + 1

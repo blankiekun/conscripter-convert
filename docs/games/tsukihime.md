@@ -784,7 +784,7 @@ conscripter-convert typemoon convert <game-102> -o <ours> --dry-run --source-map
 # in <ours>, the full build's pic, se, stream, movie, sys, default.ttf linked in:
 conscripter --root . --save-dir saves --goto tm_START_SCRIPT --trace ours.jsonl \
   --auto-play 0 --real-time --max-pages 297
-python3 -I research/tools/trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms --pages 297 --max 10000
+python3 -I research/tools/trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms --pages 297 --max 10000 --merge-into _FADS
 ```
 
 ## Status
@@ -862,18 +862,17 @@ waits for it (`FUN_00162f90`, `FUN_001802c0`, `FUN_001329f0`: mask 8
 the fade, 0x20 a motion that doesn't loop; ours an `spmotionwait`).
 Left (was 46 `missing`, 149 `time`, 180 `text`; then 14 and 89):
 
-- `trace_diff.py` credits a `missing` command to the next one of its
-  page that has ours, as `merged` (counted, not listed): 34 of the
-  former 45 `missing` (the 29 `_STGS` on a layer the next `_FADS`
-  shows, its fade or alpha being among the `_FADS`'s ops; marking
-  them the `_STGS`'s would put the `_FADS`'s frames before them and
-  add about 40 `time` findings; and 5 others). Left, 11 `missing`,
-  all `_FADS(1,0,0)` that change nothing visible in ours, so the
-  trace has no event from them. Totals: merged 34, missing 11,
-  time 73. (Seen in the list before: `_STMA` `00_00:212` and `1121`,
-  never drawn in the exe either, since `_STCP` sets their layer's
-  priority to 0; one `_STCF` after a 1 ms `_STGS`, where the exe
-  waits a frame: now among the merged.)
+- With `--merge-into _FADS`, `trace_diff.py` credits a `missing`
+  command to the next one of its page that has ours when that is a
+  `_FADS`, as `merged` (counted, not listed): 29, all `_STGS` on a
+  layer the next `_FADS` shows (its fade or alpha is among the
+  `_FADS`'s ops; marking them the `_STGS`'s would put the `_FADS`'s
+  frames before them and add about 40 `time` findings). Left, 16
+  `missing`: 11 `_FADS(1,0,0)` that change nothing visible in ours,
+  so the trace has no event from them; `_STMA` `00_00:212` and `1121`
+  (never drawn in the exe either: `_STCP` sets their layer's priority
+  to 0); `_STCF` `00_00:55` and `_FADS` `00_00:57` (page 1) and
+  `_FADS` `00_00:2278`. Totals: merged 29, missing 16, time 73.
 - 73 `time`: chiefly `_FADS` after a new picture (12 after `_SEPL`,
   13 after `_CLO3`, 6 after `_SEFD`: the original's 2–10 frames
   loading it, left out), and `_MPLY(52)` at `00_00:4296`.
