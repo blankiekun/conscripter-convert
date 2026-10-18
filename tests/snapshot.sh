@@ -11,11 +11,14 @@
 # release; needs muramasa too), django, oretsuba, tsukihime (the RomFS of
 # 1.0.2, its ExeFS beside it as ../exefs). A game without its
 # link is skipped. --update writes the snapshots of the games run.
-# Exit status 1 when a snapshot differs, or when the dry run's lint finds
-# files the script names that the build wouldn't write (each engine
-# records the files it writes, or would: conv_engines::output::record);
-# 2 when a game's gaps or left_out total rose against its metrics
-# snapshot (each printed per game), unless --accept-gaps.
+# Each 0.txt's commands are checked against the engine's command table
+# (research/tools/cmdcheck.py): an unknown one is printed.
+# Exit status 1 when a snapshot differs, a command is unknown, or the dry
+# run's lint finds files the script names that the build wouldn't write
+# (each engine records the files it writes, or would:
+# conv_engines::output::record); 2 when a game's gaps or left_out total
+# rose against its metrics snapshot (each printed per game), unless
+# --accept-gaps.
 #
 # Each game's completion counts (the dry run's metrics.json: source
 # calls fully converted or with gaps) are kept as <game>.metrics.json
@@ -89,6 +92,8 @@ for id in "${ids[@]}"; do
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
+    # every command it uses is in the engine's command table (the submodule's)
+    python3 -I research/tools/cmdcheck.py engine/src/cons/ONScripter_lut.cpp "$out/0.txt" || changed=1
     if [ -n "$ref" ]; then
         rout=$refdir/out/$id
         mkdir -p $refdir/out

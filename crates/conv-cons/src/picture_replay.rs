@@ -80,7 +80,9 @@ pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Opti
         w(format!("screenzoom {slot}"));
     }
     w(format!("chvolfade -1,0,{}:wait {}", r.end_ms, r.end_ms));
-    w("csp -1:csp2 -1:bgmstop:stopallsound:chvolfade -1,100:textclear:textoff:bg black,1".into());
+    // the sound channels the games use (0-9), as replay.rs stops them
+    let dwavestop = (0..10).map(|c| format!("dwavestop {c}")).collect::<Vec<_>>().join(":");
+    w(format!("csp -1:csp2 -1:bgmstop:{dwavestop}:chvolfade -1,100:textclear:textoff:bg black,1"));
     if let Some(m) = music {
         w(m.to_string());
     }

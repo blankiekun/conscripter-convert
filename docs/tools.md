@@ -113,7 +113,10 @@ prints that section only (game docs, `docs/lessons.md`, `CLAUDE.md`);
 numbers, `label.py 0.txt -l <text>` finds labels; `txtdiff.py old.txt
 new.txt [--map 's/old/new/'|--rules <file>]` prints changed hunks under
 their labels, counts them by command (numbers masked) and says whether
-the rules make it only a rename (`--self-test` tests it). Source code is the
+the rules make it only a rename (`--self-test` tests it);
+`cmdcheck.py engine/src/cons/ONScripter_lut.cpp 0.txt` lists the
+commands a script uses that the engine's table lacks (`tests/snapshot.sh`
+runs it on every game). Source code is the
 biggest text cost: `code.py <file.rs|.cpp>` lists its items with line
 numbers, `code.py <file> <name> [lines]` prints one fn, type, impl or
 C++ `Class::name` with its doc comments; use it instead of paging
