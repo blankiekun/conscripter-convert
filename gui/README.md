@@ -71,6 +71,7 @@ settings** puts them back.
 | Option | Games | Flag |
 |---|---|---|
 | Window title | all | `--title` |
+| Smaller download (WebP pictures and Opus voices) | all | `--small` |
 | WebP pictures, WebP quality (empty: near-lossless; 0-100: lossy, 80 is about a quarter of the size) | all | `--webp`, `--webp-quality` |
 | Voices and sound effects (vorbis/opus), their quality | all | `--audio-codec`, `--audio-quality` |
 | Loose files | all | `--loose` |

@@ -182,7 +182,7 @@ class Commands(unittest.TestCase):
 
     def test_same_options_everywhere(self):
         """Every game has the shared options first, in the same order."""
-        common = ["title", "webp", "webp_quality", "audio_codec", "audio_quality", "loose", "dry_run"]
+        common = ["title", "small", "webp", "webp_quality", "audio_codec", "audio_quality", "loose", "dry_run"]
         extras = {"saihate-no-ima": [], "muramasa": ["file", "chain"], "django": [], "oretsuba": ["scenes"], "tsukihime": [],
                   "muramasa-en": ["japanese"], "tsukihime-en": ["japanese"]}
         for g in games.GAMES:
@@ -202,6 +202,8 @@ class Commands(unittest.TestCase):
         self.assertEqual(g.option_problems({"audio_codec": "vorbis", "audio_quality": "-1"}), [])
         self.assertEqual(len(g.option_problems({"audio_codec": "vorbis", "audio_quality": "12"})), 1)
         self.assertEqual(len(g.option_problems({"audio_quality": "x"})), 1)
+        self.assertEqual(g.option_problems({"small": True, "audio_quality": "24"}), [])  # Opus
+        self.assertEqual(self.args("saihate-no-ima", {"small": True})[-1], "--small")
 
     def test_slider_steps(self):
         # Every step is a valid value, and the default is one of them.

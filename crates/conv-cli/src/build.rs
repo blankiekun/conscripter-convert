@@ -39,6 +39,10 @@ pub struct BuildArgs {
     pub webp: WebpArgs,
     #[command(flatten)]
     pub audio: AudioArgs,
+    /// A smaller download: --webp and --audio-codec opus together (an
+    /// explicit --audio-codec or --webp-quality still applies)
+    #[arg(long)]
+    pub small: bool,
 }
 
 /// A whole-game build: checks the output folder (`output_dirs`: the
@@ -49,13 +53,14 @@ pub struct BuildArgs {
 const SCREENS: &str = "screens";
 
 pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
-    let BuildArgs { output, font, loose, dry_run, source_map, webp, audio } = args;
+    let BuildArgs { output, font, loose, dry_run, source_map, webp, audio, small } = args;
+    let webp = webp.get(small)?;
     // every engine's folders, the warp maps of its transitions and the screens
     let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS]).collect();
     let output_dirs = &output_dirs[..];
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
-    let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format()?, webp: webp.get() };
+    let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format(small)?, webp };
     let Built { mut ir, notes, metrics, engine, picture_dirs, audio_dirs, package } = compile(&opts)?;
     ir.version = Some(version::line());
     // A dry run writes the script but no assets (no WebP, no sound).
@@ -67,7 +72,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         }).collect();
         fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
     }
-    let source = webp_tree(&output, picture_dirs, webp.get(), dry_run, source)?;
+    let source = webp_tree(&output, picture_dirs, webp, dry_run, source)?;
     if !dry_run {
         reencode_audio(&output, audio_dirs, opts.audio)?;
     }
@@ -80,7 +85,8 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
             map.save_with_format(&path, image::ImageFormat::Png).with_context(|| format!("writing {}", path.display()))?;
         }
     }
-    let lost = write_game(&output, &ir, &source, (!dry_run).then_some(&*font), package.as_deref())?;
+    let media = version::media(webp, opts.audio);
+    let lost = write_game(&output, &ir, &source, (!dry_run).then_some(&*font), package.as_deref(), &media)?;
     if !dry_run && !loose {
         pack(&output, output_dirs)?;
     }
@@ -101,7 +107,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
             pct(weighted)
         );
     }
-    let files = if dry_run { dry_run_files(picture_dirs, webp.get().is_some()) } else { dir_files(&output)? };
+    let files = if dry_run { dry_run_files(picture_dirs, webp.is_some()) } else { dir_files(&output)? };
     summary(&output, &ir, lost, notes, Some(Some(&files)))
 }
 
@@ -109,10 +115,11 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
 #[derive(clap::Args, Clone, Copy, Debug)]
 pub struct AudioArgs {
     /// Voices and sound effects as vorbis (the game's own files are kept
-    /// as they are) or opus (re-encoded with ffmpeg, about half the size;
-    /// CONscripter 0.21 or later plays it). Music stays Vorbis
-    #[arg(long, value_enum, default_value_t = Codec::Vorbis)]
-    audio_codec: Codec,
+    /// as they are; the default, but opus with --small) or opus
+    /// (re-encoded with ffmpeg, about half the size; CONscripter 0.21 or
+    /// later plays it). Music stays Vorbis
+    #[arg(long, value_enum)]
+    audio_codec: Option<Codec>,
     /// Their quality: for vorbis ffmpeg's -q:a, -1 to 10 (re-encodes the
     /// game's own files); for opus kbit/s per channel, 6 to 256 (default 32)
     #[arg(long, allow_negative_numbers = true)]
@@ -126,15 +133,18 @@ enum Codec {
 }
 
 impl AudioArgs {
-    pub fn format(&self) -> Result<AudioFormat> {
+    /// `small`: Opus unless --audio-codec says otherwise.
+    pub fn format(&self, small: bool) -> Result<AudioFormat> {
         let codec = match self.audio_codec {
-            Codec::Vorbis => AudioCodec::Vorbis,
-            Codec::Opus => AudioCodec::Opus,
+            Some(Codec::Vorbis) => AudioCodec::Vorbis,
+            Some(Codec::Opus) => AudioCodec::Opus,
+            None if small => AudioCodec::Opus,
+            None => AudioCodec::Vorbis,
         };
         if let Some(q) = self.audio_quality {
             let (low, high) = if codec == AudioCodec::Opus { (6.0, 256.0) } else { (-1.0, 10.0) };
             if !(low..=high).contains(&q) {
-                bail!("--audio-quality {q}: must be from {low} to {high} for {:?}", self.audio_codec);
+                bail!("--audio-quality {q}: must be from {low} to {high} for {codec:?}");
             }
         }
         Ok(AudioFormat { codec, quality: self.audio_quality })
@@ -149,17 +159,20 @@ pub struct WebpArgs {
     /// whose SDL_image has libwebp
     #[arg(long)]
     webp: bool,
-    /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
+    /// With --webp (or --small): lossy WebP at this quality (0-100, as cwebp -q),
     /// smaller than the near-lossless default; transparency stays
     /// lossless
-    #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
+    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100))]
     webp_quality: Option<u8>,
 }
 
 impl WebpArgs {
-    /// None for PNG; with --webp, the lossy quality, if any.
-    pub fn get(&self) -> Option<Option<u8>> {
-        self.webp.then_some(self.webp_quality)
+    /// None for PNG; with --webp (or `small`), the lossy quality, if any.
+    pub fn get(&self, small: bool) -> Result<Option<Option<u8>>> {
+        if !(self.webp || small) && self.webp_quality.is_some() {
+            bail!("--webp-quality needs --webp or --small");
+        }
+        Ok((self.webp || small).then_some(self.webp_quality))
     }
 }
 
@@ -256,12 +269,13 @@ pub fn needs_fallback(font: &[u8]) -> bool {
 
 /// Writes the game into `output`: `0.txt` from `source` (the emitted
 /// script), `system.lua` when the script has Lua, `version.txt` (with
-/// `package`, the source's own version, when known), `ons_args` and, when
+/// `package`, the source's own version, when known, and `media`, the
+/// media flags: [`version::media`]), `ons_args` and, when
 /// given, the font as `default.ttf` (with [`DEFAULT_FONT`] as
 /// `fallback.ttf` when it lacks Japanese: [`needs_fallback`]). Returns
 /// the number of characters the engine can't draw. Fails when a game
 /// variable is one conv-cons keeps for itself ([`conv_cons::clashes`]).
-pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>, package: Option<&str>) -> Result<usize> {
+pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>, package: Option<&str>, media: &str) -> Result<usize> {
     let clashes = conv_cons::clashes(ir);
     if !clashes.is_empty() {
         anyhow::bail!("the game's variables overlap conv-cons' (conv_core::alloc):\n{}", clashes.join("\n"));
@@ -279,7 +293,7 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
         fs::write(output.join(SCREENS).join(name), lua)?;
     }
     if let Some(v) = &ir.version {
-        version::write(output, &ir.title, v, package)?;
+        version::write(output, &ir.title, v, package, media)?;
     }
     fs::write(output.join("ons_args"), conv_cons::engine_args(ir))?;
     if let Some(font) = font {
