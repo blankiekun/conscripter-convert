@@ -3,7 +3,8 @@
 # worktree (out/land-<n>), rebases it on origin/main (conflicts in
 # tests/snapshots/ take main's side), reruns tests/snapshot.sh --update when
 # those conflicted or the PR touches shared code (crates/, engine), pushes
-# with --force-with-lease, waits for the checks and squash-merges.
+# with --force-with-lease, waits for the required checks (rerunning a
+# stale engine-on-master once) and squash-merges.
 #
 #   tests/land.sh [--dry-run] <pr>     --dry-run stops before the push
 #
@@ -54,5 +55,21 @@ if [ $dry = 1 ]; then echo "dry run: rebased at $(git rev-parse --short HEAD), n
 git -c credential.helper= -c credential.helper='!gh auth git-credential' push -q --force-with-lease="$br:origin/$br" origin "HEAD:refs/heads/$br"
 # the checks take a moment to register after a push (minutes when CI is busy)
 for _ in $(seq 80); do gh pr checks "$pr" >/dev/null 2>&1 && break; [ $? = 8 ] && break; sleep 15; done
-gh pr checks "$pr" --watch --interval 30 || { echo "REFUSED: checks failed on #$pr"; exit 1; }
+# only the required checks: the rest still report on the PR. engine-on-master
+# fails when it ran before the engine PR merged; once the pointer is on (or
+# behind) master, a rerun passes, so rerun it once instead of refusing.
+if ! gh pr checks "$pr" --required --watch --interval 30; then
+    failed=$(gh pr checks "$pr" --required --json name,bucket,link --jq '.[] | select(.bucket == "fail" or .bucket == "cancel") | .name + " " + .link')
+    # (one line per workflow run: a push run can report beside the pull_request one)
+    [ -n "$failed" ] && ! grep -qv '^engine-on-master ' <<< "$failed" || { echo "REFUSED: checks failed on #$pr"; exit 1; }
+    sha=$(git ls-tree HEAD engine | awk '{print $3}')
+    status=$(gh api "repos/blankiekun/CONscripter/compare/master...$sha" --jq .status)
+    [ "$status" = identical ] || [ "$status" = behind ] || { echo "REFUSED: engine $sha is $status master: merge its engine PR first"; exit 1; }
+    for run in $(sed -E 's|.*/runs/([0-9]+)/.*|\1|' <<< "$failed" | sort -u); do
+        echo "engine-on-master failed but engine $sha is now $status master: rerunning run $run"
+        gh run rerun "$run" --failed
+    done
+    sleep 20 # until the rerun shows as pending
+    gh pr checks "$pr" --required --watch --interval 30 || { echo "REFUSED: checks failed on #$pr"; exit 1; }
+fi
 gh pr merge "$pr" --squash
