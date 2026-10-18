@@ -459,13 +459,15 @@ over 200, their bullets at once (ours at once both).
       linear; the data uses only 0 and ±1000, where they agree.
    4. `Fade` with four arguments takes the fourth as the tempo, not
       the wait; the six such calls take 0 ms.
-   7. `SetFrequency` on music is noted ×15 though every call
-      (`MusicStart`) sets 1000, no change; `LoadFont` (×67, glyph
-      preloading) is noted as a gap though it draws nothing. Both only
-      inflate the gap count.
 
 ## History
 
+- **Notes that only inflated the gaps** (2026-10-17): `SetFrequency`
+  on music is noted only when it changes the rate (every Django call,
+  `MusicStart`'s, sets 1000; 装甲悪鬼村正's 1,486 notes are 3), and
+  `LoadFont` (`load_font_object` `004308b0`: glyphs pre-rendered into a
+  font object no text names) is converted as nothing. Django's gaps
+  116 → 34, 装甲悪鬼村正's 4,925 → 3,442; no 0.txt changes.
 - **`SetAlias`, one per object** (2026-10-17): the exe (`00432da0`,
   Muramasa.exe `004475b0`) keeps one alias slot per object (+0x100),
   which a new alias overwrites; ours kept the older aliases too. Now a
