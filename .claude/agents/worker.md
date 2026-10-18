@@ -10,3 +10,4 @@ Follow CLAUDE.md's Rules. Never merge PRs. When the job needs a design decision 
 reverse engineering, stop and report it instead.
 Report in at most 10 lines; the detail goes in the PR body.
 Before handing a PR back, rebase it on origin/main and push, so it is mergeable.
+Also follow out/lead-scratch/ENGINE-AGENT-RULES.txt for engine work.

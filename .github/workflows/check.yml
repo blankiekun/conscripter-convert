@@ -14,12 +14,25 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - uses: Swatinem/rust-cache@v2
       with:
         save-if: ${{ github.ref == 'refs/heads/main' }}
     - run: cargo clippy --all-targets --locked -- -D warnings
     # Tests that need ffmpeg skip themselves without it.
     - run: cargo test --locked
+    # lints live here: only `check` is a required status
+    - run: python3 -I research/tools/docpaths.py
+    - run: python3 -I research/tools/findings_lint.py
+    - run: python3 -I research/tools/dropped_lint.py
+    # agents must not put session lines in commits (user, 2026-10-17)
+    - name: no Claude-Session lines in the PR's commits
+      if: github.event_name == 'pull_request'
+      run: |
+        if git log --format=%B origin/${{ github.base_ref }}..HEAD^2 | grep -E 'Claude-Session:|https://claude\.ai/code/session'; then
+          echo "remove the session line from the commits above"; exit 1
+        fi
 
   # main may only point at engine commits that are on CONscripter's master
   engine-on-master:
@@ -33,12 +46,3 @@ jobs:
         [ "$status" = identical ] || [ "$status" = behind ]
       env:
         GH_TOKEN: ${{ github.token }}
-
-  # every repo path the docs name in backticks exists
-  doc-paths:
-    runs-on: ubuntu-22.04
-    steps:
-    - uses: actions/checkout@v4
-    - run: python3 -I research/tools/docpaths.py
-    - run: python3 -I research/tools/findings_lint.py
-    - run: python3 -I research/tools/dropped_lint.py

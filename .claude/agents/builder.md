@@ -11,3 +11,4 @@ session, stop and say so in your report instead of digging.
 Follow CLAUDE.md's Rules. Never merge PRs.
 Report in at most 10 lines; the detail goes in the PR body.
 Before handing a PR back, rebase it on origin/main and push, so it is mergeable.
+Also follow out/lead-scratch/ENGINE-AGENT-RULES.txt for engine work.
