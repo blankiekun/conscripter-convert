@@ -2,11 +2,13 @@
 """Compare a trace of the original game with CONscripter's debug trace.
 
     trace_diff.py ORIG.jsonl OURS.jsonl --map MAP [--pages N] [--fps F]
-                  [--max K] [--self-test]
+                  [--ms] [--thread T] [--max K] [--self-test]
 
 ORIG: the original's trace, "cmd" and "page" records whose "at" is
 "<script>:<instruction>" and whose "f" counts frames (Xuse:
-research/xuse/tracedll/xtrace.sh). OURS: CONscripter's `--trace` of a
+research/xuse/tracedll/xtrace.sh), or, with --ms, whose "ms" times them
+(Nitroplus NSS: research/nitroplus/tracedll/ntrace.sh; --thread 0 keeps
+the story's thread, leaving out the processes that run beside it). OURS: CONscripter's `--trace` of a
 run with `--auto-play N --real-time` (engine/DEBUG.md), "at" =
 "*label:line" of 0.txt. MAP: the converter's `--source-map` for that
 0.txt (`<line>\\t<file>:<instruction>`, "0004.cd" read as script 4).
@@ -64,6 +66,7 @@ def lookup(m, line):
 
 def norm(text, speaker=None):
     text = re.sub(r'[\s　]', '', text or '')
+    text = re.sub(r'\(([^/()]+)/[^/()]+\)', r'\1', text)  # ours: ruby as (base/reading)
     return text[len(speaker):] if speaker and text.startswith(speaker) else text
 
 
@@ -79,10 +82,10 @@ def stretches(recs, page_of):
     return out
 
 
-def orig_side(path, max_pages):
-    recs = [r for r in records(path) if r['t'] in ('cmd', 'page')]
+def orig_side(path, max_pages, clock='f', thread=None):
+    recs = [r for r in records(path) if r['t'] in ('cmd', 'page') and (thread is None or r.get('th') == thread)]
     for a, b in zip(recs, recs[1:]):
-        a['end'] = b['f']  # a command ends when the next record starts
+        a['end'] = b[clock]  # a command ends when the next record starts
     st = stretches(recs, lambda r: True)[:max_pages]
     pages = []
     for page, cmds in st:
@@ -93,7 +96,7 @@ def orig_side(path, max_pages):
         for c in cmds:
             ends[c['at']] = c['end']
         ops = {c['at']: c['op'] for c in cmds}
-        pages.append({'at': page['at'], 'text': norm(''.join(segs), speaker), 'shown': page['f'], 'ends': ends, 'ops': ops, 'pg': page['pg']})
+        pages.append({'at': page['at'], 'text': norm(''.join(segs), speaker), 'shown': page[clock], 'ends': ends, 'ops': ops, 'pg': page['pg']})
     return pages
 
 
@@ -130,8 +133,10 @@ def pair(orig, ours, look=5):
     return out
 
 
-def compare(orig, ours, fps):
+def compare(orig, ours, fps, unit=None):
+    """unit: ms per step of the original's clock (default: a frame)."""
     frame = 1000.0 / fps
+    unit = unit or frame
     pairs = pair(orig, ours)
     visible = {o['ops'][k] for o, p in pairs if o and p for k in o['ops'] if k in p['ends']}
     findings = []
@@ -155,10 +160,11 @@ def compare(orig, ours, fps):
         if not both:
             continue
         for (f0, k0), (f, k) in zip(both, both[1:]):
-            want = (f - f0) * frame
+            want = (f - f0) * unit
             got = p['ends'][k] - p['ends'][k0]
             if abs(got - want) > frame:
-                findings.append((o['pg'], 'time', f"{where}: {k0} to {k} {got:.0f} ms, original {want:.0f} ms ({f - f0} frames)"))
+                steps = f' ({f - f0} frames)' if unit == frame else ''
+                findings.append((o['pg'], 'time', f"{where}: {k0} to {k} {got:.0f} ms, original {want:.0f} ms{steps}"))
     return findings
 
 
@@ -167,6 +173,7 @@ def self_test():
     assert lookup(m, 25) == '4:2' and lookup(m, 31) is None and lookup(m, 5) is None
     assert source_key('0004.cd:19') == '4:19' and source_key('-') is None
     assert norm('　遠く\n　から', None) == '遠くから' and norm('？？「あ」', '？？') == '「あ」'
+    assert norm('(纏/まと)い(元/・)') == '纏い元'
     orig = [{'at': '4:1', 'text': 'a', 'shown': 40, 'ends': {'4:0': 10, '4:9': 20}, 'ops': {'4:0': '0x76', '4:9': '0x01'}, 'pg': 1},
             {'at': '4:5', 'text': 'b', 'shown': 50, 'ends': {}, 'ops': {}, 'pg': 2}]
     ours = [{'at': '4:1', 'text': 'a', 'shown': 1000, 'ends': {'4:0': 0, '4:3': 5}, 'pg': 1, 'line': '*a:1'}]
@@ -178,6 +185,10 @@ def self_test():
     found = compare(orig, ours, 30.0)
     # 4:0 to 4:9: 10 frames (333 ms) against 400 ms; 4:1 is the page: not extra
     assert sorted(k for _, k, _ in found) == ['extra', 'page', 'time'], found
+    # in ms (Nitroplus NSS): 4:0 to 4:9 10 ms against 400 ms
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['extra', 'page', 'time']
+    orig[0]['ends']['4:9'] = 400
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['extra', 'page']
     print('self-test ok')
 
 
@@ -187,7 +198,9 @@ def main():
     ap.add_argument('ours', nargs='?')
     ap.add_argument('--map')
     ap.add_argument('--pages', type=int, default=50, help='compare the first N pages (default 50)')
-    ap.add_argument('--fps', type=float, default=30.1, help="the original's frames a second (Xuse: 30.1)")
+    ap.add_argument('--fps', type=float, default=30.1, help="the original's frames a second (Xuse: 30.1; Nitroplus NSS: 60); the time tolerance is one frame")
+    ap.add_argument('--ms', action='store_true', help="time the original by its \"ms\" (Nitroplus NSS: its waits are timeGetTime waits), not its frames")
+    ap.add_argument('--thread', type=int, help='only the original\'s records of this "th" (Nitroplus NSS: 0, the story; the others are processes)')
     ap.add_argument('--max', type=int, default=20, help='findings shown per kind (default 20)')
     ap.add_argument('--self-test', action='store_true')
     a = ap.parse_args()
@@ -196,7 +209,8 @@ def main():
     if not (a.orig and a.ours and a.map):
         ap.error('ORIG, OURS and --map are needed')
     m = read_map(a.map)
-    findings = compare(orig_side(a.orig, a.pages), ours_side(a.ours, m, a.pages), a.fps)
+    orig = orig_side(a.orig, a.pages, 'ms' if a.ms else 'f', a.thread)
+    findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None)
     shown = {}
     for pg, kind, text in sorted(findings, key=lambda f: f[0]):
         shown[kind] = shown.get(kind, 0) + 1
