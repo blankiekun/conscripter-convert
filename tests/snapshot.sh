@@ -3,7 +3,7 @@
 # 0.txt with tests/snapshots/<game>.txt (sha256 and line count), so a
 # change to shared code shows which games' scripts it changed.
 #
-#   tests/snapshot.sh [--update] [--accept-gaps] [--diff REF] [--map RULES] [game ...]
+#   tests/snapshot.sh [--update] [--accept-gaps] [--no-cache] [--diff REF] [--map RULES] [game ...]
 #
 # Games are found through $CONS_GAMES (default ~/.config/conscripter-convert/games),
 # a folder of links named by game id to each game's folder (<game> in
@@ -57,11 +57,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
 bin=target/release/conscripter-convert
-update=0 accept=0 rose=0 ref= map=()
+update=0 accept=0 rose=0 ref= map=() cache=1
 while [ $# -gt 0 ]; do
     case $1 in
         --update) update=1 ;;
         --accept-gaps) accept=1 ;;
+        --no-cache) cache=0 ;;
         --diff) ref=$2; shift ;;
         --map) if [ -f "$2" ]; then map=(--rules "$2"); else map=(--map "$2"); fi; shift ;;
         *) break ;;
@@ -98,23 +99,80 @@ base_line="\"commit\": \"$(git rev-parse --short "$base")\","
 base_date="\"commit_date\": \"$(git log -1 --format=%cs "$base")\","
 mkdir -p tests/snapshots
 changed=0
+# A dry run is reused when its key (the binary, the arguments, where the
+# game links lead, the engine's command table and this script) matches
+# the one its last good run left in out/snapshot/<game>.key; --no-cache
+# reruns them all. shortcut: an edited game install behind an unchanged
+# link is not seen, rerun with --no-cache after changing one.
+key_of() { # binary, then the dry run's arguments
+    { sha256sum < "$1"; printf '%s\n' "${@:2}"; readlink -f "$game" "$english"
+      cat engine/src/cons/ONScripter_lut.cpp tests/snapshot.sh | sha256sum; } | sha256sum | cut -d' ' -f1
+}
+dry() { # binary, out dir, key, then the arguments
+    [ $cache = 1 ] && [ -d "$2" ] && [ "$(cat "$2.key" 2>/dev/null)" = "$3" ] && return
+    rm -rf "$2" "$2.key" # files from an older run would be hashed
+    # its peak memory (KB) goes in <out>.peak, for the next run's scheduling
+    local time=(); [ -x /usr/bin/time ] && time=(/usr/bin/time -o "$2.peak.new" -f %M)
+    "${time[@]}" "$1" "${@:4}" -o "$2" --dry-run > "$2.log" 2>&1 && echo "$3" > "$2.key" || true
+    [ ! -s "$2.peak.new" ] || mv "$2.peak.new" "$2.peak"
+}
+# Starts a game's job only when MemAvailable, less the peaks of the jobs
+# running, leaves its own last peak (3 GB when unknown) plus 2 GB, and at
+# most $SNAPSHOT_JOBS (2) at once; alone it always starts (bash_guards
+# refuses a run below 6 GiB). Peaks measured 2026-10-18: tsukihime 2.5 GB,
+# muramasa and muramasa-en 1.6 GB each, oretsuba 0.6, the rest under 0.4.
+declare -A running
+start() { # peak (KB), then the command
+    local need=$(( $1 + 2097152 )) used n p avail
+    while :; do
+        used=0 n=0
+        for p in "${!running[@]}"; do
+            if kill -0 "$p" 2>/dev/null; then used=$(( used + running[$p] )) n=$(( n + 1 )); else unset "running[$p]"; fi
+        done
+        avail=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+        [ $n = 0 ] && break
+        [ $n -lt "${SNAPSHOT_JOBS:-2}" ] && [ $(( avail - used )) -ge $need ] && break
+        wait -n || true
+    done
+    "${@:2}" &
+    running[$!]=$1
+}
+# The dry runs run side by side (start); their reports follow in game order.
+declare -A key rkey skip
+job() { # id, then the arguments
+    dry "$bin" "out/snapshot/$1" "${key[$1]}" "${@:2}"
+    [ -z "$ref" ] || dry $refdir/target/release/conscripter-convert "$refdir/out/$1" "${rkey[$1]}" "${@:2}"
+}
+reused=()
+mkdir -p out/snapshot
+[ -z "$ref" ] || mkdir -p $refdir/out
 for id in "${ids[@]}"; do
     [ -n "${row[$id]:-}" ] || { echo "$id: unknown game"; exit 2; }
     IFS=$'\t' read -ra f <<< "${row[$id]}"
     game=$games_dir/${f[1]} english=$games_dir/$id
     if [ ! -e "$game" ] || { [ "${f[1]}" != "$id" ] && [ ! -e "$english" ]; }; then
         [ -e "$game" ] && game=$english
-        echo "$id: skipped (no $game)"
+        skip[$id]="$id: skipped (no $game)"
         continue
     fi
-    out=out/snapshot/$id
-    mkdir -p out/snapshot
     args=()
     for a in "${f[@]:2}"; do
         case $a in "{}") args+=("$game") ;; "{en}") args+=("$english") ;; *) args+=("$a") ;; esac
     done
-    rm -rf "$out" # files from an older run would be hashed
-    if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
+    out=out/snapshot/$id
+    key[$id]=$(key_of "$bin" "${args[@]}")
+    hit=0; [ $cache = 1 ] && [ -d "$out" ] && [ "$(cat "$out.key" 2>/dev/null)" = "${key[$id]}" ] && { hit=1; reused+=("$id"); }
+    [ -z "$ref" ] || rkey[$id]=$(key_of $refdir/target/release/conscripter-convert "${args[@]}")
+    peak=$(cat "$out.peak" 2>/dev/null || echo 3145728)
+    [ -z "$ref" ] && [ $hit = 1 ] && peak=0
+    start "$peak" job "$id" "${args[@]}"
+done
+wait
+[ ${#reused[@]} = 0 ] || echo "dry runs reused (same binary and arguments; --no-cache reruns): ${reused[*]}"
+for id in "${ids[@]}"; do
+    [ -z "${skip[$id]:-}" ] || { echo "${skip[$id]}"; continue; }
+    out=out/snapshot/$id
+    if [ "$(cat "$out.key" 2>/dev/null)" != "${key[$id]}" ]; then
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
     # every command it uses is in the engine's command table (the submodule's)
@@ -130,8 +188,7 @@ for id in "${ids[@]}"; do
     fi
     if [ -n "$ref" ]; then
         rout=$refdir/out/$id
-        mkdir -p $refdir/out
-        if ! $refdir/target/release/conscripter-convert "${args[@]}" -o "$rout" --dry-run > "$rout.log" 2>&1; then
+        if [ "$(cat "$rout.key" 2>/dev/null)" != "${rkey[$id]}" ]; then
             echo "$id: dry run at $ref failed, see $rout.log"; changed=1
         elif python3 -I research/tools/txtdiff.py "$rout/0.txt" "$out/0.txt" "${map[@]}" --hunks 5 --top 10 > "$out.diff"; then
             echo "$id: 0.txt $(cat "$out.diff") (vs $ref)"
