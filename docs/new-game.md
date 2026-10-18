@@ -854,7 +854,9 @@ natively, at every milestone:
   and a closed tab (step 11.5); the screens by touch (step 11.8); the
   picture memory on long routes (the trace's per-page image memory; the
   web build has less to spare). `?trace` in the URL and F7 give the same
-  trace as natively.
+  trace as natively; `engine/tools/web_run.py` makes one headless (the
+  web build in headless Chromium, `docs/tools.md`): run it with
+  `--query 'auto-play=0'` at each milestone and check it as a native one.
 - Note the package's size and file count in the game's document.
 
 ## 13. Finishing
@@ -1010,7 +1012,17 @@ the game keeps its own data in those slots. Keep the game's bar in
 exists. `--roundtrip-every N`
 saves, loads and compares the state every N pages; a `save/load
 mismatch` warning means part of the state (filters, the `pushscreen`
-stack, screen effects, variables) doesn't survive a save.
+stack, screen effects, `spmotion` keys, variables, the Lua state)
+doesn't survive a save. A game whose Lua process changes a global every
+frame shows `lua` differences each time: `--save-ignore '^lua$'` in its
+checker config.
+
+**Frames and drawing order.** `--trace-perf` (a `perf` record per page:
+frames presented, wall-clock ms worked for them, the slowest) finds a
+sprite effect that costs too much, and `--dump-frames` gives every
+frame's times. `--trace-layers` lists, on each `print` or effect, what
+is drawn front to back: check a CG or text window over the right sprites
+by reading it instead of looking at pictures.
 
 **Sound.** `sound` records say when a `chvolfade`/`chpan`/`chfreq` ramp
 got there and when a sound ended, `ms_cpu` marks a command that held the

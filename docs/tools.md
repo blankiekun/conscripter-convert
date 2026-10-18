@@ -39,6 +39,25 @@ bullet you need.
   `Xvfb -displayfd 3 -screen 0 1280x800x24 -nolisten tcp 3>"$T/xvfb.d" & XP=$!;
   until [ -s "$T/xvfb.d" ]; do sleep 0.1; done; export DISPLAY=:$(cat "$T/xvfb.d") WAYLAND_DISPLAY=`
   (`$T` your scratch dir); stop it with `kill $XP`, never `pkill Xvfb` (other agents' displays).
+- What a frame costs: `--trace-perf` adds a `perf` record per page
+  (frames presented, the wall-clock ms worked for them, the slowest
+  frame); `--dump-frames frames.tsv` writes a line per present (game ms,
+  work ms, present ms, page). Measure a sprite effect's cost (`sptrail`,
+  `spfilter`) with these, not a patched engine or an LD_PRELOAD shim.
+  Pages and `end` count their `presents` always.
+- Drawing order: `--trace-layers` writes, on each `print` or effect, what
+  the new screen is drawn from, front to back (`lsp n`, `text`, `window`,
+  ..., `bg`): a sprite behind the text window or a CG, or an `spz` gone
+  wrong, without a picture.
+- Saves: `--roundtrip-every N` also compares `spmotion` keys and the Lua
+  state; a `save data left out` warning (save block from another engine
+  version) is an error for the checker; `meta` gives `save_version`.
+- The web build headless: `python3 -I engine/tools/web_run.py
+  engine/build_web out/<game>-web -o web.jsonl --query
+  'auto-play=200&seed=3'` serves the build and the loose-file game on
+  127.0.0.1 (a free port), plays it in headless Chromium with `?trace`
+  and writes the trace as it comes, until `end` or `crash`. Check it
+  like a native one.
 - Test scripts: UTF-8 with `--enc:utf8` in `ons_args`, as the builds;
   a Shift-JIS one with `iconv -t cp932` (not `sjis`, which turns `\` into
   `＼`) and `--enc:sjis`.
