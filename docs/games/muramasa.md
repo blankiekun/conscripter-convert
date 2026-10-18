@@ -712,13 +712,7 @@ Open, by area (each is small; most noticeable first):
   matter yet: those covers (`CreatePlainEXsub`/`EXadd`, then zoomed to
   1500) aren't drawn at all (`shows_froze`'s shortcut for a blended or
   zoomed cover), so the 空間歪曲 flashes show nothing: drawing them needs
-  blended, zoomed-over-time cover copies (and the wave), a feature; a
-  rain strip keeps the cut made where it stood: mc04_022vs's
-  `MoveFFP1("@絵効果線")` jitters it ±10 px (a looped `spmotion`) while
-  the exe's veil stays on the screen (`00418320` reads the mask at the
-  screen pixel); `slide_01_03_0`'s hard steps make a 10 px shift differ
-  by up to 255 on 80,000 pixels, but only a screen-anchored live mask in
-  the engine (none: `spcut` cuts once) would fix it; 565 calls start from
+  blended, zoomed-over-time cover copies (and the wave), a feature; 565 calls start from
   another opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
   under them, a zoom about a vertex, a `Plain` cover under a stencil, a
   colour mask exact only for alpha blend; 25 `CreateTexture`s from an
@@ -1318,9 +1312,8 @@ Next, in order:
      fade-out's threshold falls, so the picture leaves the bright parts
      first. Full sweeps (0 → 1000, 1000 → 0: 2,073 calls) are drawn so with
      CONscripter's `effectsoft` (engine #138). A partial one (367 calls) now
-     leaves its picture cut by the table ("History", "Partial
-     `DrawTransition`"), a rain strip each cell where it is drawn, zoomed
-     and turned; its sweep is still a plain mask print, and one on a
+     leaves its picture drawn through the table, laid on the screen
+     (`spmask`, "History", "Veils laid on the screen"); its sweep is still a plain mask print, and one on a
      `Plain` cover is drawn unmasked (noted). 565 calls start from another
      opacity than shown (noted). A mask cg.npa lacks (ma04_018vs/020vs's
      `slide_01_02_2.png`, `cg/data/7.png`, an unset `$Transition`): the
@@ -1581,6 +1574,30 @@ moving picture, it no longer stretches the sync's cross-fade to
 wherever a new picture moves (about 1,360 `spmotion`s, fewer layer
 changes and cross-fades; 続・殺戮のジャンゴ about 200, the English release
 the same as this game).
+
+### Veils laid on the screen (2026-10-18)
+
+A partial `DrawTransition`'s veil is read by the exe's draw (`00418320`)
+at the screen pixel, so it stays put while the picture moves:
+mc04_022vs's `MoveFFP1("@絵効果線")` jitters its rain strip ±10 px (a
+looped `spmotion`) under the veil. The picture was cut once where it
+stood, so the cut moved with it. CONscripter's new `spmask num,"mask"`
+(engine PR #153) draws a sprite times a mask fixed on the screen,
+applied after the sprite is drawn (whatever its motion, zoom, turn,
+wave or blend). The converter now gives every veiled picture (images
+and strips) `spmask` with its `system/veil_*.png` in place of a cut
+picture (`Shown::mask`, `Op::SpriteMask`). A veil that comes or goes is
+placed again, never done by a motion, so its sweep stays a mask print
+(`motion`). Stencils (`CreateStencil`/`CreateMask`) are still cuts.
+Checked in an engine frame of mc04_022vs's strip (zoomed 2×4, turned,
+moved (0, −10)) over its veil: the frame equals `bg + (strip − bg) ×
+veil` at the screen pixel within 1 on all 16,856 lit pixels; the cut
+moved with the strip differs on 2,661 pixels (max 58). Snapshots:
+Muramasa and EN change (about 1,450 hunks: `lsp` of the uncut picture plus
+`spmask` in place of `stencil_*` cuts (669); the layers get `csp` when
+they are freed; a fade that changed nothing on a cut picture is gone; a
+`DrawTransition` from one veil to another on the energy gauge is now a
+mask print, where it was instant); Django's script doesn't change.
 
 ### Partial `DrawTransition` (2026-10-17)
 

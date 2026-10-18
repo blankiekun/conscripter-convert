@@ -1471,7 +1471,8 @@ fn left_out(reasons: &[String]) -> Option<&'static str> {
 /// times the sprite's, which must first be set to the larger of the two
 /// ([`fade_base`]).
 fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
-    if old.layer != now.layer || old.source != now.source {
+    // (A veil that comes or goes is a sweep through its mask, a print.)
+    if old.layer != now.layer || old.source != now.source || old.mask != now.mask {
         return None;
     }
     // A movie (one cell, the same file or frame) keeps playing as it moves:
