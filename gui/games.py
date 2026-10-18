@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -552,6 +553,29 @@ def detect(folder: Path | str) -> list[Detection]:
     found = _detect_in(_candidates(folder)) or _detect_in(list(folder.absolute().parents)[:2])
     found.sort(key=lambda d: bool(d.problems))  # buildable ones first
     return found
+
+
+def steam_libraries(steam_roots=None) -> list[Path]:
+    """Every Steam library's `steamapps/common` (steamapps/libraryfolders.vdf
+    lists the libraries by "path", as 07th-Mod's gameScanner.py reads it)."""
+    home = Path.home()
+    roots = steam_roots if steam_roots is not None else [
+        home / ".steam/steam", home / ".local/share/Steam", home / "Library/Application Support/Steam",
+        *(Path(os.environ[v]) / "Steam" for v in ("ProgramFiles(x86)", "ProgramFiles") if v in os.environ)]
+    libs: list[Path] = []
+    for root in roots:
+        raw = _read(root / "steamapps/libraryfolders.vdf")
+        paths = re.findall(r'"path"\s+"([^"]+)"', raw.decode("utf-8", "replace")) if raw else []
+        for lib in [root, *(Path(p.replace("\\\\", "\\")) for p in paths)]:
+            common = lib / "steamapps/common"
+            if common.is_dir() and common not in libs:
+                libs.append(common)
+    return libs
+
+
+def detect_steam(steam_roots=None) -> list[Detection]:
+    """Supported games installed in any Steam library."""
+    return [d for lib in steam_libraries(steam_roots) for d in _detect_in(_candidates(lib, 1))]
 
 
 def default_output(detection: Detection) -> Path:

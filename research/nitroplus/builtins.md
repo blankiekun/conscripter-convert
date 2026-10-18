@@ -384,6 +384,12 @@ as tempos and shade levels are matched by the **sum of their bytes**,
 case-sensitively (`NULL` = 315 = `off`); a wrong-case spelling falls to
 the default. `Request` actions are compared letter by letter.
 
+NitroSharp's `Animation.cs` (`src/NitroSharp.Rebuild/`, branch `rebuild`)
+agrees with this table: its `Quadratic/Cubic/QuarticEaseIn` are t^2..t^4,
+the `EaseOut` ones 1-(1-t)^n, `SineEaseIn` 1-cos(pi t/2), `SineEaseOut`
+sin(pi t/2), `SineEaseInOut` (1-cos(pi t))/2, `SineEaseOutIn`
+acos(1-2t)/pi (checked 2026-10-18).
+
 **Wait**, the last argument of every timed call: `true` (or `1`) blocks
 for the call's duration, `false`/`null` returns at once and the action
 keeps running. Any other number blocks that many ms (`Fade(x, 2000, 0,

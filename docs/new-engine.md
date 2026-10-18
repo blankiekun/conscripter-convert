@@ -6,6 +6,14 @@ engines share (`xuse/`, `nitroplus/`, `mages/` in
 `crates/conv-engines/src/`); a game's own rules go in a module of their
 own (`nitroplus/convert/muramasa.rs`).
 
+0. **First contact**: before writing a reader, look the format up in the
+   catalogues of other extractors (references only, not dependencies):
+   [GARbro](https://github.com/crskycode/GARbro) `ArcFormats/` (archives,
+   images, per-game key schemes),
+   [arc_unpacker](https://github.com/vn-tools/arc_unpacker) `src/dec/`
+   (archived 2022) and [vgmstream](https://github.com/vgmstream/vgmstream)
+   `doc/FORMATS.md` (audio, with loop points; `vgmstream-cli -m` is a
+   second decoder to check ours against).
 1. **Module**: `crates/conv-engines/src/<engine>/mod.rs`, one file per
    format (archives, scripts), `convert.rs` (lowering to the IR),
    `assets.rs` (an asset source behind a trait, as Nitroplus' and
