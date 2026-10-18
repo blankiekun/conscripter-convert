@@ -10,6 +10,13 @@
 # trace's lines are the shipped scripts' lines.
 #
 #   ntrace.sh -o trace.jsonl [--pages N] [--seconds S] [--shot NAME.png]
+#             [--shots DIR [--shot-delay MS] [--cap-mb MB]]
+#
+# --shots: at each text block, MS of game time (default 1000) after it
+# starts, the game's window is saved as DIR/<pg>.webp, lossless (pg: the
+# block's first page), for research/tools/picdiff.py; the game is not
+# held while it is taken (a block that starts before the last shot is
+# taken gets none). None once DIR passes --cap-mb (default 200).
 #
 # SPEED=N runs the game N times as fast (its clock and waits scaled by
 # research/tools/trace_speed.h; "ms" stays in game time, so the trace
@@ -35,10 +42,11 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${NTRACE_HOME:-$repo/out/ntrace}
-OUT= PAGES=60 SECS=900 SHOT=
+OUT= PAGES=60 SECS=900 SHOT= SHOTS= DELAY=1000 CAP=200
 while [ $# -gt 0 ]; do case $1 in
   -o) OUT=$2; shift 2;; --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;;
-  --shot) SHOT=$2; shift 2;; *) sed -n '2,17p' "$0"; exit 2;; esac; done
+  --shot) SHOT=$2; shift 2;; --shots) SHOTS=$(realpath -m "$2"); shift 2;; --shot-delay) DELAY=$2; shift 2;;
+  --cap-mb) CAP=$2; shift 2;; *) sed -n '2,24p' "$0"; exit 2;; esac; done
 EXE_NAME=Muramasa.exe; [ -f "$GAME/Django.exe" ] && EXE_NAME=Django.exe
 [ -n "$OUT" ] && [ -f "$GAME/$EXE_NAME" ] || { echo "need -o and GAME=<folder of Muramasa.exe or Django.exe>" >&2; exit 2; }
 [ $EXE_NAME = Muramasa.exe ] || [ -f "$EXE" ] || { echo "Django: need EXE=<the unpacked 1.01 Django.exe>" >&2; exit 2; }
@@ -123,7 +131,8 @@ for f in "$GAME"/*; do ln -s "$f" "$M/"; done
 ln -sfn "$H/nss.npa" "$M/nss.npa"
 [ $EXE_NAME = Django.exe ] && { rm "$M/Django.exe"; cp "$EXE" "$M/Django.exe"; }
 cp "$H/build/ntrace.dll" "$H/build/xlaunch.exe" "$C/ntrace/"
-rm -f "$C/ntrace/trace.jsonl" "$H/clicks.log"
+rm -f "$C/ntrace/trace.jsonl" "$H/clicks.log" "$C/ntrace/shot.req"
+[ -n "$SHOTS" ] && { mkdir -p "$SHOTS"; rm -f "$SHOTS"/*.webp; export NTRACE_SHOT_REQ='C:\ntrace\shot.req'; }
 
 # wine's explorer may hand the game on and exit; shortcut: another prefix's
 # Django.exe counts too (a run then lasts --seconds)
@@ -143,6 +152,21 @@ if [ $EXE_NAME = Django.exe ]; then
 else
   wine 'C:\ntrace\xlaunch.exe' 'C:\game\Muramasa.exe' 'C:\ntrace\ntrace.dll' > "$H/wine.log" 2>&1 &
   wpid=$!
+fi
+if [ -n "$SHOTS" ]; then  # the shots the DLL asks for (ntrace.c, NTRACE_SHOT_REQ)
+  (REQ=$C/ntrace/shot.req wait=$(awk "BEGIN{print $DELAY/1000/${SPEED:-1}}")
+   while alive; do
+     [ -f "$REQ" ] || { sleep 0.02; continue; }
+     n=$(cat "$REQ"); n=${n//[^0-9]/}; sleep "$wait"
+     # the game's window: the biggest one shown (no window manager, no frame)
+     wid=$(for w in $(xdotool search --onlyvisible --name . 2>/dev/null); do
+             eval "$(xdotool getwindowgeometry --shell "$w")"; echo "$((WIDTH * HEIGHT)) $w"; done | sort -n | tail -1 | cut -d' ' -f2)
+     if [ $(du -sm "$SHOTS" | cut -f1) -ge $CAP ]; then echo "$n skipped: over $CAP MB" >> "$SHOTS/shots.log"
+     elif [ -n "$n" ] && [ -n "$wid" ] && import -window "$wid" "$H/shot.miff" 2>/dev/null; then
+       magick "$H/shot.miff" -define webp:lossless=true "$SHOTS/$n.webp"; echo "$n saved" >> "$SHOTS/shots.log"
+     fi
+     rm -f "$REQ"
+   done) &
 fi
 end=$((SECONDS + SECS))
 while alive && [ $SECONDS -lt $end ]; do sleep 1; done

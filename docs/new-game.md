@@ -551,6 +551,38 @@ rather than by browsing:
     So a whole route of 装甲悪鬼村正 (23k pages) is about 3 h of
     original trace at `SPEED=8`, against 20 h at 1x. Skip mode (the
     original's own, text and order only) wasn't needed.
+
+    **Picture diff** (2026-10-18): the same pages' frames, as numbers.
+    The original's: `ntrace.sh --shots <dir> [--shot-delay MS]` saves
+    the game window as lossless WebP `MS` of game time (default 1000)
+    after each text block starts, as `<dir>/<pg>.webp` (pg: the block's
+    first page; ntrace logs a block's pages all at its start, so one
+    frame per block, not per page). Ours: the engine's `--trace
+    --auto-play N --shot-every 1 --shot-dir <dir>` (about 0.9 MB a
+    page: keep N small, or `--shot-pages`). Then
+    `research/tools/picdiff.py orig.jsonl <orig dir> ours.jsonl <our
+    dir> --map <source map> --ms --thread 0 --mask WxH+X+Y` pairs the
+    pages as `trace_diff.py` does, paints the `--mask` boxes black in
+    both (the text window and our own UI, which differ on purpose) and
+    prints per page the differing pixels (AE: a channel off by more
+    than `--fuzz`, default 2 %; lossless shots of one picture give 0),
+    their percent, RMSE and the box they lie in (one text window wide:
+    the window sits elsewhere; the whole frame: the picture), worst
+    first, with ORIG | OURS | differing-in-red views of the `--top` 5.
+    Lossy WebP (fc.sh's default, q80) needs `--fuzz 15`: our own frames
+    re-encoded at q80 have 4 % of pixels off by over 6 %, 0.2 % over
+    15 %. Limits: the original's frame is a fixed time into the block,
+    ours the page's click wait with effects cut short by auto-play, so
+    a pan or cut-in still moving differs by timing; a second run with
+    another `--shot-delay` tells (a difference at both is real).
+    装甲悪鬼村正, first 80 pages (`SPEED=4`, 2 min, 14 MB of shots; ours
+    100 pages, 86 MB), mask `130x576+447+0` (the vertical text window):
+    24 pages compared, 13 identical (AE 0); 3 differ only in a
+    text-window-wide box outside the mask (55, 56, 79: the original's
+    window at x 191 or 703); 8 over the whole frame, the same with a
+    1 s and a 4 s delay: page 3 (the forest pan ends elsewhere), 62,
+    64, 76-78 (another cut-in layout), 57 and 66 (ours uniformly
+    2.5/255 brighter).
 24. **Which branches the original runs** (marks for the findings table,
     step 16). The trace DLL (step 22) also arms one-shot breakpoints:
     an `int3` on every code address of `names.tsv` and of the findings

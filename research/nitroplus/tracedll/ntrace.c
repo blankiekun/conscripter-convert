@@ -35,6 +35,10 @@
  *   NTRACE_PAGES  exit the game after this many pages (0: never)
  *   TRACE_SPEED   N: the game runs N times as fast, "ms" in its time
  *                 (research/tools/trace_speed.h)
+ *   NTRACE_SHOT_REQ  Windows path of a request file: at each text block the
+ *                 DLL writes its first page's number into it (unless one is
+ *                 still pending) and goes on; ntrace.sh --shots takes the
+ *                 screen a moment later and deletes it (research/tools/picdiff.py)
  */
 #include <windows.h>
 #include <stdio.h>
@@ -60,6 +64,7 @@ static int file_base = 0x1130, file_size = 0x158, file_idx = 0x20, file_text = 0
 
 static FILE *out;
 static long pages, max_pages;
+static char shot_req[MAX_PATH];
 static CRITICAL_SECTION lock;
 static DWORD threads[64];
 static unsigned char *frames_seen[256], *last_pos[256];
@@ -196,6 +201,7 @@ static void page_record(unsigned char *rec, const unsigned char *at, const unsig
 static void log_pages(unsigned char *rec, const unsigned char *at, unsigned char *start, unsigned char *end) {
     static unsigned char page[65536];
     int n = 0, code = 0;
+    long first = pages + 1;
     for (unsigned char *l = start; start && l < end && end - start < 60000;) {
         unsigned char *e = l;
         while (e < end && *e != '\n') e++;
@@ -231,6 +237,10 @@ static void log_pages(unsigned char *rec, const unsigned char *at, unsigned char
     }
     if (n) page_record(rec, at, page, n);
     fflush(out);
+    if (*shot_req && pages >= first && GetFileAttributesA(shot_req) == INVALID_FILE_ATTRIBUTES) {
+        FILE *f = fopen(shot_req, "w");
+        if (f) fprintf(f, "%ld\n", first), fclose(f);
+    }
     if (max_pages && pages >= max_pages) TerminateProcess(GetCurrentProcess(), 0);
 }
 
@@ -431,6 +441,7 @@ static void install(void) {
     if (!out) return;
     InitializeCriticalSection(&lock);
     if ((p = getenv("NTRACE_PAGES"))) max_pages = atol(p);
+    if ((p = getenv("NTRACE_SHOT_REQ"))) lstrcpynA(shot_req, p, sizeof shot_req);
     int django = !memcmp((void *)D_AFTER_LAYOUT, "\x83\xc4\x1c\x85\xc0", 5) && *(unsigned char *)D_CALL_DISPATCH == 0xe8 &&
                  *(unsigned char *)D_CALL_ENTER1 == 0xe8 && *(unsigned char *)D_CALL_ENTER2 == 0xe8;
     fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"%s (ntrace)\",\"max_pages\":%ld,\"speed\":%ld}\n",
