@@ -439,9 +439,98 @@ source build of Vita3K): **the first 50 pages diff clean** (below).
   `show-welcome: false`, `check-for-updates-mode: 0`,
   `discord-rich-presence: false`.
 
-## Status: the whole story plays (2026-10-15)
+## Status: the whole story plays (2026-10-18)
 
-### Queue (2026-10-16)
+Open state only; the per-feature write-ups and the earlier queue are in
+"History", "Status as it stood before the 2026-10-18 prune".
+
+**Works:** all 463 scenes convert (no task left as a comment); the full
+build lints clean and the route check reaches all eight endings and the
+four after-stories. Messages, voices, sprites, characters and their
+motions, transitions, effects, movies, title and START's story menu,
+button bar, save/load, backlog, settings (the Vita's look and
+defaults), the CG gallery, music room and movie room, boot logos. Web
+build tested headless. Output 960×544.
+
+**Open:**
+- Looks against the original (needs Vita frames; Vita3K is shaky, so
+  timebox it and prefer the decompile and our traces): text window
+  size and place, character heights (where the eboot anchors them:
+  `:Center` default 0,-1, where `OffsetY` comes in untraced), the eye
+  catch's speed, the wave transition's size, the particles' motion,
+  the skip dialog's and text's font sizes, CONFIG's lit cells (ours cut
+  1-3 pixels short of the eboot's 90/180-wide cells at 0x8107145c).
+  First 50-page trace diff against Vita3K (S01_01, S01_01A) showed only
+  loading frames; longer runs (a scene at a time, by keys) are next if
+  wanted.
+- A missing `:Position` with no picture to replace: the eboot puts
+  Sprite at (640, 560) and SpriteBG at (640 - w/2, 360 - h/2); ours
+  centres it (no script relies on it). The characters' has-a-place
+  flag (+0x44 in CharacterOpen's record) has no reader traced.
+- Unknown in the eboot (`docs/games/oretsuba.findings.tsv`: 88 rows,
+  6 unknown): SpriteMove `:Scale -2` (S01_05B; ours clamps to 0; does a
+  negative scale mirror?), keys with no value (6; inferred 0), the
+  voice ducking's level and ramp (ours 50 %, 200/400 ms), where `Tag`
+  and `End` are handled, SpriteQuake's `:Param` layout, whether the
+  shake's `:Param` 0, 1 are pixels, EffectStart's variant code
+  (`:EffectNumber` argument 1, always 0). Not yet checked against the
+  eboot: `chract`'s per-key `:Priority`/easing and the `.txt` tables
+  (`adv.txt`, `chr*.txt`, `CGMODE`).
+- Not converted: the Vita's save-data check at boot; OP00 replayed from
+  the title (probably an idle timeout); `:Image 0,-1`'s colour panels;
+  the particles' real motion; `spgrab` (engine #32, merged) could let
+  SpriteBG/SpriteBS with `:FadeWait 0` (890 uses, which still wait for
+  their fade) cross-fade without waiting; not used yet.
+- A build from before #227 plays InOut_Act 3 and 1 as cross-fades
+  (the plugins retired, engine #72): rebuild.
+- Script errors the eboot can't read either (we convert or skip): five
+  tasks with a missing or misplaced `[TaskN]` header (S01_04L, S03_03J2,
+  S03C_03C twice, S04_03D), a SeStop inside S01_02A's EyeCatch (missing
+  `}`), S03_06E2's task with two `:Tasktype`s (we take the first).
+
+**Next:** the user picks fixes from "Arguments not read" (the table below). The dry
+run gives 2,783 notes of 80 kinds (`convert.rs`'s `NOT_NEEDED` lists the
+harmless ones, with reasons; every argument the converter never reads
+is a note "<Task> [<sub-block>] :<Key> [argument <i>] ignored"). The
+ones that still lose something:
+
+| Task | Argument | Uses | What is lost |
+|---|---|---|---|
+| SpriteMove | `:Roll` | 12 | dropped: turns (radians, kept after the move: S02_03F, S03_02A). The turn goes to the GPU (0x8103d53c): direction and centre untraced; `spzoom`'s angle could carry it |
+| SpriteMove, SpriteQuake | every argument | 8, 16 | dropped: the picture they name isn't up by our tracking (removed too early?) |
+| SceneJumpDialogEnd | `:Fade` | 531 | dropped: the eboot keeps the skip dialog up after the click (task 0x85 fades it out over `:Fade` frames, default 18, 0x8112a490), so the tasks between happen under it; ours fades on the click. On the skip path it stays through NextScene (382 of 894 paths); before 22 choices no End comes: untraced |
+| EffectStart | `:Priority`; `:EffectNumber` 1; `:Param` past those read | 208; 208; up to 202 | dropped: where the effect sits among the pictures; the particles' motion |
+| InOut_Act | `:Param` 1 (2, 3 once) | 72 | dropped for the `:Type`s that read only `:Param` 0 (which not yet checked) |
+| Window | `:Time` with `:Visible 1` | 2 | dropped: the window fades in over it (ours at the next message) |
+| SpriteBG | `:SpriteDelete` (with pictures an earlier scene left) | 8 | dropped |
+| EyeCatch, EyeCatchEnd, MovieStop, MoviePlay | `:Color`, `:Fade`, `:EndWait` | 7 each | dropped with `:Image 0,-1`'s panels and the movies under the script |
+| CharacterMove, CharacterAction | `[CharaN]` `:Priority` | 7, 1 | dropped |
+| CharacterOpen | `[CharaN]` `:FadeWait` | 6 | dropped |
+| CharacterActionEnd | `:Copy`; `:Number` (read before `:Character`) | 5; 1 | dropped: stops the character without the copy |
+| EffectEnd | `:Delete` | 7 | dropped |
+| others | | 1-3 each | CharacterAction `:EndWait` on a loop; repeated keys; FlagOperation `:CGFlag`; CharacterOpenBS `:Fade 30`; EffectQuakeEnd `:Fade 1`; EffectQuake `:Texture` |
+
+**Commands.**
+
+    conscripter-convert mages check <game>
+    conscripter-convert mages convert <game> -o out/oretsuba-cons [--scenes S01_01A] [--webp] [--dry-run]
+    conscripter-convert mages convert <game> -o out/oretsuba-web --loose   # web build, see History
+
+Full build about 4 minutes, 1.7 GB `arc.nsa`. Debug trace of a build and
+the steered route runs (`research/oretsuba/routes.py`, run with a
+renamed engine copy; `--only 9,10,11,12` the after-stories): recipes in
+"History", "Checking a build with the debug trace" and "Steered route
+runs" (`engine/tools/cons_trace_check.py t.jsonl --script 0.txt
+--config research/oretsuba/cons_trace_check.json`).
+
+## History
+
+Finished work, moved out of "Status" so a session reads only the open
+state.
+
+### Status as it stood before the 2026-10-18 prune
+
+#### Queue (2026-10-16)
 
 - Merged: InOut_Act 3 (flip) and 1 (wave) as warp maps (`cons_warp.dll`, #227, engine #67/#69; maps in `warp/`); 6 (blur) stays `cons_blur`. Open: the plugins retired (engine #72): a build from before #227 plays them as cross-fades until rebuilt.
 - Merged: the chapter card's names (#48). Open: motions and fades as
@@ -460,7 +549,7 @@ source build of Vita3K): **the first 50 pages diff clean** (below).
   `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
   the picture under the copy, fade the copy out. Not used yet.
 
-### Accuracy (value audit, 2026-10-17)
+#### Accuracy (value audit, 2026-10-17)
 
 Every hand-typed value in `crates/conv-engines/src/mages/` carries a
 `// src:` (eboot address or measured SystemData picture), `// ours` or
@@ -756,10 +845,6 @@ Next, in order:
    `:Param` 0, 1 are pixels, as ours takes them), EffectStart's variant
    code.
 
-## History
-
-Finished work, moved out of "Status" so a session reads only the open
-state.
 
 **The boot (2026-10-18).** The eboot's boot (scene 7 then 1, 0x8103a7b0):
 the logos `media/img/logo/` makerlogo_WH_vita (MAGES.), brandlogo_5pb_vita,
