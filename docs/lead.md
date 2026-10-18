@@ -21,3 +21,4 @@
   same focus twice in a week (check `out/lead-scratch/ideas/`). Its list
   lands in `out/lead-scratch/ideas/`; give the user the top 3 with your
   opinion and queue only what they approve.
+- **A new game**: `docs/lead-new-game.md` (ask the user's plan first).

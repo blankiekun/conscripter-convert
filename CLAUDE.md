@@ -13,7 +13,7 @@ build.
 | Full Metal Daemon Muramasa, English (starting) | Nitroplus Diesel (NPK3, Squirrel) | `muramasa-en/`, `../conscripter-convert-muramasa-en` | `docs/games/muramasa-en.md` |
 | 月姫 -A piece of blue glass moon-, Switch (in progress) | TYPE-MOON (mrgd00/MZP archives, as in the 魔法使いの夜 remake) | `tsukihime/`, `../conscripter-convert-tsukihime` | `docs/games/tsukihime.md` |
 
-**Starting a new game? Read `docs/new-game.md` first** (and
+**Starting a new game? Read `docs/new-game.md` first** (a lead: `docs/lead-new-game.md`) (and
 `docs/new-engine.md` for a new engine).
 
 Read first, in order: the game's document (its "Status" section holds
