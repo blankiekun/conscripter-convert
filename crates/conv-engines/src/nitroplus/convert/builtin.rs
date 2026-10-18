@@ -317,6 +317,12 @@ impl Compiler<'_, '_> {
                     return Value::Null;
                 }
                 let mut window_only = !targets.is_empty();
+                // src: cb_Fade 0044f020 (Django.exe cb_00438fb0): an object whose
+                // opacity byte the fade leaves as it is (a new one's is 255,
+                // FUN_00488740) starts no action, so a fade on only such objects
+                // neither waits nor adds to the next sync.
+                let byte = |o: i64| (o as f64 * 0.255).round_ties_even() as i64;
+                let mut moving = false;
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
                     window_only &= o.hideable;
@@ -341,14 +347,21 @@ impl Compiler<'_, '_> {
                     if o.opacity == 0 {
                         self.fade_from_zero.insert(t.clone());
                     }
+                    let was = o.opacity;
                     o.opacity = to.position(o.opacity, 0, 0).clamp(0, 1000);
+                    // (Or one still under way: a `DrawTransition` unsynced.)
+                    moving |= byte(was) != byte(o.opacity) || self.pending_fade.contains_key(t) || self.pending_by.contains_key(t);
                 }
                 if ms <= 0 {
                     // src: Muramasa.exe cb_Fade 0044f020: time 0 sets the opacity at
                     // once, the tempo unused (Django.exe cb_00438fb0 the same).
                     arg(3);
                 }
-                if !window_only {
+                // (An object left out, `untracked`, waits as before.)
+                let still = ms > 0 && !targets.is_empty() && !moving;
+                if still && !window_only {
+                    arg(3); // (its tempo, unused)
+                } else if !window_only {
                     if ms > 0 {
                         for t in &targets {
                             self.pending_fade.insert(t.clone(), ms as u32);
