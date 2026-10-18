@@ -193,9 +193,10 @@ pub(crate) fn lua_file(e: &PictureExtras, border: u32) -> String {
     let values: Vec<usize> = e.items.iter().map(|item| clickable(e).find(|(_, c)| std::ptr::eq(*c, item)).map_or(0, |(n, _)| n)).collect();
     for (item, n) in e.items.iter().zip(values) {
         let b = &item.button;
-        // Locked: faint and not a button; a mode the script lacks: not a button.
+        // Locked, or a mode the script lacks (a build without the movies): faint and not a
+        // button, so it doesn't look like one that does nothing.
         let state = match (n, item.unlocked_by) {
-            (0, _) => ", enabled=false".to_string(),
+            (0, _) => format!(", enabled=false, alpha={}", item.locked_alpha),
             (_, Some(v)) => {
                 let v = lua(&var_name(v, border));
                 format!(", enabled=var({v}) ~= 0, alpha=var({v}) ~= 0 and 255 or {}", item.locked_alpha)
@@ -246,8 +247,8 @@ mod tests {
         for part in [
             "cancel = {\"close\", 0, hold=true},\n  fade = 500,",
             "{\"image\", file=\"sys/menu.jpg\", opaque=true, x=0, y=0},",
-            // No gallery or sound room in this script: drawn, not buttons.
-            "cells=3, pressed=2, enabled=false, action={\"close\", 0, hold=true}}",
+            // No gallery or sound room in this script: drawn faint, not buttons.
+            "cells=3, pressed=2, enabled=false, alpha=51, action={\"close\", 0, hold=true}}",
             // Back is the only mode here: value 1.
             "cells=3, pressed=2, action={\"close\", 1, hold=true}}",
         ] {
