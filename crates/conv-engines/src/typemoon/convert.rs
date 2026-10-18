@@ -1582,20 +1582,19 @@ mod tests {
         (name.into(), Picture { name: name.into(), width: w, height: h, centre: (w / 2.0, h / 2.0), flags: 0, expression: false, shot: 0, pose_value: 0 })
     }
 
+    fn scripts(src: &str) -> Vec<(String, Vec<Command<'_>>)> {
+        vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())]
+    }
+
+    /// A game with one script and nothing else; tests override fields with `..game(src)`.
+    fn game(src: &str) -> Game<'_> {
+        Game { scripts: scripts(src), scenes: vec![], lines: vec![], pictures: HashMap::new(), textures: HashMap::new(), sounds: vec![], waves: HashMap::new(), pic_ext: "webp", motions: vec![] }
+    }
+
     #[test]
     fn layers_are_drawn_in_priority_order() {
         let src = "_STCH(1,a,240,136);_STCH(2,b,240,136);_FADS(1,0,0);_STCP(1,50);_FADS(1,0,0);_STCP(2,0);_FADS(1,0,0);";
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [picture("a", 10.0, 10.0), picture("b", 10.0, 10.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [picture("a", 10.0, 10.0), picture("b", 10.0, 10.0)].into(), ..game(src) };
         // Each IR layer as it is drawn or cleared, in order.
         let drawn: Vec<(u32, Option<String>)> = compile(&g)
             .ops
@@ -1614,21 +1613,15 @@ mod tests {
     fn stz4_zooms_the_staged_picture() {
         let src = "_STCH(1,img1,240,136);_STZ4(1,1000,1000,2000,-500,0,0,0);_FADS(1,0,0);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0)].into(),
             textures: [("img1".into(), (2560, 1440))].into(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let ops = compile(&g).ops;
         assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (100, -25) }), "{ops:?}");
         // Argument 7 keeps the zoom from the draw; static ones read every argument.
         let src = "_STCH(1,img1,240,136);_STZ4(1,1000,1000,2000,-500,0,0,1);_FADS(1,0,0);";
-        let g = Game { scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())], ..g };
+        let g = Game { scripts: scripts(src), ..g };
         let c = compile(&g);
         assert!(c.ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (50, 50) }), "{:?}", c.ops);
         assert!(!c.metrics.reasons().keys().any(|r| r.contains("_STZ4")), "{:?}", c.metrics.reasons());
@@ -1637,17 +1630,7 @@ mod tests {
     #[test]
     fn stgs_fades_from_the_next_fads() {
         let src = "_STCH(1,img1,240,136,1000,0);_STGS(1,,255,1000,0);_FADS(1,0,0);_FADS(1,0,0);";
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [picture("img1", 1280.0, 724.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [picture("img1", 1280.0, 724.0)].into(), ..game(src) };
         let ops = compile(&g).ops;
         let motions: Vec<_> = ops.iter().filter(|o| matches!(o, Op::SpriteMotion2 { .. })).collect();
         assert_eq!(motions.len(), 1, "{ops:?}");
@@ -1656,7 +1639,7 @@ mod tests {
         assert!(!ops.iter().any(|o| matches!(o, Op::SpriteOpacity { .. })), "{ops:?}");
         // easing 35 (back out)
         let src = "_STCH(1,img1,240,136,1000,0);_STGS(1,,255,1000,35);_FADS(1,0,0);";
-        let g = Game { scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())], ..g };
+        let g = Game { scripts: scripts(src), ..g };
         let ops = compile(&g).ops;
         let Some(Op::SpriteMotion2 { keys, .. }) = ops.iter().find(|o| matches!(o, Op::SpriteMotion2 { .. })) else { panic!("{ops:?}") };
         assert_eq!(keys[1].ease, Some((23, 0)));
@@ -1680,21 +1663,15 @@ mod tests {
         let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x0A, 136), (0x0C, 255)]), key(500, &[(0x0A, 146), (0x0C, 0), (0x18, 2000), (0x1A, 2000)])], loop_from: 0 };
         let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
             motions: vec![motion],
+            ..game(src)
         };
         let ops = compile(&g).ops;
         let Some(Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep }) = ops.last() else { panic!("{ops:?}") };
         assert_eq!(keys.iter().map(|k| (k.ms, k.y, k.zoom, k.zoom_y, k.opacity)).collect::<Vec<_>>(), [(0, 0, 100, 100, 256), (500, 26, 200, 200, 0)]);
         // On a layer shown only by the next `_FADS`, the motion is written there, marked as the `_STMA`'s.
-        let g = Game { scripts: vec![("S".into(), script::parse("_STCH(1,img1,240,136);_STMA(1,1);_FADS(1,0,0);").into_iter().map(Result::unwrap).collect())], ..g };
+        let g = Game { scripts: scripts("_STCH(1,img1,240,136);_STMA(1,1);_FADS(1,0,0);"), ..g };
         let c = compile(&g);
         let at = c.ops.iter().position(|o| matches!(o, Op::SpriteMotion2 { .. })).unwrap();
         let mark = |i: usize| c.source_map.iter().rev().find(|(o, _)| *o <= i).map(|(_, l)| l.index);
@@ -1726,15 +1703,9 @@ mod tests {
         let motion = Motion { mask: Motion::X | Motion::TURN, length_ms: 1000, keys: vec![key(0, &[(0x04, 3), (0x08, 240)]), key(500, &[(0x06, 2), (0x08, 250)]), turned], loop_from: 0 };
         let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
             motions: vec![motion],
+            ..game(src)
         };
         let ops = compile(&g).ops;
         let Some(Op::SpriteMotion2 { keys, .. }) = ops.last() else { panic!("{ops:?}") };
@@ -1818,15 +1789,9 @@ mod tests {
         let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[]), key(500, &[(0x18, 1000)])], loop_from: 0 };
         let src = "_STCH(1,img1,240,136);_STZ4(1,1,1000,1,1000,0,0,0);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
             motions: vec![motion],
+            ..game(src)
         };
         let ops = compile(&g).ops;
         assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (1, 50) }), "{ops:?}");
@@ -1840,15 +1805,9 @@ mod tests {
         // child at its parent's top-left quarter point.
         let src = "_STCH(1,img1,240,136,1000,255,10);_STZ4(1,500,500,500,500,0,0,0);_STCH(2,dot,120,68,1000,255,20,,CC,,,1);_FADS(1,0,0);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
             textures: [("img1".into(), (2560, 1440)), ("dot".into(), (20, 20))].into(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let ops = compile(&g).ops;
         // 240 + 0.5 × (120 − 240) = 180 script units: 480 px; 136 + 0.5 × (68 − 135.75) ≈ 102.1: 270 px.
@@ -1862,17 +1821,7 @@ mod tests {
         // (layer 3, its old 1, 1 not kept); y alone keeps the copied x (layer 2 at 100).
         let src = "_STCH(1,a,100,50,1000,255,10,,CC,3,4);_STCH(3,a,10,10,1000,255,30,,CC,1,1);_SCH2(2,b,,70,,,,,CC,,,,,,,,,,1);_STCH(3,a,10,10,1000,255,30,,CC,5,);_FADS(1,0,0);";
         let p = |n: &str| picture(n, 10.0, 10.0);
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [p("a"), p("b"), p("a_03_04"), p("b_03_04"), p("a_01_01"), p("a_05_00"), p("a_05_01")].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [p("a"), p("b"), p("a_03_04"), p("b_03_04"), p("a_01_01"), p("a_05_00"), p("a_05_01")].into(), ..game(src) };
         let ops = compile(&g).ops;
         let shown: Vec<&str> = ops.iter().filter_map(|o| match o {
             Op::Sprites { changes, .. } => changes[0].sprite.as_ref().map(|s| s.image.as_str()),
@@ -1888,17 +1837,7 @@ mod tests {
     fn stcc_clears_the_priority() {
         // After `_STCC` a `_SCH2` keeps priority 0: not drawn.
         let src = "_STCH(1,a,0,0,1000,255,10);_STCC(1);_SCH2(1,a,0,0);_FADS(1,0,0);";
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [picture("a", 10.0, 10.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [picture("a", 10.0, 10.0)].into(), ..game(src) };
         assert!(!compile(&g).ops.iter().any(|o| matches!(o, Op::Sprites { changes, .. } if changes[0].sprite.is_some())));
     }
 
@@ -1908,15 +1847,9 @@ mod tests {
         // copies it (its child moves over) and keeps its own alpha 0.
         let src = "_STCH(1,img1,120,68,1000,200,10);_STZ4(1,500,500,500,500,0,0,0);_STCH(2,dot,,,,,20,,CC,,,1);_SCH2(3,img1,,,,,,,CC,,,,,,,,,,1);_SCH2(4,dot);_FADS(1,0,0);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
             textures: [("img1".into(), (2560, 1440)), ("dot".into(), (20, 20))].into(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
@@ -1933,17 +1866,7 @@ mod tests {
         // it; then a black frame (cut at its inner edge, the black fading in
         // from there), then none.
         let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,480,270,960,540,60);_STCH(2,dot,10,10,1000,255,20,,,,,1);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,,,,,,7);_STCH(2,);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,0,0,0,0,0,0);_FADS(1,0,0);";
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(), ..game(src) };
         let c = compile(&g);
         let clips: Vec<_> = c.ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. } | Op::SpriteClipFeather { .. })).collect();
         let (outer, inner) = ((320, 180, 640, 360), (360, 220, 560, 280));
@@ -1977,15 +1900,9 @@ mod tests {
         let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x08, 240), (0x0C, 255)]), key(500, &[(0x08, 300), (0x0C, 0)])], loop_from: 0 };
         let src = "_STCH(1,img1,240,136,1000,255,10);_STCH(2,dot,300,136,1000,128,20,,,,,1);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
             motions: vec![motion],
+            ..game(src)
         };
         let ops = compile(&g).ops;
         let moves: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteMotion2 { layer, keys, .. } = o { Some((*layer, keys.iter().map(|k| (k.ms, k.x, k.opacity)).collect::<Vec<_>>())) } else { None }).collect();
@@ -1997,17 +1914,7 @@ mod tests {
         // The parent turned 90° clockwise: the child 60 script units right
         // of its middle goes 60 below it; its own picture isn't turned.
         let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,,,,,,,,9000);_STCH(2,dot,300,136,1000,255,20,,,,,1);_FADS(1,0,0);";
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(), ..game(src) };
         let ops = compile(&g).ops;
         assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 639, y: 519, ms: 0 }), "{ops:?}");
         assert!(ops.iter().any(|o| matches!(o, Op::SpriteAngle { layer: 38, degrees: 0, .. })), "{ops:?}");
@@ -2017,15 +1924,9 @@ mod tests {
     fn turn_shader_and_tint() {
         let src = "_STCH(1,img1,240,136);_STRT(1,-9000,-9000,0,0);_STBR(1,18);_STEC(1,1,0xFF8000);_FADS(1,0,0);_STCH(1,img1,240,136);_FADS(1,0,0);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: [picture("img1", 1280.0, 724.0)].into(),
             textures: [("img1".into(), (2560, 1440))].into(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
@@ -2045,15 +1946,9 @@ mod tests {
     fn a_choice_goes_to_its_label() {
         let src = "_SELR(0,$000000);_SELR(1,$000001,1);_SELR(1,$000001);_SELD(_D000,);_GOTS(_D000,SEL0_0,SEL0_1);_ZZ05a01(SEL0_0);_IFP4(,LV00100);_ZY12800(LV00100);_IFNX(,LV00200);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
             lines: vec!["父の<事|こと>だ。", "妹の事だ。"],
             pictures: HashMap::new(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
@@ -2073,15 +1968,9 @@ mod tests {
     fn an_option_under_a_flag_is_offered_by_it() {
         let src = "_SELR(0,$000000);_IF__(F056,eq,1,LV00100);_SELR(1,$000001);_ZY10500(LV00100);_IF__(F056,eq,0,LV00200);_SELR(2,$000001,1);_ZY10700(LV00200);_SELR(3,next);_SELD(_D000,);_GOTS(_D000,A,B,C,D);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
             lines: vec!["父の事だ。", "妹の事だ。"],
             pictures: HashMap::new(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
@@ -2121,17 +2010,7 @@ mod tests {
     fn stcf_waits_for_the_layers_fade_or_motion() {
         // A fade waits under mask 8 and the default, not under 0x20; a layer not shown doesn't wait.
         let src = "_STCH(1,img1,240,136,1000,0);_STGS(1,,255,1000,0);_FADS(1,0,0);_STCF(1,8);_STCF(1,32);_STCF(1);_STCF(2);";
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [picture("img1", 1280.0, 724.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [picture("img1", 1280.0, 724.0)].into(), ..game(src) };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
         let waits: Vec<_> = c.ops.iter().filter(|o| matches!(o, Op::MotionWait { .. })).collect();
@@ -2140,7 +2019,7 @@ mod tests {
         assert_eq!(c.ops.iter().filter(|o| **o == Op::Pause { ms: 17 }).count(), 4);
         // On a layer already shown the fade starts at the `_STGS`, and `_STCF` waits for it.
         let src = "_STCH(1,img1,240,136,1000,0);_FADS(1,0,0);_STGS(1,,255,1000,0);_STCF(1,8);_FADS(1,0,0);";
-        let g = Game { scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())], ..g };
+        let g = Game { scripts: scripts(src), ..g };
         let ops = compile(&g).ops;
         let at = |f: fn(&Op) -> bool| ops.iter().position(f).unwrap();
         let (fade, wait) = (at(|o| matches!(o, Op::SpriteMotion2 { layer: 39, .. })), at(|o| matches!(o, Op::MotionWait { layer: 39 })));
@@ -2155,15 +2034,9 @@ mod tests {
         // 1 hides; 2 over a fade of 2 ms or more (always for `_STMA`); 0, none and a 1 ms 2 don't.
         let src = "_FADS(0,500,,0);_FADS(0,500,,);_FADS(1,0,,2);_STMA(0,0,0);_FADS(0,500,,2);_ZM($000000);_STMA(0,0,2);_ZM($000000);_FADS(1,0,,1);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
             lines: vec!["父だ。"],
             pictures: HashMap::new(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let ops: Vec<&str> = compile(&g).ops.iter().filter_map(|o| match o {
             Op::HideTextWindow => Some("hide"),
@@ -2180,15 +2053,9 @@ mod tests {
         // The same loop again on channel 0 starts once more, not twice over; a one-shot after it stops it too.
         let src = "_SEPL(0,1,A);_SEPL(0,1,A,,`017:40);_SEPL(0,0,B);_SEPL(0,0,A);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
             pictures: HashMap::new(),
-            textures: HashMap::new(),
-            sounds: vec![],
             waves: [("A".into(), "a.wav".into()), ("B".into(), "b.wav".into())].into(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let ops: Vec<String> = compile(&g).ops.iter().filter_map(|o| match o {
             Op::SePlay { file, looped } => Some(format!("{file}{}", if *looped { " loop" } else { "" })),
@@ -2202,15 +2069,9 @@ mod tests {
     fn window_fades_go_on_and_the_next_text_fades_in() {
         let src = "_CLO4(1000);_ZM($000000);_ZM($000001);_CLO3();_CLO5(2000);_ZM($000000);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
             lines: vec!["父だ。", "妹だ。"],
             pictures: HashMap::new(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let fades: Vec<_> = compile(&g).ops.into_iter().filter_map(|o| match o {
             Op::WindowFade { alpha, ms, from, delay, show } => Some((alpha, ms, from, delay, show)),
@@ -2251,15 +2112,11 @@ mod tests {
     fn a_picture_is_placed_by_its_centre_at_half_size() {
         let src = "_ZZ01501(START);_STCH(1,img1,240,136,1000,255,2,,CC);_FADS(0,500,0);_WNTY(1);_VPLY(A00,1);_ZM01801($000001@n);_MSAD($000000);_JUMP(110);";
         let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
             scenes: vec![110],
             lines: vec!["と。", "「<肌|はだ>"],
             pictures: [picture("img1", 1280.0, 724.0)].into(),
             textures: [("img1".into(), (2560, 1440))].into(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
+            ..game(src)
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
@@ -2297,17 +2154,7 @@ mod tests {
     #[test]
     fn stch_without_a_place_keeps_the_layers() {
         let src = "_STCH(1,img1,120,68,500);_STCH(1,img1);_FADS(1,0,0);_STCC(1);_STCH(1,img1,120);_FADS(1,0,0);";
-        let g = Game {
-            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
-            scenes: vec![],
-            lines: vec![],
-            pictures: [picture("img1", 1280.0, 724.0)].into(),
-            textures: HashMap::new(),
-            sounds: vec![],
-            waves: HashMap::new(),
-            pic_ext: "webp",
-            motions: vec![],
-        };
+        let g = Game { pictures: [picture("img1", 1280.0, 724.0)].into(), ..game(src) };
         let ops = compile(&g).ops;
         let moves: Vec<(i32, i32)> = ops.iter().filter_map(|o| if let Op::SpriteMove { x, y, .. } = o { Some((*x, *y)) } else { None }).collect();
         let zooms: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteAngle { zoom, .. } = o { Some(*zoom) } else { None }).collect();
