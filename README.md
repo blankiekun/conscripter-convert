@@ -1,5 +1,7 @@
 # CONscripter-convert
 
+More features: [blankiekun.github.io](https://blankiekun.github.io/?app=cons#cons)
+
 Converts Japanese visual novels you own into games that run on
 [CONscripter](https://github.com/blankiekun/CONscripter), our fork of the
 open-source ONScripter-Yuri engine (an NScripter clone that also builds for
@@ -21,9 +23,11 @@ it is added to CONscripter rather than approximated (see
 | Engine | Status | Tested with | Details |
 |---|---|---|---|
 | Xuse | Complete for its first game | 最果てのイマ COMPLETE | [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md) |
-| Nitroplus NSS | In progress (branch `nitroplus`) | 装甲悪鬼村正 | |
-| Nitroplus NSS (2008, NitroplusSystem2.0) | In progress (branch `django`): the story plays, its ten bad ends too; system screens from the game's pictures | 続・殺戮のジャンゴ -地獄の賞金首- (1.01) | [`docs/games/django.md`](docs/games/django.md) |
-| 5pb./MAGES TaskList (PS Vita, CRI archives) | In progress (branch `oretsuba`): the story plays, all endings reachable | 俺たちに翼はない (Vita) | [`docs/games/oretsuba.md`](docs/games/oretsuba.md) |
+| Nitroplus NSS | In progress | 装甲悪鬼村正 | [`docs/games/muramasa.md`](docs/games/muramasa.md) |
+| Nitroplus NSS (2008, NitroplusSystem2.0) | In progress: the story plays, its ten bad ends too; system screens from the game's pictures | 続・殺戮のジャンゴ -地獄の賞金首- (1.01) | [`docs/games/django.md`](docs/games/django.md) |
+| Nitroplus Diesel (NPK3, Squirrel) | Starting | Full Metal Daemon Muramasa (English, Steam) | [`docs/games/muramasa-en.md`](docs/games/muramasa-en.md) |
+| 5pb./MAGES TaskList (PS Vita, CRI archives) | In progress: the story plays, all endings reachable | 俺たちに翼はない (Vita) | [`docs/games/oretsuba.md`](docs/games/oretsuba.md) |
+| TYPE-MOON (mrgd00/MZP archives) | In progress | 月姫 -A piece of blue glass moon- (Switch) | [`docs/games/tsukihime.md`](docs/games/tsukihime.md) |
 
 Each engine is a separate reader feeding the same output stage (see
 [`docs/design.md`](docs/design.md)). Each game's document says what converts, what

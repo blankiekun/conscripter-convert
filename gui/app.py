@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+import webbrowser
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -170,6 +171,9 @@ class App:
         self.open_button.grid(row=0, column=2)
         self.progress = ttk.Progressbar(bar, mode="determinate", value=0)
         self.progress.grid(row=0, column=3, sticky="ew", padx=(12, 0))
+        more = tk.Label(bar, text="More features: blankiekun.github.io", fg=AI, bg=BG, cursor="hand2")
+        more.grid(row=0, column=4, padx=(12, 0))
+        more.bind("<Button-1>", lambda _e: webbrowser.open("https://blankiekun.github.io/?app=cons#cons"))
 
         self.status = tk.Label(r, text="", anchor="w", justify="left", font=("TkDefaultFont", 11, "bold"),
                                bg=BG, fg=INK)
@@ -209,6 +213,7 @@ class App:
     def _load(self, folder: Path) -> None:
         """Look for a game in `folder`, in a thread: on a network share
         reading the folders can take a while."""
+        self.packed_hint = games.packaged_hint(folder) if folder.is_file() else None
         if folder.is_file():
             folder = folder.parent
         self.folder, self.detecting = folder, True
@@ -243,6 +248,8 @@ class App:
             self.game_box.config(values=[])
             self.game_var.set("")
             self._log(f"No supported game found in {folder}.")
+            if getattr(self, "packed_hint", None):
+                self._log(self.packed_hint)
             self._log("Supported: " + ", ".join(g.name for g in games.GAMES) + ".")
             self._log("Choose the folder the game's files are in (see the README for each game's markers).")
         else:

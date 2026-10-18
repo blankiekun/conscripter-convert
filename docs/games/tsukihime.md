@@ -16,7 +16,8 @@ downloaded). Nothing has been dropped yet.
 
 ## Build
 
-No converter yet. Getting `<game>` (the RomFS) out of the NSP, with
+The converter is `conscripter-convert typemoon convert <game> -o out/tsukihime-cons --font <ttf>`
+(see "Status"). Getting `<game>` (the RomFS) out of the NSP, with
 [hactool](https://github.com/SciresM/hactool) and the console's keys:
 
 ```sh

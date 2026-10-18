@@ -189,7 +189,7 @@ class Commands(unittest.TestCase):
             self.assertEqual(args[args.index("--audio-codec"):args.index("--audio-codec") + 4],
                              ["--audio-codec", "opus", "--audio-quality", "24"])
         g = self.game("muramasa")
-        self.assertFalse(g.needs_ffmpeg_with({}))
+        self.assertTrue(g.needs_ffmpeg_with({}))
         self.assertTrue(g.needs_ffmpeg_with({"audio_codec": "opus"}))
         self.assertTrue(g.needs_ffmpeg_with({"audio_quality": "2"}))
         self.assertEqual(g.option_problems({"audio_codec": "opus", "audio_quality": "3"})[0][:8], "Quality:")

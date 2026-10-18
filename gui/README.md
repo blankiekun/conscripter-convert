@@ -1,5 +1,7 @@
 # CONscripter-convert GUI
 
+More features: [blankiekun.github.io](https://blankiekun.github.io/?app=cons#cons)
+
 A small window around the `conscripter-convert` command for players:
 drop the game folder on it, and it finds which game it is and builds it
 with that game's recommended settings (the commands in
@@ -55,8 +57,10 @@ to download CONscripter.
 | Game | Recognised by | Settings | Needs |
 |---|---|---|---|
 | 最果てのイマ COMPLETE | `Farthest2015.exe`, `HD/CDFiles/*.cd`, `CD/` | `convert-game`, title "Saihate no Ima COMPLETE", IPA Gothic | ffmpeg (movies) |
-| 装甲悪鬼村正 | `Muramasa.exe` and `nss.npa`, `cg.npa`, `sound.npa`, `voice.npa`, `system.npa` | `convert-nss --file ma00_000.nss --chain 2000`, title 装甲悪鬼村正, IPA Mincho | |
+| 装甲悪鬼村正 | `Muramasa.exe` and `nss.npa`, `cg.npa`, `sound.npa`, `voice.npa`, `system.npa` | `convert-nss --file ma00_000.nss --chain 2000`, title 装甲悪鬼村正, IPA Mincho | ffmpeg (movies) |
 | 俺たちに翼はない (PS Vita) | `media/SCRIPT.cpk`, `media/CG.cpk`, `sce_sys/param.sfo`; the CPK must be decrypted | `mages convert`, IPA Gothic | ffmpeg (sounds, movies) |
+| 続・殺戮のジャンゴ | `Django.exe` and the `.npa` archives; the game updated to 1.01 | `convert-nss`, IPA Gothic | ffmpeg (movies) |
+| 月姫 -A piece of blue glass moon- (Switch) | the RomFS (`allscr.mrg`, `script_text.mrg`, `allui.mrg`, `knife1.bfsar`) with `exefs/main` beside it; 1.0.2 or the fan patch | `typemoon convert`, IPA Gothic | ffmpeg (movies, sounds) |
 
 **Advanced options** are the converter flags: every game has the same
 ones, in the same order, then its own, two to a row; pointing at one
