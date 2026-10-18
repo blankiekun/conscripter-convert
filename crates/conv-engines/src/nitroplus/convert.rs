@@ -1727,6 +1727,9 @@ struct Compiler<'a, 'b> {
     /// lines of the statements being run, innermost last.
     source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
     running: Vec<(&'a str, u32)>,
+    /// A sound's last `Play`: the statement that called the helper it is in
+    /// (`SoundPlay`), whose mark its ops take when [`Self::flush_sounds`] starts it.
+    played_at: HashMap<String, (&'a str, u32)>,
     /// The file of a page's code being run (the `<PRE>`'s), for the marks.
     code_file: Option<&'a str>,
 }
@@ -2508,6 +2511,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             random_sites: 0,
             source_map: Vec::new(),
             running: Vec::new(),
+            played_at: HashMap::new(),
             code_file: None,
         }
     }
@@ -3231,6 +3235,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn request(&mut self, name: &str, action: &str) {
+        if action == "play"
+            && let Some(&at) = self.running.get(self.running.len().saturating_sub(2))
+        {
+            self.played_at.insert(name.to_string(), at);
+        }
         let Some(o) = self.objects.get_mut(name) else { return };
         if let Kind::Movie(m) = &mut o.kind {
             match action {
@@ -3623,7 +3632,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
     fn flush_sounds(&mut self) {
         let starting: Vec<String> =
             self.objects.iter().filter(|(_, o)| matches!(&o.kind, Kind::Sound(s) if s.starting)).map(|(n, _)| n.clone()).collect();
+        let mut marked = false;
         for name in starting {
+            if std::mem::take(&mut marked) {
+                self.running.pop();
+                self.mark();
+            }
+            if let Some(at) = self.played_at.remove(&name) {
+                self.running.push(at);
+                self.mark();
+                marked = true;
+            }
             let Kind::Sound(s) = &mut self.objects.get_mut(&name).unwrap().kind else { continue };
             s.starting = false;
             if s.volume <= 0 && s.fade_ms == 0 {
@@ -3693,6 +3712,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             if let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&name) {
                 (s.playing, s.len_ms, s.started_at, s.stops_at) = (Some(file), len_ms, started_at, None);
             }
+        }
+        if marked {
+            self.running.pop();
+            self.mark();
         }
     }
 
@@ -6865,6 +6888,20 @@ scene a.nss
         assert_eq!(at(find(&|op| matches!(op, Op::HideTextWindow))), "function.nss:24");
         assert_eq!(at(find(&|op| matches!(op, Op::Pause { ms: 300 } | Op::Wait { ms: 300 }))), "a.nss:11");
         assert!(c.source_map.windows(2).all(|w| w[0].0 < w[1].0), "{:?}", c.source_map);
+    }
+
+    #[test]
+    fn a_sound_maps_to_the_statement_that_played_it() {
+        // 続・殺戮のジャンゴ's TitleLogo: SoundPlay inside a function the scene calls.
+        let story = "scene a.nss\n{\n\tLogo();\n}\n";
+        let library = format!(
+            "{LIBRARY}\nfunction SoundPlay(\"ナット名\")\n{{\n\tRequest(\"ナット名\", Play);\n}}\nfunction Logo()\n{{\n\tCreateSound(\"se\", SE, \"sound/se/a\");\n\tSoundPlay(\"se\");\n}}\n"
+        );
+        let c = compile(story, &library);
+        let at = |i: usize| c.source_map.iter().rev().find(|m| m.0 <= i).map(|m| format!("{}:{}", m.1.file, m.1.index)).unwrap();
+        let play = c.ops.iter().position(|op| matches!(op, Op::SePlay { .. })).unwrap_or_else(|| panic!("{:#?}", c.ops));
+        let line = library.lines().position(|l| l == "\tSoundPlay(\"se\");").unwrap() + 1;
+        assert_eq!(at(play), format!("function.nss:{line}"));
     }
 
     #[test]

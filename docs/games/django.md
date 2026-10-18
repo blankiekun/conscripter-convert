@@ -457,12 +457,23 @@ Open:
   the settings' pairs fade over 200, their bullets at once (ours at
   once both).
 - Trace diff against the original (`ntrace.sh`, wine section; first 50
-  pages from dja001, `docs/new-game.md` step 23); all pair. Open, maybe
-  wine's timing: dja001_02:50 (`Move("背景10", 1000, …, true)`) then
-  `Zoom` (function.nss:877): 419 + 2 ms in the original, 0 + 300 in
-  ours; a 0 ms waited `Move` (function.nss:910) took 618 ms in the
-  original (page 44). Not findings: page 1's 50 `missing` (the patched
-  boot skips the title), `call_chapter` lines, 0-72 ms gaps.
+  pages from dja001, `docs/new-game.md` step 23); all pair. 2026-10-18,
+  50 lines left (`missing` 145, `extra` 9, `time` 21), by cause:
+  - Not findings: page 1's boot (the original's trace has a patched
+    boot: no logos, so ours' `boot.nss:128-171` are `extra`, and the
+    title's opening is item 1 of "Next"; `SetVolume` 0 on created
+    sounds and 0 ms fades give no command of ours); `call_chapter`
+    lines; 0-72 ms gaps; page 18's `WaitFade` (auto mode's reading
+    time differs, so the 3 s fade had or hadn't ended).
+  - The exe's waits poll (the wait helper `00433bf0`: a 100 ms wait on
+    an event set only by requests, then a 32 ms sleep): a waited
+    action returns at the first poll after its end, under wine 100 →
+    225 ms (every `TypeBegin`/`TypeEnd` box fade, 21 of 22), 300 → 431
+    (`Zoom` function.nss:877), 500 → 532-622 (function.nss:911, 948),
+    1000 → 1026-1031; ours ends with the action (109). The same code
+    runs on Windows, but whether its timer gives the same steps is
+    unchecked; not modelled (it would slow every NSS game's text
+    window ~125 ms a fade): the user's call.
 
 ```sh
 target/release/conscripter-convert convert-nss <game> -o out/django-dry --dry-run --source-map out/django.map
@@ -667,6 +678,16 @@ first-title opening. Converted from the script (`Game::boot_logos`, a
 `BootStep::gosub` once a run); the music goes on into the title instead
 of starting again. `--real-time` trace: the music at 7,027 ms (script
 7,000), the shot at 11,036 (11,000), the title at 11,536 (11,500).
+
+### Sounds in the source map (2026-10-18)
+
+A sound's ops are written when its `Play` is flushed (after the
+helper's volume and loop calls), and took the mark of whatever
+statement was running then: TitleLogo's `SoundPlay` (boot.nss:153)
+that of the `if` around it (140), a scene's first sound the chapter
+file's call line. Now they take the statement that called the helper
+holding the `Play` (`Compiler::played_at`); 0.txt unchanged, the trace
+diff's `boot.nss:153` pairs.
 
 
 - **Unwaited fades run on** (2026-10-17, trace diff): dja001_01:126-128
