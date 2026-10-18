@@ -1,11 +1,10 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "07ce81ff",
+"commit": "5722e5d5",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1201854, "full": 1188519, "gaps": 4741, "left_out": 8594, "weighted": 1192865.0},
+"totals": {"calls": 1201854, "full": 1190003, "gaps": 3257, "left_out": 8594, "weighted": 1193195.2},
 "kinds": {
-"Shake": {"calls": 1486, "gaps": 1486, "reasons": [["Shake argument 6 ignored", 1486], ["Shake argument 7 ignored", 1486], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 2]], "weighted": 1155.8},
 "Request": {"calls": 239987, "gaps": 1305, "reasons": [["Request stop", 1068], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 14], ["Request entrustsuspend", 12], ["27 more", 82]], "weighted": 239987.0},
 "Random": {"calls": 7411, "gaps": 806, "reasons": [["Random picked when converting", 806]], "weighted": 7411.0},
 "DrawTransition": {"calls": 2650, "gaps": 646, "reasons": [["DrawTransition from another opacity than the picture's", 636], ["DrawTransition partial on an effect: drawn unmasked", 6], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
@@ -30,6 +29,7 @@
 "MoviePlay": {"calls": 3, "gaps": 3, "reasons": [["MoviePlay argument 1 ignored", 3], ["MoviePlay of a missing movie", 3]], "weighted": 1.5},
 "Delete": {"calls": 56958, "gaps": 2, "reasons": [["Delete argument 1 ignored", 2], ["Delete argument 2 ignored", 2]], "weighted": 56956.7},
 "SetVolume": {"calls": 23866, "gaps": 2, "reasons": [["SetVolume argument 4 ignored", 1], ["SetVolume tempo of a music fade-out drawn straight", 1]], "weighted": 23865.8},
+"Shake": {"calls": 1486, "gaps": 2, "reasons": [["move or zoom over time with a fade or a new picture drawn as a cross-fade", 2]], "weighted": 1486.0},
 "SetAlias": {"calls": 84603, "gaps": 0, "reasons": [], "weighted": 84603.0},
 "LockVideo": {"calls": 50726, "gaps": 0, "reasons": [], "weighted": 50726.0},
 "port Print": {"calls": 39038, "gaps": 0, "reasons": [], "weighted": 39038.0},
