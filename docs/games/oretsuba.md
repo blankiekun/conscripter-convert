@@ -439,6 +439,41 @@ source build of Vita3K): **the first 50 pages diff clean** (below).
   `show-welcome: false`, `check-for-updates-mode: 0`,
   `discord-rich-presence: false`.
 
+Step 3, the full-route reference trace (2026-10-18): **6216 pages,
+S01_01 to S02_05H**, in the run's 2 hours (about 1.1 s a page), on
+the route check's run 4 (every first option, 日和子's ending S02_16A;
+ours reaches it at page 23205). The game waits at a choice
+(MessageSwitch_Tag, task type 6) until a key lights an option: the
+key loop presses Down, then circle, whenever the trace's last task is
+type 6 (a first run sat 18 minutes at S01_02C's choice on circle
+alone). Vita3K is the step 2 build, its only patch
+`vita3k-freed-texture.patch`; the `Unhandled SIGSEGV` lines it logs
+every few seconds from boot are its own memory traps, not a crash.
+Commands (`<emu>`, `<v3k>` as in step 2, `<out>` a scratch folder):
+
+```sh
+python3 -I research/oretsuba/vpatch.py patch <emu>/home/data/Vita3K/patch/PCSG00299.txt
+# <keys.sh secs log>: circle every 2 s and Return every 8 s from 46 s to 100 s; then circle
+# every 0.4 s, with Down before it while the log's last @T/@M line is a task of type 6
+research/tools/headless-run.sh bash -c "<keys.sh> 7200 <emu>/logs/vita3k.log & \
+  MEM=3G SHOT=300 V3K=<v3k> research/oretsuba/vita-emu.sh <emu>/home 7200"
+python3 -I research/oretsuba/vpatch.py log <emu>/logs/vita3k.log <out>/orig.jsonl
+conscripter-convert mages convert <game> -o <out>/game --dry-run --source-map <out>/map.tsv
+# <out>/game: a full build's arc.nsa, default.ttf, movie and ons_args linked in
+python3 -I research/oretsuba/routes.py <out>/game <renamed engine> <out>/ours --only 4
+# take the speaker (【…】) off our page text: vpatch.py logs the message alone
+python3 -I research/tools/trace_diff.py <out>/orig.jsonl <out>/ours-nospk.jsonl --map <out>/map.tsv --fps 30 --pages 10000
+```
+
+Diff over the 6216 pages: **1 text finding** (S02_03G:1530: the
+original breaks the line inside 「…作れ\nるかッ！」, a `\n` in the
+script; ours runs it on), 176 missing: CharacterActionEnd 154 (0x21),
+SeStop 12 (0x38), 0x3e/0x3f (EyeCatch) 3 each, SpriteDelete,
+CharacterDelete, 0x20, 0x26 once each; 181 quiet. The 1024 time
+findings mean nothing (ours ran without `--real-time`).
+`routes.py` reads START's story menu as the button screens it now is
+(it looked for a `select`).
+
 ## Status: the whole story plays (2026-10-18)
 
 Open state only; the per-feature write-ups and the earlier queue are in
@@ -460,9 +495,11 @@ build tested headless. Output 960×544.
   catch's speed, the wave transition's size, the particles' motion,
   the skip dialog's and text's font sizes, CONFIG's lit cells (ours cut
   1-3 pixels short of the eboot's 90/180-wide cells at 0x8107145c).
-  First 50-page trace diff against Vita3K (S01_01, S01_01A) showed only
-  loading frames; longer runs (a scene at a time, by keys) are next if
-  wanted.
+  Full-route reference trace (Testing, step 3): 6216 pages of
+  日和子's route (to S02_05H); text clean but one line break
+  (S02_03G:1530); to look at: CharacterActionEnd gives none of ours
+  154 times, SeStop 12, EyeCatch 6. The rest of the route: a further
+  run from a save at S02_05H.
 - A missing `:Position` with no picture to replace: the eboot puts
   Sprite at (640, 560) and SpriteBG at (640 - w/2, 360 - h/2); ours
   centres it (no script relies on it). The characters' has-a-place
