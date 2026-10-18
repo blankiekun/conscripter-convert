@@ -308,8 +308,8 @@ menu, two config pages). Use it before asking for screenshots.
 Step 1, the boot check (2026-10-17): **boots to the title**, drawn
 right, at 30 frames a second by Vita3K's own counter (its performance
 overlay, steady on the title and on the save dialog). The official
-Vita3K AppImage (`Vita3K v0.2.1 4190-fab6bfc7`) runs it; no source
-build. Run it only through `research/oretsuba/vita-emu.sh`, which
+Vita3K AppImage (`Vita3K v0.2.1 4190-fab6bfc7`) runs it to the title;
+past S01_01's start only a source build with a local patch (step 2). Run it only through `research/oretsuba/vita-emu.sh`, which
 starts it on its own Xvfb with private XDG dirs.
 
 Setup, in a folder of its own (`<emu>`, never `~/.local/share/Vita3K`
@@ -355,8 +355,8 @@ Firmware (2026-10-17): `vita-emu.sh` with `APP=` (no `-r`) and
 libnet*, np_* and libngs from it (LLE), and the title draws the same
 (the "Press START" blink aside); the crash below happens with and without it.
 
-Step 2, the trace (2026-10-17): **built, but blocked by a Vita3K crash
-at the first story task.**
+Step 2, the trace (2026-10-17; runs since 2026-10-18 with a patched
+source build of Vita3K): **the first 50 pages diff clean** (below).
 
 - The record-to-instruction mapping, from the decompile: `task_start`
   (0x8100da30, r0 = the game context) starts every task. The context's
@@ -386,32 +386,58 @@ at the first story task.**
   SceneJumpDialog) and 30 `@F` a second.
 - Our side: the converter now writes `--source-map` for this engine
   (each task's first 0.txt line → `<scene>:<task number>`, the same key).
-- **Blocker**: about 10 ms after S01_01's first task starts, Vita3K
-  (0.2.1 4190) dies in a host worker thread (a libc memcpy called from
-  Vita3K, `Unhandled access to 0x463780000`), with or without the
-  firmware, the patch, the scene jump dialog (patched off), movies
-  (patched to no-ops), NGS, the texture cache, async pipelines, surface
-  sync or memory mapping changed. So no scene has been traced and no diff
-  run (step c).
-- Tried 2026-10-17, timeboxed (the lead: Vita emulation is shaky, no
-  hours on Vita3K itself): **no emulator gets through S01_01.**
-  - Vita3K 4191-8084aa24 (the newest continuous build; it differs from
-    4190 only in CI) crashes the same way, `Unhandled access to
-    0x463780000` as S01_01 starts. The core dump's stack (stripped
-    binary): libc memcpy ← `Vita3K+0xfc8f3f` ← `+0xf2004a` ←
-    `+0xf21c48` ← `+0xfc1dbd` ← `+0xf2b6b4` ← a `std::thread`.
-  - The RetroArch core (flatpak `org.libretro.RetroArch`,
-    `vita3k_libretro` v0.2.1 4123, older upstream a5aa96572) needs the
-    firmware in `<system>/vita3k` (copied from `<emu>`'s `vs0`/`os0`) and
-    the eboot as content (`.../PCSG00299/eboot.bin`). It loads the app, then
-    hangs in RetroArch's video setup on Xvfb (Vulkan and glcore alike,
-    nothing drawn in 60 s). Not pursued further.
-  - The source build with symbols (step 3) was skipped: neither quick
-    option came close.
-- **So the Vita3K trace is unreliable**: the decompile and our own
-  traces stay the main checks for this game. Any timings
-  taken from Vita3K (the boot, the 30 fps title) are rough, not the
-  Vita's.
+- **The crash, found and worked around (2026-10-18)**: a source build
+  of Vita3K (master 8084aa2, the code of 4191, RelWithDebInfo) under
+  gdb stops in the renderer thread: `TextureCache::upload_texture`
+  (`renderer/src/texture/cache.cpp`) → `VKTextureCache::upload_texture_impl`
+  → memcpy of a 960×965 RGBA texture at guest 0x63580000. The game freed
+  that CDRAM block (0x63580000, 0x3C0000 bytes) 300 ms before, as
+  S01_01 starts, and allocated a smaller one inside it; a draw still
+  names the old texture. On the Vita the GPU reads whatever is left
+  there; Vita3K's unmapped pages fault (`Unhandled access to
+  0x463780000` = host base 0x400000000 + guest 0x63780000). The local
+  patch `research/oretsuba/vita3k-freed-texture.patch` (18 lines, not
+  upstreamed) reads only the mapped part of a texture and zeros the
+  rest, with a warning in the log (`reads past mapped memory`). The
+  game then plays on: S01_01, S01_01A, S01_02A in a 5-minute run.
+  The RetroArch core (older, hangs on Xvfb) is not needed.
+- 4191's "Found 0 patches" was the patch file missing from `<emu>`
+  (a later run had deleted it), not Vita3K: rerun `vpatch.py patch`.
+- **First trace diff (2026-10-18)**: 50 pages from S01_01, original
+  (`vpatch.py log`) against ours (`mages convert --dry-run --scenes
+  S01_01,S01_01A,S01_02A,S01_03A --source-map`, run with `--trace
+  --auto-play 0 --real-time` over a full build's `arc.nsa`), `trace_diff.py
+  --map <map> --fps 30`: **no text, missing or extra findings**, once the
+  speaker is taken off our page text (`vpatch.py` logs the record's
+  message alone; ours has `【鷹志】` before it). 9 time findings, all
+  within 3 frames: the original takes 2-3 frames between tasks ours runs
+  in the same frame (its loading), and 32 frames for 1000 ms waits.
+- Speed: the game runs at its 30 frames a second (8809 `@F` in 305 s);
+  about 2.6 s a page with a circle every second (a click finishes the
+  text, the next turns the page). No unthrottled run: the game times
+  its waits by the clock, not by frames (with `fps-hack: true` the
+  1000 ms wait takes 62 frames instead of 32, the page rate stays), and
+  Vita3K has no faster clock. Timings stay rough (the user: Vita
+  emulation is shaky).
+- Run it (the source build): clone github.com/Vita3K/Vita3K with
+  submodules into `<src>`, `git apply research/oretsuba/vita3k-freed-texture.patch`,
+  `cmake --preset linux-ninja-clang && cmake --build --preset
+  linux-ninja-clang-relwithdebinfo` (system Qt 6, clang, lld; no other
+  packages needed here), then a folder `<v3k>` with `bin` linked to
+  `<src>/build/linux-ninja-clang/bin/RelWithDebInfo` and empty `lib/`
+  and `share/`, and `V3K=<v3k> research/oretsuba/vita-emu.sh <emu>/home
+  300` (`WRAP="gdb -batch -x <cmds> --args"` runs it under gdb; gdb
+  needs `handle SIGSEGV nostop noprint pass`, Vita3K's memory traps).
+  Keys that reached S01_01 from a boot with a save: circle every 2 s
+  from 46 s with Return (start) every 8 s, then circle every second.
+- Nothing may open on the desktop: Vita3K's Qt front end opened a web
+  page in the user's browser through D-Bus (2026-10-18, an update
+  prompt the keys answered). `vita-emu.sh` now runs it with
+  `DBUS_SESSION_BUS_ADDRESS=disabled:`, `BROWSER=true` and `xdg-open`,
+  `gio`, `kde-open`, `gnome-open` shims first in `PATH` that only log
+  to `<emu>/nourl/calls.log` (empty in every run since); `config.yml`:
+  `show-welcome: false`, `check-for-updates-mode: 0`,
+  `discord-rich-presence: false`.
 
 ## Status: the whole story plays (2026-10-15)
 
@@ -423,14 +449,13 @@ at the first story task.**
 - The user picks the next fixes from "Arguments not read" below.
 - Dropped arguments picked by the user (2026-10-17): the SE fades and waits, CharacterDelete's `:FadeOut 0` and the window's fade-out are done ("History"); SceneJumpDialogEnd's `:Fade` is left (table below). Next PR: BacklogMessage `:Message`, the shakes' `:Param` 2-5 and SpriteQuake's `:Wait`, SpriteMove `:Roll`, CharacterWait waiting for fades and CharacterActionEnd stopping moves.
 - Dropped arguments picked by the user (2026-10-17), second part: BacklogMessage `:Message` (a `logadd`), the shakes' swing (`:Param` 2-5) and SpriteQuake `:Wait` are done ("History"). SpriteMove `:Roll` is left (table below). CharacterWait waiting for fades needs nothing: no CharacterWait follows a `:FadeWait 0` character fade without a message between, whose click outlasts it (a dry run that waited for them added no line). CharacterActionEnd leaving moves running is what the eboot does: 0x81127a00 → 0x811277c0 ends only the action (+0x2e8).
-- Looks against the Vita: the original boots to the title under
-  Vita3K ("Testing"), so the title can be filmed. The trace (step 2
-  there) is built (`vpatch.py`, `--source-map`), but Vita3K (4190 and
-  4191) crashes as the first story scene starts, and the RetroArch core
-  hangs on Xvfb, so no diff ("Testing", 2026-10-17). The emulator is
-  unreliable: the decompile and our own traces stay the main checks, and
-  Vita3K timings are rough. A source-built Vita3K is the only option
-  left untried, and only if the user asks for it.
+- Looks against the Vita: the original runs under a source-built
+  Vita3K with a local patch for a texture the game frees ("Testing",
+  2026-10-18), and the first 50-page trace diff (S01_01, S01_01A) has
+  no text or order findings, only loading frames. Next, if wanted:
+  longer runs (a scene at a time, by keys), and frames of the original
+  for the open guesses below. Vita3K timings stay rough; the decompile
+  and our own traces stay the main checks.
 - `spgrab` (engine #32, merged) could let SpriteBG/SpriteBS with
   `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
   the picture under the copy, fade the copy out. Not used yet.

@@ -7,14 +7,21 @@
 # KEYS="30:c 34:c" presses keys (xdotool) at those seconds (Vita3K's default
 # keyboard: c = circle, this Japanese game's OK; x = cross; Return = start);
 # FPSAT=<secs> grabs the game's 960x544 for 5 s at 60 fps then and prints how many frames differing in any pixel were shown per second.
+# WRAP="gdb -batch -x <cmds> --args" runs Vita3K under a wrapper (V3K=<dir> whose bin/
+# is a source build: no share/ or lib/ needed).
+# config.yml: show-welcome false, check-for-updates-mode 0, discord-rich-presence false.
 # Setup of the home dir (app, license, config): docs/games/oretsuba.md, "Testing".
-set -u
+set -u; shopt -s nullglob
 H=$(cd "$1" && pwd); T=$2; shift 2
 V=${V3K:-$H/../AppDir}; V=$(cd "$V" && pwd)
 L=$H/../logs; mkdir -p "$L"
 # SDL falls back to the desktop's wayland-0 in $XDG_RUNTIME_DIR even with
 # WAYLAND_DISPLAY unset: give it an empty runtime dir and force X11.
 mkdir -p -m 700 "$H/run"
+# Nothing may reach the user's session: no D-Bus (Qt's openUrl went through it
+# and opened a page on the desktop, 2026-10-18), and xdg-open/gio as no-ops.
+B=$H/../nourl; mkdir -p "$B"
+for c in xdg-open gio kde-open gnome-open; do printf '#!/bin/sh\necho "$0 $*" >>"%s/calls.log"\n' "$B" >"$B/$c"; chmod +x "$B/$c"; done
 # The AppImage's AppRun links /tmp/17-Tt (its share/) and /tmp/8_P (its lib/);
 # we start bin/Vita3K directly, so link them here, with the host's fonts (the
 # save dialog draws with DejaVuSans when there is no firmware font package).
@@ -27,10 +34,11 @@ XPID=$!
 for i in $(seq 100); do [ -s "$L/disp" ] && break; sleep 0.1; done
 N=:$(cat "$L/disp"); echo "Xvfb $N pid $XPID"
 timeout -k 10 "$T" systemd-run --user --scope -q -p MemoryMax=6G \
-  env -u WAYLAND_DISPLAY -u XDG_SESSION_TYPE DISPLAY=$N HOME="$H" XDG_RUNTIME_DIR="$H/run" \
+  env -u WAYLAND_DISPLAY -u XDG_SESSION_TYPE -u DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS=disabled: \
+  BROWSER=true PATH="$B:$PATH" DISPLAY=$N HOME="$H" XDG_RUNTIME_DIR="$H/run" \
   SDL_VIDEO_DRIVER=x11 SDL_VIDEODRIVER=x11 QT_QPA_PLATFORM=xcb \
   XDG_DATA_HOME="$H/data" XDG_CONFIG_HOME="$H/config" XDG_CACHE_HOME="$H/cache" \
-  SDL_AUDIODRIVER=dummy "$V/bin/Vita3K" ${APP--r PCSG00299} "$@" >"$L/vita3k.log" 2>&1 &
+  SDL_AUDIODRIVER=dummy ${WRAP:-} "$V/bin/Vita3K" ${APP--r PCSG00299} "$@" >"$L/vita3k.log" 2>&1 &
 RPID=$!
 S=${SHOT:-15}; T0=$SECONDS; next=$S; ks=" ${KEYS:-} "; fps=${FPSAT:-}
 while kill -0 $RPID 2>/dev/null; do
