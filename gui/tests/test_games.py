@@ -153,8 +153,13 @@ class Commands(unittest.TestCase):
                          ["convert-game", "G", "-o", "O", "--font", "F.ttf", "--title", "Saihate no Ima COMPLETE"])
 
     def test_muramasa(self):
-        self.assertEqual(self.args("muramasa"), ["convert-nss", "G", "-o", "O", "--font", "F.ttf",
+        # G has no movie folder: the build is asked to leave them out (detection warns)
+        self.assertEqual(self.args("muramasa"), ["convert-nss", "G", "-o", "O", "--font", "F.ttf", "--no-movies",
                                                   "--title", "装甲悪鬼村正", "--file", "ma00_000.nss", "--chain", "2000"])
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "ムービー").mkdir()
+            game = Path(d) / "G"
+            self.assertNotIn("--no-movies", self.game("muramasa").args(game, Path("O"), Path("F.ttf")))
 
     def test_oretsuba(self):
         self.assertEqual(self.args("oretsuba"), ["mages", "convert", "G", "-o", "O", "--font", "F.ttf",

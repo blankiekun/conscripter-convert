@@ -138,6 +138,8 @@ class Game:
         when None) for the options."""
         values = {**self.defaults(), **(values or {})}
         args = self.command(game, output, font)
+        if self.movies and not find_movies(game):
+            args.append("--no-movies")  # detection warned the user; the converter refuses it otherwise
         for o in self.options:
             v = values[o.key]
             if o.needs and not values[o.needs]:
