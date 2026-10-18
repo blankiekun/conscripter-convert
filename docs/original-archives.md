@@ -10,7 +10,8 @@ and saves stay valid because `0.txt` is the same either way.
 
 Phase 1 (done): the design, and Django's NPA read in place
 (`--original-archives`). Phase 2: the other formats, one PR each
-(order at the end); done: Muramasa's zlib NPAs, the web player.
+(order at the end); done: Muramasa's zlib NPAs, the web player,
+最果てのイマ's banks.
 
 ## The model
 
@@ -33,17 +34,25 @@ record), as a missing loose file is today.
 
 ### The mapping file
 
-One line per archive (implemented: `npa`; the rest is the phase-2
-plan):
+One line per archive (implemented: `npa`, `range`, `xor`; the rest is
+the phase-2 plan):
 
 ```
 npa  <folder> <file> <512 hex: decryption table>     Nitroplus NPA
 npk3 <folder> <file> <64 hex: AES-256 key>           Nitroplus Diesel
 mrg  <folder> <hed> <mrg> <nam>                      TYPE-MOON MRG/MZP
 cpk  <folder> <file>                                 CRI CPK / AWB (AFS2)
-xarc <folder> <file>                                 Xuse XARC / XSA / GAF4
+range<TAB><name><TAB><file><TAB><offset><TAB><length>  bytes as they lie in a file
+xor<TAB><file><TAB><hex key>                         the file XORed, by absolute offset
 =    <script name> <archive>:<entry>[|<transform>]   one entry by name or ID
 ```
+
+- **`range` lines** (tab-separated: names may hold spaces) cover any
+  entry stored whole and unpacked inside a bigger file: the converter
+  knows each offset, so the engine needs no format code. 最果てのイマ:
+  17,188 lines (its GAF4 pictures and XSA voices and effects), with an
+  `xor` line for each GAF4 bank (its encryption: XOR with a key cycled
+  by file offset).
 
 - **Folder lines** cover games whose script paths are the archive's
   paths under a prefix (both Nitroplus games: `cg/bg/x.jpg` is `bg\x.jpg`
@@ -89,7 +98,7 @@ published figures for the libraries, not measured here.
 | `knife1.bfsar` (月姫) | Nintendo sound archive | DSP ADPCM, loop points | ADPCM decode is trivial | run time possible; convert first (loops) |
 | CPK, AWB/AFS2 (俺たちに翼はない, Vita) | TOC with names and IDs; no CRILAYLA (checked: `ExtractSize` = `FileSize` everywhere) | PNG; ADX music and effects; HCA voices | ADX trivial; HCA ~ Vorbis decode cost | pictures run time now; sound run time with an ADX/HCA decoder, or convert voices once |
 | USM (俺たちに翼はない) | Sofdec2 | video + audio | — | **convert** (movies, below) |
-| XARC, XSA, GAF4 (最果てのイマ) | XARC: plain entries with CRC-16; XSA: 256 slots; GAF4: PNG frames | PNG, Ogg Vorbis | nothing | run time; `=` lines for slots and frames |
+| XARC, XSA, GAF4 (最果てのイマ) | XARC: plain entries with CRC-16; XSA: 256 slots; GAF4: PNG frames | PNG, Ogg Vorbis | XOR for GAF4 | **done**: `range` and `xor` lines |
 | Movies (all) | MPEG-1 PS (Django, Muramasa `.ngs`, Xuse `.bin`), H.264 MP4 (月姫), USM | | the web plays movies with `<video>` (MP4/WebM only); native through ffmpeg | **convert**, as today (Django: 46 MB of `movie/`) |
 
 What must still be converted, whatever the engine reads:
@@ -209,8 +218,16 @@ converter PR).
    played 60 s to the script's end (569 pages), no missing files,
    browser peak 495 MB, page text identical to a native run. Left: keep
    the original folder's handle so a second visit doesn't ask again.
-3. **最果てのイマ** (XARC, XSA, GAF4): `xarc` lines and `=` lines for
-   slots and frames; nothing to decode.
+3. **最果てのイマ** (GAF4, XSA), done: `range` and `xor` lines
+   (`convert-game --original-archives`; the player copies or links the
+   install's `HD/` and `CD/` into the game folder, or picks the install
+   on the web). Whole game: `0.txt` byte-identical; folder 1.4 GB →
+   426 MB; 75 s headless auto-play: 80 page shots AE 0, 5,234 pages,
+   none missing. Web (wasm from the branch, the install picked as a
+   second folder): 60 s, 3,074 pages, all 85 files found, page text
+   identical to the native run. BGM with a loop start stays converted
+   (the loop tag is written into the Ogg); XARC's pictures are all
+   converter-made.
 4. **俺たちに翼はない** (CPK, AWB): `cpk` lines with `=` ID names for
    the pictures; ADX in the engine; HCA voices converted once or a
    decoder (clHCA); movies stay converted.

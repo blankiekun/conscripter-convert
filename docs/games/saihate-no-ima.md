@@ -867,6 +867,12 @@ wants it.
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
 
+### Original archives (2026-10-18)
+
+`convert-game --original-archives` (`docs/original-archives.md`):
+pictures, voices and effects are read in place from `HD/` and `CD/`
+(page shots AE 0 against today's build, folder 1.4 GB → 426 MB).
+
 ### The auto waits as two rows (2026-10-18)
 
 The dialog's テキスト page has two auto sliders (exe `0x4833a4`, set

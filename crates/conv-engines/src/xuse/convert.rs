@@ -437,6 +437,11 @@ pub struct AssetBank {
     pub dry_run: bool,
     /// The exe's replay, gallery and staff roll tables.
     pub tables: exe::Tables,
+    /// `--original-archives`: each output file copied unchanged from the
+    /// game's files (output name, source file, offset, length).
+    pub ranges: Option<Vec<(String, PathBuf, usize, usize)>>,
+    /// Their files' XOR keys, by absolute offset (GAF4 picture banks).
+    pub xor_keys: BTreeMap<PathBuf, Vec<u8>>,
 }
 
 /// A full-screen animation from `HD/fx.arc`, written as one picture.
@@ -544,6 +549,8 @@ impl AssetBank {
             fx_arc: None,
             animations: HashMap::new(),
             dry_run: false,
+            ranges: None,
+            xor_keys: BTreeMap::new(),
             tables: exe::Tables::read(game).map_err(|(path, detail)| ConvertError::Exe { path, detail })?,
         })
     }
@@ -995,7 +1002,7 @@ impl AssetBank {
             let images = gaf.images().map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
             for i in wanted {
                 if let Some(img) = images.get(i % per_archive) {
-                    self.store_image(kind, dir, i + number_offset, img)?;
+                    self.store_image(kind, dir, i + number_offset, img, &path, &gaf)?;
                 }
             }
         }
@@ -1008,6 +1015,8 @@ impl AssetBank {
         dir: &str,
         number: usize,
         img: &crate::xuse::gaf::GafImage<'_>,
+        file: &Path,
+        gaf: &Gaf,
     ) -> Result<Image, ConvertError> {
         if let Some(done) = self.images.get(&(kind, number)) {
             return Ok(done.clone());
@@ -1015,6 +1024,12 @@ impl AssetBank {
         let (width, height) = image_size(img.png).unwrap_or((0, 0));
         let name = unique(&mut self.used_names, dir, &img.file_name(), number);
         self.write(&name, img.png)?;
+        self.copied(&name, file, gaf.decrypted(), img.png);
+        if self.ranges.is_some() {
+            // GAF4 is XORed by file offset over all but the key's last byte.
+            let key = crate::xuse::gaf::key_for(gaf.name.as_bytes());
+            self.xor_keys.entry(file.to_path_buf()).or_insert_with(|| key[..key.len() - 1].to_vec());
+        }
         let image = Image { path: name, width, height };
         self.images.insert((kind, number), image.clone());
         Ok(image)
@@ -1040,7 +1055,20 @@ impl AssetBank {
         let gaf = Gaf::parse(&bytes).map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
         let images = gaf.images().map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
         let img = images.get(index % per_archive).ok_or(ConvertError::MissingAsset { kind, number })?;
-        self.store_image(kind, dir, number, img)
+        self.store_image(kind, dir, number, img, &path, &gaf)
+    }
+
+    /// Records `name` as `data`, a slice of `file`'s `bytes`.
+    fn copied(&mut self, name: &str, file: &Path, bytes: &[u8], data: &[u8]) {
+        let offset = data.as_ptr() as usize - bytes.as_ptr() as usize;
+        debug_assert!(offset + data.len() <= bytes.len());
+        self.record(name, file, offset, data.len());
+    }
+
+    fn record(&mut self, name: &str, file: &Path, offset: usize, len: usize) {
+        if let Some(r) = &mut self.ranges {
+            r.push((name.to_string(), file.to_path_buf(), offset, len));
+        }
     }
 
     fn sound(
@@ -1084,7 +1112,11 @@ impl AssetBank {
                 .map_err(|source| ConvertError::Ogg { path: path.clone(), slot, source })?;
             self.write(&name, &tagged)?;
         } else {
-            self.write(&name, xsa.data(entry))?;
+            let data = xsa.data(entry);
+            self.write(&name, data)?;
+            let at = data.as_ptr() as usize - bytes.as_ptr() as usize;
+            let len = data.len();
+            self.record(&name, &path, at, len);
         }
         self.written.insert((kind, number), name.clone());
         Ok(name)
