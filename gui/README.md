@@ -1,5 +1,7 @@
 # CONscripter-convert GUI
 
+More features: [blankiekun.github.io](https://blankiekun.github.io/?app=cons#cons)
+
 A small window around the `conscripter-convert` command for players:
 drop the game folder on it, and it finds which game it is and builds it
 with that game's recommended settings (the commands in
