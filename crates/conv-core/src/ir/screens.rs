@@ -89,6 +89,9 @@ pub struct TitleScreen {
     pub continue_hides: Option<i32>,
     /// Start fades to white instead of black.
     pub start_white: bool,
+    /// Buttons and pictures moving by themselves at rest (続・殺戮のジャンゴ's
+    /// buttons jolting now and then, its tumbleweed rolling by).
+    pub motions: Vec<TitleMotion>,
 }
 
 /// [`TitleScreen::openings`]: a silent movie of the title coming up, ending
@@ -120,6 +123,27 @@ pub struct TitleOpening {
     /// place of at once as it returns (on the title as it rests); the
     /// music isn't started again when the boot left it playing.
     pub script: Option<String>,
+    /// With `script`: these [`TitleScreen::motions`] go on from as far as
+    /// the motion on the opening's layer (an [`Op::SpriteMotion2`] one)
+    /// has run when the title takes over, not from their start.
+    pub clocks: Vec<(TitleSprite, u32)>,
+}
+
+/// One of [`TitleScreen::buttons`] or [`TitleScreen::pictures`], by its index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleSprite {
+    Button(usize),
+    Picture(usize),
+}
+
+/// [`TitleScreen::motions`]: `keys` from the sprite's place, from its
+/// first draw, looping from key `from_key` on (0: all of them; a lead-in
+/// before it). The keys' `ease` is unused (straight).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleMotion {
+    pub sprite: TitleSprite,
+    pub keys: Vec<MotionKey>,
+    pub from_key: usize,
 }
 
 /// [`TitleScreen::glow`]: a full-screen picture drawn at a changing

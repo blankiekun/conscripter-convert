@@ -4,7 +4,7 @@
 //! under wine).
 
 use conv_core::ir::{
-    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Op, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleOpening, TitleScreen, WaitIcon,
+    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Op, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleMotion, TitleOpening, TitlePicture, TitleScreen, TitleSprite, WaitIcon,
 };
 
 use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, SettingsScreen, SliderSetting, SliderSteps};
@@ -14,16 +14,19 @@ use super::super::{Assets, Story};
 /// Fills the script's system screens.
 pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.title_screen = title(a);
-    // The first title of a run comes up as TitleSet draws it ($Logo 0),
-    // compiled for the story finished and not (#ClearG).
-    let opening = super::super::OPENING_LABEL;
+    // The title comes up as TitleSet draws it: the first of a run with
+    // $Logo 0, coming back to it (from the story or the extras) with
+    // $Logo 1; compiled for the story finished and not (#ClearG).
     let cleared = story.flags.get(super::extras::CLEARED).copied();
-    if let (Some(t), Some(cleared)) = (script.title_screen.as_mut(), cleared)
-        && script.ops.iter().any(|op| matches!(op, Op::Label(l) if l == opening))
-    {
-        for v in [1, 0] {
-            let label = if v == 0 { opening.to_string() } else { format!("{opening}{v}") };
-            t.openings.push(TitleOpening { at_launch: true, script: Some(label), when: vec![(cleared, v)], ..Default::default() });
+    if let (Some(t), Some(cleared)) = (script.title_screen.as_mut(), cleared) {
+        let (opening, back) = (super::super::OPENING_LABEL, super::super::OPENING_BACK_LABEL);
+        for (base, at_launch, after_extras) in [(opening, true, false), (back, false, false), (back, false, true)] {
+            for v in [1, 0] {
+                let label = if v == 0 { base.to_string() } else { format!("{base}{v}") };
+                let Some(loops) = opening_loops(&script.ops, &label) else { continue };
+                let clocks = loops.iter().filter_map(|(image, layer, keys, from_key)| Some((title_motion(a, t, image, keys, *from_key)?, *layer))).collect();
+                t.openings.push(TitleOpening { at_launch, after_extras, script: Some(label), when: vec![(cleared, v)], clocks, ..Default::default() });
+            }
         }
     }
     // The game has no button bar; the command menu runs a bar's actions.
@@ -46,6 +49,60 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
             t.buttons.iter_mut().filter(|b| b.action == TitleAction::Extras).for_each(|b| b.action = TitleAction::Unavailable);
         }
     }
+}
+
+/// The looping motions TitleSet's processes leave on the opening compiled
+/// at `label` (the buttons' `*Shake`, `TumbleweedMove`): each picture's
+/// image, layer, keys and the key its loop goes back to. None: no such
+/// opening.
+#[allow(clippy::type_complexity)]
+fn opening_loops(ops: &[Op], label: &str) -> Option<Vec<(String, u32, Vec<conv_core::ir::MotionKey>, usize)>> {
+    use conv_core::ir::MotionEnd;
+    let start = ops.iter().position(|op| matches!(op, Op::Label(l) if l == label))?;
+    let mut images = std::collections::HashMap::new();
+    let mut loops = Vec::new();
+    for op in ops[start..].iter().take_while(|op| !matches!(op, Op::Return)) {
+        match op {
+            Op::Sprites { changes, .. } => {
+                for c in changes {
+                    images.insert(c.layer, c.sprite.as_ref().map(|p| p.image.clone()));
+                }
+            }
+            Op::SpriteMotion2 { layer, keys, end: end @ (MotionEnd::Loop | MotionEnd::LoopFrom(_)) } => {
+                let from = if let MotionEnd::LoopFrom(k) = end { *k } else { 0 };
+                if let Some(Some(image)) = images.get(layer) {
+                    loops.retain(|l: &(String, u32, _, usize)| l.1 != *layer);
+                    loops.push((image.clone(), *layer, keys.clone(), from));
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(loops)
+}
+
+/// The title's sprite drawing the opening's picture `image` (a button's
+/// `-01` picture, or the tumbleweed, added to its pictures), given the
+/// motion `keys` at rest if it has none yet.
+fn title_motion(a: &mut dyn Assets, t: &mut TitleScreen, image: &str, keys: &[conv_core::ir::MotionKey], from_key: usize) -> Option<TitleSprite> {
+    const NAMES: [&str; 6] = ["start", "load", "config", "extra", "exit", "liner"];
+    let file = image.rsplit('/').next()?.to_ascii_lowercase();
+    let sprite = if let Some(i) = NAMES.iter().position(|n| file == format!("{n}-01.png")) {
+        TitleSprite::Button(i)
+    } else if file == "tumbleweed.png" {
+        // src: boot.nss TitleSet (タイトル毛玉 at 300, 420); the title's only picture.
+        if t.pictures.is_empty() {
+            let (image, _, _) = a.image("cg/sys/title/Tumbleweed.png")?;
+            t.pictures.push(TitlePicture { image, x: 300, y: 420, ..Default::default() });
+        }
+        TitleSprite::Picture(0)
+    } else {
+        return None;
+    };
+    if t.motions.iter().all(|m| m.sprite != sprite) {
+        t.motions.push(TitleMotion { sprite, keys: keys.to_vec(), from_key });
+    }
+    Some(sprite)
 }
 
 /// The settings screen (`sys_config.nss`) over `コンフィグ地`: rows of ten
