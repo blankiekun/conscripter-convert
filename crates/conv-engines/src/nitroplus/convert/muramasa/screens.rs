@@ -41,7 +41,7 @@ fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, en: bool) {
     script.save_grid = if en { save_grid_en(a) } else { save_grid(a) };
     script.line_log = line_log(a, en);
     script.wait_icon = wait_icon(a);
-    script.picture_settings = if en { settings_en(a) } else { settings(a, story) };
+    script.picture_settings = if en { settings_en(a, story) } else { settings(a, story) };
     script.picture_extras = super::extras::extras(a, story);
 }
 
@@ -124,12 +124,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     // src: sys_config.nss ConfigSet (バージョン情報: SetFont 11 #bb7420, 453/678,548; Exit 26,108, Default 899,197, Test 287,197; Fade 300, 100)
     let version = |text: &str, x: i32| PictureText { text: format!("◆ＧＡＭＥ{text}バージョン情報：1.00"), x, y: 548, font_size: 11, colour: "#bb7420".into() };
     let voice_window = voice_window(a, story);
-    let mut voices_checked = Vec::new();
-    for layout in voice_window.iter().flat_map(|v| &v.layouts) {
-        let check = &voice_window.as_ref()?.check.image;
-        let entries = layout.entries.iter().map(|e| a.composite(&[(e.picture.image.clone(), 0, 0, 1000), (check.clone(), 0, 0, 1000)]).map(|c| c.0)).collect::<Option<Vec<_>>>()?;
-        voices_checked.push(entries);
-    }
+    let voices_checked = voices_checked(a, voice_window.as_ref())?;
     Some(PictureSettings {
         background: picture(a, "コンフィグ", 0, 0)?,
         fixed,
@@ -163,9 +158,9 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
 /// start leaves it: auto save at choices (on), read text's colour (on),
 /// syncing text to voices (off), the
 /// effects test, full screen (off), 1024×576, the display's aspect.
-/// Compared with the original at a first start; the character voices
-/// window (`OpenCVSetting`) and the text sample are not done.
-fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
+/// Compared with the original at a first start. Individual (557,263)
+/// opens [`voice_window_en`]; the text sample is not done.
+fn settings_en(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     const DIR: &str = "en/cg/sys/config";
     let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
         let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
@@ -267,6 +262,8 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     ] {
         fixed.push(picture(a, name, x, y)?);
     }
+    let voice_window = voice_window_en(a, story);
+    let voices_checked = voices_checked(a, voice_window.as_ref())?;
     Some(PictureSettings {
         background: picture(a, "ConfigBG", 0, 0)?,
         fixed,
@@ -280,8 +277,49 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         // src: sys_config.nut main (Fade SCREEN over 300 ms, in and out; the toggles' Fade 0)
         fade_ms: 300,
         pair_fade_ms: 0,
-        voice_window: None,
-        screen: SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen: Vec::new() },
+        voice_window,
+        screen: SettingsScreen { chosen, voices_checked, steps_chosen: Vec::new() },
+    })
+}
+
+/// Per layout, per entry: its picture with the window's check over it.
+fn voices_checked(a: &mut dyn Assets, v: Option<&VoiceWindow>) -> Option<Vec<Vec<String>>> {
+    v.map_or(Some(Vec::new()), |v| {
+        let both = |a: &mut dyn Assets, e: &VoiceEntry| a.composite(&[(e.picture.image.clone(), 0, 0, 1000), (v.check.image.clone(), 0, 0, 1000)]).map(|c| c.0);
+        v.layouts.iter().map(|l| l.entries.iter().map(|e| both(a, e)).collect()).collect()
+    })
+}
+
+/// The English port's character voices window (`OpenCVSetting`), opened
+/// by Individual (`ConfigIndividual-…`, 202×37 at 557,263; pressed 1 px
+/// left, ours at 557): `ボイスセレクトウィンドウ背景` at (0,0), each
+/// `SYSTEM_CV` character (Japanese's [`VOICES`], in order) four to a row,
+/// the i-th at (118 + 204 (i mod 4), 69 + 32 (i div 4)) once opened
+/// (`IsVCOpen`: the Japanese `#voice_on_` flags; the two others' classes
+/// always, `SYSTEM_CV_DEF_OPEN`), `CharaVoice-ButtonCheck` over it while
+/// heard. Its button is 15×15 two px lower (ours: the picture). It
+/// cross-fades in and out over 200 ms; right-click or C closes it.
+fn voice_window_en(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
+    const DIR: &str = "en/cg/sys/config";
+    let mut entries = Vec::new();
+    // src: sys_config.nut OpenCVSetting (x 228 - 110 + 204 col, y 85 - 16 + 32 row, hit y + 2 15x15, Fade 200);
+    // function/val.nut SYSTEM_CV, SYSTEM_CV_DEF_OPEN
+    for (i, &(name, class)) in VOICES.iter().enumerate() {
+        let (x, y) = (118 + 204 * (i as i32 % 4), 69 + 32 * (i as i32 / 4));
+        let picture = picture(a, &format!("{DIR}/CV/{name}.png"), x, y)?;
+        let characters = story.voice_classes.iter().enumerate().filter(|(_, c)| c.as_str() == class).map(|(i, _)| i as u32).collect();
+        let heard = if class.starts_with("その他") { None } else { story.flags.get(&heard_flag(name)).copied() };
+        entries.push(VoiceEntry { hit: (picture.w, picture.h), picture, characters, heard });
+    }
+    let (open, ow, oh) = a.strip(&["", &format!("{DIR}/ConfigIndividual-MouseOver.png"), &format!("{DIR}/ConfigIndividual-MousePress.png")])?;
+    Some(VoiceWindow {
+        open: Placed { image: open, x: 557, y: 263, w: ow as i32 / 3, h: oh as i32 },
+        backdrop: (Placed { image: a.transparent(), x: 0, y: 0, w: 1, h: 1 }, 0),
+        background: picture(a, &format!("{DIR}/CV/ボイスセレクトウィンドウ背景.png"), 0, 0)?,
+        check: picture(a, &format!("{DIR}/CV/CharaVoice-ButtonCheck.png"), 0, 0)?,
+        layouts: vec![VoiceLayout { when: None, entries }],
+        fade_ms: 200,
+        close: None,
     })
 }
 
