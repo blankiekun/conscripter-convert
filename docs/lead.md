@@ -13,3 +13,11 @@
   before it does anything. A doc-only rebase, a doc edit of 10 lines or
   less, or anything needing what you already know (the session's
   findings, files read, a chain of reasoning) is cheaper done in place.
+- **Idea agents** (`ideas`, opus, medium effort, read-only): dispatch one
+  with a focus outline (primary goal, constraints, audience, out of
+  scope) when the queue holds fewer than 5 items, when a game reaches a
+  milestone (story playable, extras done, finished), before a release,
+  or when the user names a focus. At most one at a time, and not the
+  same focus twice in a week (check `out/lead-scratch/ideas/`). Its list
+  lands in `out/lead-scratch/ideas/`; give the user the top 3 with your
+  opinion and queue only what they approve.
