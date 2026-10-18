@@ -517,10 +517,69 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa --pack patch/ nss-title.npa
   ```
 
-  Saves (`.npf`) are the fallback: `builtin_Save` (`00411ea0`) and
-  `builtin_Load` (`00411fb0`) would give their format.
+  Or start from a save: `research/tools/nitroplus_save.py` writes one
+  that goes to any scene file one click after loading ("Save format"
+  below). A patched boot that loads it with no clicks: insert `Load(3);`
+  after `#play_speed_plus = #SYSTEM_play_speed;` in `0_boot.nss`.
 - Film transitions with `ffmpeg -f x11grab -video_size 1024x576 -i
   :N+128,125`; single shots with `import` as above.
+
+## Save format
+
+What `builtin_Save` (`00411ea0` → `0046eb70`) writes and
+`0046fa80`/`00471b40` read back; `research/tools/nitroplus_save.py`
+reads and writes it (`dump`, `write`, `selftest`), checked on saves the
+original wrote in a scratch prefix and by loading a written one there
+(below).
+
+- Folder: `AppData\Roaming\Nitroplus\装甲悪鬼村正\1.00\`, one folder
+  per slot (`0001` = 記録 slot 1) and `common` (`val.npf`: the `#`
+  variables; `cqst.npf`: the read marks; `Save(0)` writes only these);
+  thumbnails in `images\`.
+- Every `.npf`: `NPSF`, u32 plain size, u32 1, u32 1, then zlib whose
+  first 0x1000 bytes are `table[b + key]` (`FUN_00401650`; the table is
+  `npa.py`'s, at exe offset 0x134830). The key is fixed per file name
+  (`val` 100, `script` 164, `frames` 138, `bklg` 248, `cmt` 93, `cpt`
+  72, `date` 8, `tm` 52, `thum` 8, `cqst` 32) and also follows from the
+  zlib header. Inside, the binary files start with a tag (`NPSL`,
+  `NPSG`, `NPSS`, `NPSF`, `NPSB`, `NPSI`), `c5 57 f2 f1` and u32 size.
+- `cmt`, `cpt`, `date`, `tm`: plain cp932 text (the load screen's last
+  line, chapter title, date, play time).
+- `val.npf` (`NPSL` slot, `NPSG` common; `FUN_00462e30`,
+  `FUN_00462b60`): u32 count, then one 1024-byte entry per variable: u8
+  type (0 null, 1 string, 2 number; `true` is 2 with 1.0), name, 4 NULs,
+  f64 number, string, 4 NULs, array key (for `$X/0`), 4 NULs. The
+  current page is `$SYSTEM_present_text` (`@text0010`), the scene file
+  `$GameName`.
+- `script.npf` (`NPSS`, `FUN_00471580`): the program's state, one block
+  per `call_chapter` level (here two: `0_boot.nss`, and
+  `0_boot_開始スクリプト.nss` with the scene file). Each holds the **full
+  text of every script file it has loaded** (`nss\x.nss`, 4 NULs, u32
+  length, text), then one record per function, scene and chapter in
+  compile order: its parameters and how far its code has been compiled
+  (the game compiles a script as it runs it). Loading recompiles the
+  saved texts, not `nss.npa`, and puts the records back in order.
+- `frames.npf` (`NPSF`): the objects on screen as the calls that make
+  them again (`CreateSound(…`); `bklg.npf` the backlog; `thum.npf` the
+  thumbnail (`NPSI`, 160×90 BGRA).
+
+So a written save can stand anywhere the saved text leads: `write`
+with `"scene": "<file>.nss"` cuts the current scene's text after the
+current page and its `_MAIN` after `call_scene $MainGameName`, where
+it sets `$GameName` to the target; code before the current positions
+stays byte-identical, so the records still fit. Checked under wine
+(2026-10-17): the prologue save at `text0010` written with
+`ma02_001.nss` loads on that page, and two clicks later `ma02_001`
+starts (its 山脈坑道 background, soldiers, then 長坂's face window).
+
+```
+python3 -I research/tools/nitroplus_save.py dump <game>/Muramasa.exe <saves>/0001
+echo '{"scene": "md05_025.nss", "vars": {"$md05_２週目": true}}' > edit.json
+python3 -I research/tools/nitroplus_save.py write <game>/Muramasa.exe <saves>/0001 edit.json -o <saves>/0003
+```
+
+The template must stand on a page of a story scene (not at a choice,
+whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 
 ## Status: in progress (2026-10-14)
 
