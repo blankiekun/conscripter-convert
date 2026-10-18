@@ -16,12 +16,16 @@ pub struct GameInfo {
     pub markers: &'static [&'static str],
     /// The converter's subcommand (before the game folder).
     pub command: &'static [&'static str],
-    /// The recommended options for the whole game (after the game folder).
+    /// The recommended options for the whole game (after the game folder),
+    /// as flag and value pairs.
     pub options: &'static [&'static str],
-    /// The id of an English release converted beside this install
-    /// (`--english <its folder>` after the options), or "": muramasa-en.
-    /// tests/snapshot.sh dry-runs it as a game of its own.
-    pub english: &'static str,
+    /// The window title (`--title`); the web build also names its save
+    /// folder after it.
+    pub title: &'static str,
+    /// For an English edition: the id of the Japanese game it is built
+    /// on. The command then takes that game's folder, and this one as
+    /// `--english` (tests/snapshot.sh: its link and the Japanese game's).
+    pub japanese: Option<&'static str>,
 }
 
 pub const GAMES: &[GameInfo] = &[
@@ -32,7 +36,8 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["Farthest2015.exe", "HD/CDFiles/", "CD/"],
         command: &["convert-game"],
         options: &["--title", "Saihate no Ima COMPLETE"],
-        english: "",
+        title: "Saihate no Ima COMPLETE",
+        japanese: None,
     },
     GameInfo {
         id: "muramasa",
@@ -41,7 +46,8 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["Muramasa.exe", "nss.npa", "cg.npa", "sound.npa", "voice.npa", "system.npa"],
         command: &["convert-nss"],
         options: &["--file", "ma00_000.nss", "--chain", "2000"],
-        english: "muramasa-en",
+        title: "装甲悪鬼村正",
+        japanese: None,
     },
     GameInfo {
         id: "django",
@@ -50,7 +56,8 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["Django.exe", "nss.npa", "cg.npa", "sound.npa", "voice.npa", "system.npa"],
         command: &["convert-nss"],
         options: &[],
-        english: "",
+        title: "続・殺戮のジャンゴ",
+        japanese: None,
     },
     GameInfo {
         id: "oretsuba",
@@ -59,7 +66,8 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["media/SCRIPT.cpk", "media/CG.cpk", "sce_sys/param.sfo"],
         command: &["mages", "convert"],
         options: &[],
-        english: "",
+        title: "俺たちに翼はない",
+        japanese: None,
     },
     GameInfo {
         id: "tsukihime",
@@ -68,7 +76,29 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["allscr.mrg", "script_text.mrg", "allui.mrg", "knife1.bfsar"],
         command: &["typemoon", "convert"],
         options: &[],
-        english: "",
+        title: "月姫 -A piece of blue glass moon-",
+        japanese: None,
+    },
+    GameInfo {
+        id: "muramasa-en",
+        name: "Full Metal Daemon Muramasa (English edition)",
+        engine: "Nitroplus NSS + Diesel",
+        markers: &["muramasa_en.exe", "script.npk", "cg.npk", "font.npk"],
+        command: &["convert-nss"],
+        options: &["--file", "ma00_000.nss", "--chain", "2000"],
+        title: "Full Metal Daemon Muramasa",
+        japanese: Some("muramasa"),
+    },
+    GameInfo {
+        id: "tsukihime-en",
+        name: "Tsukihime -A piece of blue glass moon- (English fan patch)",
+        engine: "TYPE-MOON",
+        // the fan patch's RomFS: 1.0.2's files and its imgui.ini
+        markers: &["allscr.mrg", "script_text.mrg", "allui.mrg", "knife1.bfsar", "imgui.ini"],
+        command: &["typemoon", "convert"],
+        options: &[],
+        title: "Tsukihime -A piece of blue glass moon-",
+        japanese: Some("tsukihime"),
     },
 ];
 
@@ -91,14 +121,15 @@ pub fn json() -> String {
         .iter()
         .map(|g| {
             format!(
-                "  {{\"id\": {}, \"name\": {}, \"engine\": {}, \"markers\": {}, \"command\": {}, \"options\": {}, \"english\": {}}}",
+                "  {{\"id\": {}, \"name\": {}, \"engine\": {}, \"markers\": {}, \"command\": {}, \"options\": {}, \"title\": {}, \"japanese\": {}}}",
                 s(g.id),
                 s(g.name),
                 s(g.engine),
                 list(g.markers),
                 list(g.command),
                 list(g.options),
-                s(g.english)
+                s(g.title),
+                g.japanese.map_or("null".into(), s)
             )
         })
         .collect();
@@ -120,6 +151,17 @@ mod tests {
             assert!(gui.contains(&format!("key=\"{}\"", g.id)), "gui/games.py lacks {}", g.id);
             let markers = g.markers.iter().map(|m| format!("\"{m}\"")).collect::<Vec<_>>().join(", ");
             assert!(gui.contains(&format!("markers=({markers})")), "gui/games.py: {}'s markers differ", g.id);
+            assert!(gui.contains(&format!("_common(\"{}\")", g.title)), "gui/games.py: {}'s title differs", g.id);
+        }
+    }
+
+    #[test]
+    fn editions_name_a_japanese_game() {
+        for g in GAMES {
+            if let Some(j) = g.japanese {
+                assert!(GAMES.iter().any(|b| b.id == j && b.japanese.is_none() && b.command == g.command), "{}", g.id);
+            }
+            assert_eq!(g.options.len() % 2, 0, "{}: options are flag and value pairs", g.id);
         }
     }
 

@@ -564,6 +564,7 @@ ones that still lose something:
 **Commands.**
 
     conscripter-convert mages check <game>
+    conscripter-convert build <game> -o out/oretsuba-cons   # mages convert with --title 俺たちに翼はない
     conscripter-convert mages convert <game> -o out/oretsuba-cons [--scenes S01_01A] [--webp] [--dry-run]
     conscripter-convert mages convert <game> -o out/oretsuba-web --loose   # web build, see History
 

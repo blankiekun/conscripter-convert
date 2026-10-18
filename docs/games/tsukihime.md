@@ -16,6 +16,12 @@ downloaded). Nothing has been dropped yet.
 
 ## Build
 
+`conscripter-convert build <game-102> -o <output>` recognises the game and
+runs `typemoon convert` with `--title "月姫 -A piece of blue glass moon-"`;
+`build <game-en> --japanese <game-102>` runs it with `--english <game-en>`
+and `--title "Tsukihime -A piece of blue glass moon-"` (README, "Converting a game"); the
+convert options (`--dry-run`, `--font`, …) go after `-o`.
+
 The converter is `conscripter-convert typemoon convert <game> -o out/tsukihime-cons --font <ttf>`
 (see "Status"). Getting `<game>` (the RomFS) out of the NSP, with
 [hactool](https://github.com/SciresM/hactool) and the console's keys:

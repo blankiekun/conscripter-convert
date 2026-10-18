@@ -345,6 +345,19 @@ def _tsukihime_check(root: Path) -> tuple[list[str], list[str]]:
     return [], []
 
 
+# --- The English editions, built on the Japanese game (`build --japanese`) --
+
+def _build_command(game: Path, output: Path, font: Path) -> list[str]:
+    # `build` adds --english <game> and the Japanese game's options (README).
+    return ["build", str(game), "-o", str(output), "--font", str(font)]
+
+
+def _japanese(name: str) -> Option:
+    return Option("japanese", f"{name}'s folder", "--japanese", "text", "",
+                  f"The English edition's text and pictures go into the Japanese game: give {name}'s folder.",
+                  required=True, wide=True)
+
+
 GAMES: tuple[Game, ...] = (
     Game(
         key="saihate-no-ima",
@@ -454,6 +467,33 @@ GAMES: tuple[Game, ...] = (
         doc="docs/games/tsukihime.md",
         check=_tsukihime_check,
         options=_common("月姫 -A piece of blue glass moon-"),
+    ),
+    Game(
+        key="muramasa-en",
+        name="Full Metal Daemon Muramasa (English edition)",
+        engine="Nitroplus NSS + Diesel",
+        markers=("muramasa_en.exe", "script.npk", "cg.npk", "font.npk"),
+        command=_build_command,
+        font="ipag.ttf",
+        output_name="muramasa-en-cons",
+        needs_ffmpeg=True,  # the Japanese game's movies become MP4s
+        size_gb=3.7,
+        doc="docs/games/muramasa-en.md",
+        icon=lambda root: engine.exe_icon(_find(root, "muramasa_en.exe")),
+        options=(*_common("Full Metal Daemon Muramasa"), _japanese("装甲悪鬼村正")),
+    ),
+    Game(
+        key="tsukihime-en",
+        name="Tsukihime -A piece of blue glass moon- (English fan patch)",
+        engine="TYPE-MOON",
+        markers=("allscr.mrg", "script_text.mrg", "allui.mrg", "knife1.bfsar", "imgui.ini"),
+        command=_build_command,
+        font="ipag.ttf",
+        output_name="tsukihime-en-cons",
+        needs_ffmpeg=True,  # movies at 720p, sounds to Ogg
+        size_gb=5.3,
+        doc="docs/games/tsukihime.md",
+        options=(*_common("Tsukihime -A piece of blue glass moon-"), _japanese("月姫 1.0.2 (its RomFS)")),
     ),
 )
 

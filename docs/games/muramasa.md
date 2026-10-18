@@ -26,6 +26,11 @@ Paths below are relative to the repository unless they say otherwise;
 
 ## Build
 
+`conscripter-convert build <game> -o <output>` recognises the game and
+runs `convert-nss` with `--file ma00_000.nss --chain 2000 --title
+装甲悪鬼村正` (README, "Converting a game"); the
+convert options (`--dry-run`, `--font`, …) go after `-o`.
+
 Whole game, script only (about 10 s, 1.2 GB peak; writes `0.txt`, no
 assets; use it for anything about logic):
 

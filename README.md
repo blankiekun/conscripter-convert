@@ -87,8 +87,18 @@ recommended settings, fonts included. How to run and build it:
 [`gui/README.md`](gui/README.md). By hand:
 
 ```sh
-conscripter-convert convert-game /path/to/game -o out/mygame --title "My Game"
+conscripter-convert build /path/to/game -o out/mygame
 ```
+
+`build` recognises the game in the folder (`conscripter-convert games
+/path/to/game` lists what it finds) and runs that game's convert
+command (`convert-game`, `convert-nss`, `mages convert`, `typemoon
+convert`) with its title and recommended options; any convert option
+after `-o` is passed on (`--dry-run`, `--font`, `--webp`, a `--title` of
+your own). The English editions are built on the Japanese game:
+`build <english folder> --japanese <japanese folder> -o …` (Full Metal
+Daemon Muramasa on 装甲悪鬼村正, Tsukihime's fan patch RomFS on 1.0.2's).
+Each game's document (`docs/games/`) gives the command it runs.
 
 The game path is the installation directory. The engine needs a font that
 covers Japanese: the converter writes IPA Gothic (bundled, under its
@@ -116,8 +126,8 @@ Then run CONscripter on the output directory:
 engine/build/conscripter --root out/mygame
 ```
 
-Every convert command (`convert-game`, `convert-nss`, `mages convert`)
-takes these options, except `--linear` (`convert-game` only):
+Every convert command (`build`, `convert-game`, `convert-nss`, `mages convert`,
+`typemoon convert`) takes these options, except `--linear` (`convert-game` only):
 
 | Option | Effect |
 |---|---|

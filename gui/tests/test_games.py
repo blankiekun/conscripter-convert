@@ -178,7 +178,8 @@ class Commands(unittest.TestCase):
     def test_same_options_everywhere(self):
         """Every game has the shared options first, in the same order."""
         common = ["title", "webp", "webp_quality", "audio_codec", "audio_quality", "loose", "dry_run"]
-        extras = {"saihate-no-ima": [], "muramasa": ["file", "chain"], "django": [], "oretsuba": ["scenes"], "tsukihime": []}
+        extras = {"saihate-no-ima": [], "muramasa": ["file", "chain"], "django": [], "oretsuba": ["scenes"], "tsukihime": [],
+                  "muramasa-en": ["japanese"], "tsukihime-en": ["japanese"]}
         for g in games.GAMES:
             self.assertEqual([o.key for o in g.options], common + extras[g.key], g.key)
 
@@ -229,8 +230,12 @@ class Commands(unittest.TestCase):
             on = {o.key: True if o.kind == "bool" else o.choices[-1] if o.kind == "choice"
                   else (o.default or str(max(o.low, 6))) for o in g.options}
             args = g.args(Path("G"), Path("O"), Path("F.ttf"), on)
-            sub = args[:2] if args[0] in ("mages", "typemoon") else args[:1]
-            out = subprocess.run([str(conv), *sub, "--help"], capture_output=True, encoding="utf-8", errors="replace").stdout
+            def help(args):
+                sub = args[:2] if args[0] in ("mages", "typemoon") else args[:1]
+                return subprocess.run([str(conv), *sub, "--help"], capture_output=True, encoding="utf-8", errors="replace").stdout
+            out = help(args)
+            if args[0] == "build":  # an English edition: build's --japanese, then the Japanese game's command
+                out += help(self.game(g.key.removesuffix("-en")).args(Path("G"), Path("O"), Path("F.ttf")))
             for flag in (a for a in args if a.startswith("-")):
                 self.assertIn(flag, out, f"{g.key}: {flag}")
 
