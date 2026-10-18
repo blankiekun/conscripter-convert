@@ -78,9 +78,34 @@ pub(super) fn table(from: i64, to: i64, softness: i64, ms: i64) -> Option<[u8; 2
     Some(t)
 }
 
+/// The English port's table for a `DrawTransition` ending at `to`
+/// with `softness` (Mware's `psUpdateTransitionRule`, decoded from its
+/// DXBC: grey u ÷ 255 at sat(k(now − u) + u·now), k = 2000 ÷ softness, now
+/// `to` ÷ 1000; softness 0 `psUpdateTransitionRule_Rate0`: u ≤ now);
+/// `None` when it ends shown everywhere.
+pub(super) fn diesel_table(to: i64, softness: i64) -> Option<[u8; 256]> {
+    let now = to as f64 / 1000.0;
+    let mut t = [0u8; 256];
+    for (g, e) in t.iter_mut().enumerate() {
+        let u = g as f64 / 255.0;
+        let v = if softness > 0 { 2000.0 / softness as f64 * (now - u) + u * now } else { f64::from(u8::from(u <= now)) };
+        *e = (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    }
+    Some(t).filter(|t| t.iter().any(|&v| v < 255))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::table;
+    use super::{diesel_table, table};
+
+    #[test]
+    fn the_ports_band() {
+        // softness 500 (k 4) to 500: shown to u 1/3.5, gone from u 4/7
+        let t = diesel_table(500, 500).unwrap();
+        assert_eq!((t[72], t[80], t[100], t[146]), (255, 230, 160, 0));
+        assert!(diesel_table(1000, 1000).is_none());
+        assert_eq!(diesel_table(500, 0).unwrap()[128], 0);
+    }
 
     #[test]
     fn levels() {

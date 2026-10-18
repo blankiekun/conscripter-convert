@@ -767,8 +767,9 @@ pub enum Op {
     /// with a band about `softness` × threshold ÷ 255 grey levels wide
     /// (CONscripter's `effectsoft`), the new screen first where the mask is
     /// dark, or with `reverse` the old screen leaving its bright parts
-    /// first. Nitroplus's `DrawTransition` softness.
-    TransitionSoft { softness: u32, reverse: bool },
+    /// first. Nitroplus's `DrawTransition` softness. `form` 1: Full Metal
+    /// Daemon Muramasa's band, about as wide all the way (`effectsoft`'s form).
+    TransitionSoft { softness: u32, reverse: bool, form: u8 },
     /// The next [`Op::SpriteMotion2`] with keys on `layer` starts as far
     /// in as the motion on layer `from` has run when this op runs, so a
     /// motion handed to another layer goes on (CONscripter's

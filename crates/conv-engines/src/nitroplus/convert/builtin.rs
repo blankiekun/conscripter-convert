@@ -623,7 +623,8 @@ impl Compiler<'_, '_> {
                 // Stopped partway: drawn through the mask at that level, its
                 // opacity left (src: the exe's table, `transition::table`; a
                 // later `Fade` multiplies it, as fire01's in function_process.nss).
-                let veil = super::transition::table(from, to, arg(4).int(), arg(1).int())
+                let table = if self.game.diesel_transition { super::transition::diesel_table(to, arg(4).int()) } else { super::transition::table(from, to, arg(4).int(), arg(1).int()) };
+                let veil = table
                     .filter(|t| t.iter().any(|&v| v > 0))
                     .and_then(|t| self.assets.veil(&mask, &t));
                 if veil.is_some() && targets.iter().any(|t| !matches!(self.objects[t].kind, Kind::Image { .. })) {
