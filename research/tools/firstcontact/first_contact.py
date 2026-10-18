@@ -5,8 +5,9 @@
                    [--ghidra EXPORT_DIR | --ghidra-run]
   first_contact.py --self-test
 
-Writes OUT/report.md (default out/<dir name>-first-contact): the engine
-guesses (known file names, archive magic numbers, exe strings), the exe's
+Writes OUT/report.md (default out/<dir name>-first-contact): for a family we
+already convert (KNOWN), the nearest game's document and the command to start
+from; the engine guesses (known file names, archive magic numbers, exe strings), the exe's
 bitness and imports sorted into graphics / sound / timing / input / files,
 the files by extension with their first bytes, and RTTI class names. With
 a Ghidra export of the exe (research/tools/ghidra/ghidra_export.sh: give
@@ -47,9 +48,50 @@ SIGNS = [
     ("Unity", "file", r"UnityPlayer\.dll"), ("Ren'Py", "file", r".*\.rpa"), ("TyranoScript / NW.js", "file", r"(nw\.dll|package\.nw)"),
     ("Majiro", "magic", b"MajiroArcV"), ("Livemaker", "file", r"live\.dll"), ("Musica", "file", r".*\.paz"),
     ("TYPE-MOON (mrgd00)", "magic", b"mrgd00"), ("ONScripter", "str", rb"ONScripter"),
+    ("MAGES / 5pb. (CRI)", "magic", b"CPK "), ("MAGES / 5pb. (CRI)", "magic", b"AFS2"),
+    ("MAGES / 5pb. (CRI)", "magic", b"@UTF"), ("MAGES / 5pb. (CRI)", "file", r".*\.(cpk|awb|usm)"),
+    ("Nintendo Switch RomFS", "magic", b"BNTX"), ("Nintendo Switch RomFS", "magic", b"FSAR"),
+    ("Nintendo Switch RomFS", "file", r".*\.(bntx|bfsar)"), ("PS Vita dump", "file", r"(param\.sfo|eboot\.bin)"),
     ("Lua inside", "str", rb"lua_pcall|LuaQ|\x1bLua"), ("Ogg Vorbis", "str", rb"ov_open_callbacks|vorbis"),
     ("libpng", "str", rb"libpng"), ("zlib", "str", rb"inflate \d"),
 ]
+
+# families we already convert, by the SIGNS name they start with: the reader to try first, the game
+# document to read (Status, then History), the modules that carry over, the build command
+KNOWN = {
+    "Xuse": ("`xarc list <x.arc>`, `cd`, `gaf`, `xsa`", "docs/games/saihate-no-ima.md",
+             "crates/conv-engines/src/xuse/", "convert-game <install> -o out/<game>-dry --dry-run"),
+    "Nitroplus NSS": ("`npa list <x.npa>`, `nss check <dir>`, `nss refs <dir>`, `nss route <dir>`",
+                      "docs/games/django.md (an older NSS game, reused in 15 min), docs/games/muramasa.md",
+                      "crates/conv-engines/src/nitroplus/ (convert/django.rs, convert/muramasa.rs: a game's rules)",
+                      "convert-nss <install> -o out/<game>-dry --dry-run"),
+    "Nitroplus Diesel": ("`python3 -I research/nitroplus/npk.py <x.npk>`, then the Squirrel reader (nitroplus/squirrel.rs)",
+                         "docs/games/muramasa-en.md (English Diesel port paired with the NSS original)",
+                         "crates/conv-engines/src/nitroplus/ (npk.rs, squirrel.rs, english.rs)",
+                         "convert-nss <NSS install> --english <install> -o out/<game>-dry --dry-run"),
+    "MAGES / 5pb.": ("`mages list <x.cpk>`, `mages check <game>`", "docs/games/oretsuba.md (PS Vita TaskList)",
+                     "crates/conv-engines/src/mages/", "mages convert <game> -o out/<game>-dry --dry-run"),
+    "TYPE-MOON": ("`typemoon list <x.mrg>`, `typemoon check <romfs>`, `typemoon script <romfs>`",
+                  "docs/games/tsukihime.md (Switch, as in the 魔法使いの夜 remake)",
+                  "crates/conv-engines/src/typemoon/", "typemoon convert <romfs> -o out/<game>-dry --dry-run"),
+}
+
+
+def known(hits):
+    """The 'Known family' lines: for each family we convert with evidence, best first."""
+    ev = collections.defaultdict(set)
+    for eng, e in hits.items():
+        fam = next((k for k in KNOWN if eng.startswith(k)), None)
+        if fam:
+            ev[fam] |= e
+    L = []
+    for fam, e in sorted(ev.items(), key=lambda kv: -len(kv[1])):
+        reader, doc, mods, cmd = KNOWN[fam]
+        L += [f"- **{fam}** (a guess from {len(e)} sign(s): " + "; ".join(sorted(e)[:3]) + ")",
+              f"  - read first: {doc}", f"  - readers: {reader}", f"  - carries over: {mods}",
+              f"  - start from: `target/release/conscripter-convert {cmd}`"]
+    return L
+
 
 # import name -> category (prefix match)
 CATS = {
@@ -198,8 +240,13 @@ def report(root, out, exe=None, gdir=None):
     bits, imps = imports(exe) if exe else (None, {})
     L = [f"# First contact: {os.path.basename(os.path.abspath(root))}", "",
          f"Made by `research/tools/firstcontact/first_contact.py`. Exe: `{os.path.relpath(exe, root) if exe else 'none'}`"
-         + (f", {bits}-bit, {len(exe_bytes)} bytes" if exe else "") + ".", "", "## Engine guesses", ""]
+         + (f", {bits}-bit, {len(exe_bytes)} bytes" if exe else "") + ".", ""]
     hits = engines(root, names, exe_bytes)
+    fam = known(hits)
+    if fam:
+        L += ["## Known family: we already convert this", "",
+              "Check the evidence before trusting it; `conscripter-convert games <install>` names an exact game.", ""] + fam + [""]
+    L += ["## Engine guesses", ""]
     for eng, ev in sorted(hits.items(), key=lambda kv: -len(kv[1])):
         L.append(f"- **{eng}**: " + "; ".join(sorted(ev)[:4]) + (f" (+{len(ev) - 4})" if len(ev) > 4 else ""))
     if not hits:
@@ -243,6 +290,10 @@ def self_test():
     open(os.path.join(t, "data.xp3"), "wb").write(b"XP3\r\n \n\x1a\x8b\x67\x01" + b"\0" * 5000)
     h = engines(t, [os.path.join(t, f) for f in os.listdir(t)], b"..TVP(KIRIKIRI)..")
     assert "Nitroplus NSS" in h and len(h["KiriKiri / KAG"]) == 2, h
+    assert "docs/games/django.md" in known(h)[1] and "KiriKiri" not in "".join(known(h)), known(h)
+    open(os.path.join(t, "SCRIPT.cpk"), "wb").write(b"CPK " + b"\0" * 5000)
+    h = engines(t, [os.path.join(t, "SCRIPT.cpk")], b"")
+    assert len(h["MAGES / 5pb. (CRI)"]) == 2 and "mages convert" in known(h)[-1], h
     assert categorize({"WINMM.dll": ["timeGetTime"], "DSOUND.dll": ["#1"]})["sound"] == ["DirectSoundCreate (by ordinal)"]
     g = os.path.join(t, "g", "decomp")
     os.makedirs(g)
