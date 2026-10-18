@@ -333,7 +333,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
                 cgs.push(SlotCg { seen: Seen::Var(seen), picture: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 }, thumbnail });
             }
             if !cgs.is_empty() {
-                out.push(PictureSlot { cgs, reversed: mode == "Vr" || mode == "Hr" });
+                out.push(PictureSlot { cgs, shown_if: Vec::new(), reversed: mode == "Vr" || mode == "Hr" });
             }
         }
         categories.push(GalleryCategory { button: button(a, label, 862, y)?, slots: out });
