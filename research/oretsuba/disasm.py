@@ -1,4 +1,4 @@
-"""Thumb-2 listing of the decrypted eboot (self2elf.py) with the movw/movt
+"""Thumb-2 listing of the decrypted eboot (research/tools/ghidra/self2elf.py) with the movw/movt
 constants resolved and the strings they point at, for finding the code
 that reads a given string. Needs capstone.
 
