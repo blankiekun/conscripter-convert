@@ -177,7 +177,7 @@ fn main() -> Result<()> {
                 None => registry::GAMES.iter().collect(),
             };
             for g in &games {
-                let options = if g.options.is_empty() { String::new() } else { format!(" {}", g.options.join(" ")) };
+                let options = if g.options.is_empty() { String::new() } else { g.options.iter().map(|o| if o.contains(' ') { format!(" {o:?}") } else { format!(" {o}") }).collect() };
                 println!("{} ({}, {}): conscripter-convert {} <game> -o <output> [--font <ttf>]{options}", g.name, g.id, g.engine, g.command.join(" "));
             }
             if games.is_empty() {

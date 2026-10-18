@@ -7,7 +7,9 @@
 #
 # Games are found through $CONS_GAMES (default ~/.config/conscripter-convert/games),
 # a folder of links named by game id to each game's folder (<game> in
-# its document): saihate-no-ima, muramasa, muramasa-en (the English
+# its document). The ids and each dry run's arguments come from the
+# registry (`conscripter-convert games --json`, crates/conv-engines/src/registry.rs):
+# saihate-no-ima, muramasa, muramasa-en (the English
 # release; needs muramasa too), django, oretsuba, tsukihime (the RomFS of
 # 1.0.2, its ExeFS beside it as ../exefs). A game without its
 # link is skipped. --update writes the snapshots of the games run.
@@ -52,9 +54,19 @@ while [ $# -gt 0 ]; do
 done
 [ ${#map[@]} = 0 ] || [ -n "$ref" ] || ref=origin/main
 ids=("$@")
-[ ${#ids[@]} -gt 0 ] || ids=(saihate-no-ima muramasa muramasa-en django oretsuba tsukihime)
 
 cargo build --release -q
+# the games and their dry-run arguments, from the registry: id, the id of
+# the install the command reads, then the command and options (tab-separated)
+declare -A row
+all=()
+while IFS= read -r line; do all+=("${line%%$'\t'*}"); row[${all[-1]}]=$line; done < <("$bin" games --json | python3 -Ic '
+import json, sys
+for g in json.load(sys.stdin):
+    print("\t".join([g["id"], g["id"], *g["command"], "{}", *g["options"]]))
+    if g["english"]:
+        print("\t".join([g["english"], g["id"], *g["command"], "{}", *g["options"], "--english", "{en}"]))')
+[ ${#ids[@]} -gt 0 ] || ids=("${all[@]}")
 if [ -n "$ref" ]; then
     sha=$(git rev-parse --verify "$ref^{commit}")
     refdir=out/snapshot-ref
@@ -70,25 +82,19 @@ base_date="\"commit_date\": \"$(git log -1 --format=%cs "$base")\","
 mkdir -p tests/snapshots
 changed=0
 for id in "${ids[@]}"; do
-    game=$games_dir/$id
-    case $id in
-        muramasa-en) game=$games_dir/muramasa; english=$games_dir/muramasa-en ;;
-    esac
-    if [ ! -e "$game" ] || { [ "$id" = muramasa-en ] && [ ! -e "$english" ]; }; then
+    [ -n "${row[$id]:-}" ] || { echo "$id: unknown game"; exit 2; }
+    IFS=$'\t' read -ra f <<< "${row[$id]}"
+    game=$games_dir/${f[1]} english=$games_dir/$id
+    if [ ! -e "$game" ] || { [ "${f[1]}" != "$id" ] && [ ! -e "$english" ]; }; then
         echo "$id: skipped (no $game)"
         continue
     fi
     out=out/snapshot/$id
     mkdir -p out/snapshot
-    case $id in
-        saihate-no-ima) args=(convert-game "$game" --title "Saihate no Ima COMPLETE") ;;
-        muramasa) args=(convert-nss "$game" --file ma00_000.nss --chain 2000) ;;
-        muramasa-en) args=(convert-nss "$game" --file ma00_000.nss --chain 2000 --english "$english") ;;
-        django) args=(convert-nss "$game") ;;
-        oretsuba) args=(mages convert "$game") ;;
-        tsukihime) args=(typemoon convert "$game") ;;
-        *) echo "$id: unknown game"; exit 2 ;;
-    esac
+    args=()
+    for a in "${f[@]:2}"; do
+        case $a in "{}") args+=("$game") ;; "{en}") args+=("$english") ;; *) args+=("$a") ;; esac
+    done
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
