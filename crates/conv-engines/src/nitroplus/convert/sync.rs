@@ -124,7 +124,7 @@ impl Compiler<'_, '_> {
                         y = (sq[1].0 * c[1] + sq[1].1).round() as i64 - o.h / 2;
                         zoom = ((zoom.0 as f64 * sq[0].0).round().max(1.0) as i64, (zoom.1 as f64 * sq[1].0).round().max(1.0) as i64);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: o.veil.clone() };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
                 }
                 _ => None,
@@ -167,7 +167,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: None };
             // (Turned over as a picture is: the frame, or the movie file.)
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), o.mirror()));
         }
@@ -183,9 +183,7 @@ impl Compiler<'_, '_> {
                 let cells = Some((s.cells, s.looped, zoom, s.frame_ms));
                 let (px, py) = self.parent_offset(n);
                 let (x, y) = (o.x + px, o.y + py);
-                // A partial `DrawTransition`'s veil: each cell cut where it is drawn.
-                let image = o.veil.as_ref().and_then(|v| self.assets.stenciled(&s.image, v, false, (-x, -y), (zoom.0 as i64 * 10, zoom.1 as i64 * 10), (s.cells, o.angle()))).unwrap_or_else(|| s.image.clone());
-                let shown = Shown { layer: 0, image, x, y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
+                let shown = Shown { layer: 0, image: s.image.clone(), x, y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: o.veil.clone() };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
@@ -194,7 +192,7 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None, over: false, whole: None };
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None, over: false, whole: None, mask: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
@@ -312,6 +310,7 @@ impl Compiler<'_, '_> {
                 && s.flash == 0
                 && s.angle == 0
                 && s.clip.is_none()
+                && s.mask.is_none()
                 && s.opacity >= 1000
                 && s.image.to_ascii_lowercase().ends_with(".jpg")
                 && s.x <= 0
@@ -728,7 +727,7 @@ impl Compiler<'_, '_> {
             }
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.over == now.over => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.mask == now.mask && old.over == now.over => {
                     now.engine = old.engine;
                     if old.tint != now.tint {
                         opacity.push(Op::SpriteFilters { layer, filters: now.tint.clone().unwrap_or_default() });
@@ -803,6 +802,12 @@ impl Compiler<'_, '_> {
                     // spclip stays through lsp too.
                     if let Some((x, y, w, h)) = now.clip {
                         opacity.push(Op::SpriteClip { layer, rect: (x as i32, y as i32, w as i32, h as i32) });
+                        now.engine.zoomed = true;
+                    }
+                    // spmask stays through lsp too: the veil read at the screen pixel
+                    // (src: Muramasa.exe 00418320), however the picture moves.
+                    if let Some(m) = &now.mask {
+                        opacity.push(Op::SpriteMask { layer, image: m.clone() });
                         now.engine.zoomed = true;
                     }
                     // spzoom's angle stays through lsp: cleared with the layer later.
