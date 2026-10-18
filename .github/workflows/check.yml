@@ -1,6 +1,9 @@
 name: check (cargo test, clippy)
 on:
+  # main only (for the rust-cache save): a PR branch's push run would only
+  # repeat its pull_request run
   push:
+    branches: [main]
     paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/check.yml']
   # every PR, so the required checks always report
   pull_request:
