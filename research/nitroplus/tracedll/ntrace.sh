@@ -10,7 +10,10 @@
 # trace's lines are the shipped scripts' lines.
 #
 #   ntrace.sh -o trace.jsonl [--pages N] [--seconds S] [--shot NAME.png]
-#             [--shots DIR [--shot-delay MS] [--cap-mb MB]]
+#             [--shots DIR [--shot-delay MS] [--cap-mb MB]] [--patch DIR]
+#
+# --patch: the .nss files in DIR go into the patched nss.npa too (choices
+# that take themselves: research/nitroplus/force_choices.py).
 #
 # --shots: at each text block, MS of game time (default 1000) after it
 # starts, the game's window is saved as DIR/<pg>.webp, lossless (pg: the
@@ -42,11 +45,11 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${NTRACE_HOME:-$repo/out/ntrace}
-OUT= PAGES=60 SECS=900 SHOT= SHOTS= DELAY=1000 CAP=200
+OUT= PAGES=60 SECS=900 SHOT= SHOTS= DELAY=1000 CAP=200 PATCH=
 while [ $# -gt 0 ]; do case $1 in
   -o) OUT=$2; shift 2;; --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;;
   --shot) SHOT=$2; shift 2;; --shots) SHOTS=$(realpath -m "$2"); shift 2;; --shot-delay) DELAY=$2; shift 2;;
-  --cap-mb) CAP=$2; shift 2;; *) sed -n '2,24p' "$0"; exit 2;; esac; done
+  --cap-mb) CAP=$2; shift 2;; --patch) PATCH=$(realpath "$2"); shift 2;; *) sed -n '2,27p' "$0"; exit 2;; esac; done
 EXE_NAME=Muramasa.exe; [ -f "$GAME/Django.exe" ] && EXE_NAME=Django.exe
 [ -n "$OUT" ] && [ -f "$GAME/$EXE_NAME" ] || { echo "need -o and GAME=<folder of Muramasa.exe or Django.exe>" >&2; exit 2; }
 [ $EXE_NAME = Muramasa.exe ] || [ -f "$EXE" ] || { echo "Django: need EXE=<the unpacked 1.01 Django.exe>" >&2; exit 2; }
@@ -112,6 +115,7 @@ for name, line, old, new in [('0_boot.nss', 85, '\t\t//$Logo = true;', '\t\t$Log
     (dst / name).write_bytes(b'\n'.join(lines))
 PY
 fi
+[ -z "$PATCH" ] || cp "$PATCH"/*.nss "$H/patch/nss/"
 $npa --pack "$H/patch/nss" "$H/nss.npa" >/dev/null
 
 cleanup() { wineserver -k 2>/dev/null || true; }

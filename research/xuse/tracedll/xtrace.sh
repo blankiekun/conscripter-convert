@@ -3,7 +3,7 @@
 # and write its JSONL trace. Headless: own Xvfb, ja_JP locale, null audio.
 #
 #   xtrace.sh -o trace.jsonl [--save SLOT.bin] [--choices 12,34|none]
-#             [--pages N] [--seconds S] [--shot NAME.png] [--no-cover]
+#             [--route 16=0,18=1,...] [--pages N] [--seconds S] [--shot NAME.png] [--no-cover]
 #
 # SPEED=N runs the game N times as fast (its clock and waits scaled by
 # research/tools/trace_speed.h; "ms" and "f" stay in game time, so the
@@ -15,7 +15,10 @@
 # research/tools/xuse_save.py) to slot 1 and loads it from the title;
 # without it the run starts with FIRST START. --pages stops after N
 # pages (default 200), --seconds after S seconds (default 600). --shot
-# saves the screen at the end. Unless --no-cover, research/xuse/cover.py
+# saves the screen at the end. --route takes the links in a set order
+# (label=1 take, label=0 leave; each used up by the next page offering
+# that label; xtrace.c XTRACE_ROUTE): the whole game's heroine links are
+# in docs/games/saihate-no-ima.md, "Reference trace". Unless --no-cover, research/xuse/cover.py
 # addrs arms one-shot breakpoints ("hit" records; cover.py mark turns them
 # into the findings table's marks). Records: research/xuse/tracedll/xtrace.c.
 set -e
@@ -23,11 +26,11 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${XTRACE_HOME:-$repo/out/xtrace}
-OUT= SAVE= CHOICES= PAGES=200 SECS=600 SHOT= COVER=1
+OUT= SAVE= CHOICES= ROUTE= PAGES=200 SECS=600 SHOT= COVER=1
 while [ $# -gt 0 ]; do case $1 in
-  -o) OUT=$2; shift 2;; --save) SAVE=$2; shift 2;; --choices) CHOICES=$2; shift 2;;
+  -o) OUT=$2; shift 2;; --save) SAVE=$2; shift 2;; --choices) CHOICES=$2; shift 2;; --route) ROUTE=$2; shift 2;;
   --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;; --no-cover) COVER=; shift;;
-  --shot) SHOT=$2; shift 2;; *) sed -n '2,21p' "$0"; exit 2;; esac; done
+  --shot) SHOT=$2; shift 2;; *) sed -n '2,25p' "$0"; exit 2;; esac; done
 [ -n "$OUT" ] && [ -d "$GAME/HD" ] || { echo "need -o and GAME=<install folder>" >&2; exit 2; }
 
 mkdir -p "$H/build"
@@ -73,6 +76,7 @@ rm -f "$C/xtrace/trace.jsonl" "$C/xtrace/cover.txt"
 
 export XTRACE_OUT='C:\xtrace\trace.jsonl' XTRACE_PAGES=$PAGES TRACE_SPEED=${SPEED:-1}
 [ -n "$CHOICES" ] && export XTRACE_CHOICES=$CHOICES
+[ -n "$ROUTE" ] && export XTRACE_ROUTE=$ROUTE
 wine 'C:\xtrace\xlaunch.exe' 'C:\Xuse\ima\Farthest2015.exe' 'C:\xtrace\xtrace.dll' > "$H/wine.log" 2>&1 &
 wpid=$!
 

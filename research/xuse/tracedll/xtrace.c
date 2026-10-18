@@ -21,6 +21,9 @@
  *   XTRACE_OUT      Windows path of the JSONL (default C:\xtrace.jsonl)
  *   XTRACE_CHOICES  link label-table indices to take, comma-separated;
  *                   unset: the first link of each page; "none": none
+ *   XTRACE_ROUTE    a route instead: "label=answer,..." in order; a page
+ *                   offering the next one's label uses it up (answer 1:
+ *                   take it, 0: take none); other pages take none
  *   XTRACE_PAGES    exit the game after this many pages (0: never)
  *   XTRACE_NOAUTO   set: leave auto mode alone
  *   TRACE_SPEED     N: the game runs N times as fast, "ms" in its time
@@ -51,6 +54,7 @@ void *xt_jump; /* the handler `stub` jumps to */
 static volatile long frames;
 static long pages, max_pages;
 static int choices[256], n_choices = -1; /* -1: take the first */
+static int route[256][2], n_route = -1, route_at; /* XTRACE_ROUTE: (label, answer) */
 static int taken[1024], n_taken;
 static struct { int label, extra, row, col, len; } fresh[32], page[32];
 static int n_fresh, n_page, last_op = -1;
@@ -152,6 +156,11 @@ static int was_taken(int l) {
 }
 
 static int pick(void) {
+    if (n_route >= 0) {
+        for (int i = 0; route_at < n_route && i < n_page; i++)
+            if (page[i].label == route[route_at][0]) return route[route_at++][1] ? i : -1;
+        return -1;
+    }
     for (int i = 0; i < n_page; i++) {
         if (was_taken(page[i].label)) continue;
         if (n_choices < 0) return i == 0 ? 0 : -1;
@@ -305,8 +314,18 @@ static void install(void) {
         for (char *s = (char *)ch; *s && n_choices < 256; s++)
             if (*s >= '0' && *s <= '9') choices[n_choices++] = strtol(s, &s, 10), s--;
     }
-    fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"Farthest2015.exe (xtrace)\",\"choices\":\"%s\",\"max_pages\":%ld,\"speed\":%ld}\n",
-            ch ? ch : "first", max_pages, speed);
+    const char *rt = getenv("XTRACE_ROUTE");
+    if (rt) {
+        n_route = 0;
+        for (char *s = (char *)rt; *s && n_route < 256;) {
+            route[n_route][0] = strtol(s, &s, 10);
+            route[n_route][1] = *s == '=' ? strtol(s + 1, &s, 10) : 1;
+            n_route++;
+            while (*s && (*s < '0' || *s > '9')) s++;
+        }
+    }
+    fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"Farthest2015.exe (xtrace)\",\"choices\":\"%s\",\"route\":\"%s\",\"max_pages\":%ld,\"speed\":%ld}\n",
+            ch ? ch : "first", rt ? rt : "", max_pages, speed);
     DWORD old;
     VirtualProtect(OPCODE_TABLE, N_OPS * 4, PAGE_READWRITE, &old);
     for (int i = 0; i < N_OPS; i++)
