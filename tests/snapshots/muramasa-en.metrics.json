@@ -1,13 +1,13 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "5cc5003f",
+"commit": "2de13403",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1201854, "full": 1186848, "gaps": 6412, "left_out": 8594, "weighted": 1192853.5},
+"totals": {"calls": 1201854, "full": 1186862, "gaps": 6398, "left_out": 8594, "weighted": 1192853.5},
 "kinds": {
 "SetFrequency": {"calls": 8778, "gaps": 1523, "reasons": [["SetFrequency on music", 1486], ["SetFrequency argument 3 ignored", 37]], "weighted": 8768.8},
 "Shake": {"calls": 1486, "gaps": 1486, "reasons": [["Shake argument 6 ignored", 1486], ["Shake argument 7 ignored", 1486], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 2]], "weighted": 1155.8},
-"Request": {"calls": 239987, "gaps": 1320, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 14], ["Request entrustsuspend", 12], ["28 more", 83]], "weighted": 239987.0},
+"Request": {"calls": 239987, "gaps": 1306, "reasons": [["Request stop", 1068], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 14], ["Request entrustsuspend", 12], ["28 more", 83]], "weighted": 239987.0},
 "DrawTransition": {"calls": 2650, "gaps": 800, "reasons": [["DrawTransition from another opacity than the picture's", 565], ["DrawTransition partial: ends masked in the exe", 374], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
 "Random": {"calls": 7411, "gaps": 771, "reasons": [["Random picked when converting", 771]], "weighted": 7411.0},
 "Position": {"calls": 506, "gaps": 62, "left_out": 444, "reasons": [["the choice screen's own code: the engine's choice stands in", 444], ["built-in Position", 62]], "weighted": 62.0},

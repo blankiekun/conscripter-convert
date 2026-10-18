@@ -459,9 +459,6 @@ over 200, their bullets at once (ours at once both).
       linear; the data uses only 0 and ±1000, where they agree.
    4. `Fade` with four arguments takes the fourth as the tempo, not
       the wait; the six such calls take 0 ms.
-   6. `SetAlias` keeps one alias per object (a new one replaces it,
-      `00432da0`); ours keeps the older alias too. Not checked whether
-      the story re-aliases an object.
    7. `SetFrequency` on music is noted ×15 though every call
       (`MusicStart`) sets 1000, no change; `LoadFont` (×67, glyph
       preloading) is noted as a gap though it draws nothing. Both only
@@ -469,6 +466,14 @@ over 200, their bullets at once (ours at once both).
 
 ## History
 
+- **`SetAlias`, one per object** (2026-10-17): the exe (`00432da0`,
+  Muramasa.exe `004475b0`) keeps one alias slot per object (+0x100),
+  which a new alias overwrites; ours kept the older aliases too. Now a
+  new alias (or the object's own name) drops the object's older ones.
+  Django's 0.txt doesn't change (its re-aliasing, such as the save
+  screen's `video`, never uses the old name again); in 装甲悪鬼村正 14
+  `Request(…, Stop)` calls on an alias the object had lost now find
+  nothing, as in the exe (14 fewer gaps, 0.txt the same).
 - **`Draw`** (2026-10-17): the exe's `Draw` (`0040ba10`, Muramasa.exe
   `0040f470`) waits at most 4 ms for a frame and lets running actions
   go on; ours waited for all of them (as `WaitAction`). It is a sync

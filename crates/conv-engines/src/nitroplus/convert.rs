@@ -4738,6 +4738,25 @@ scene a.nss
     }
 
     #[test]
+    fn a_new_alias_replaces_the_old_one() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("st", 100, 0, 0, "cg/st/a.png");
+	SetAlias("st", "one");
+	SetAlias("st", "two");
+	Fade("st", 0, 1000, null, true);
+	Move("@one", 600, @-540, @0, null, true);
+	Move("@two", 300, @-540, @0, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let moves: Vec<_> = c.ops.iter().filter_map(|op| match op { Op::SpriteMove { ms, .. } => Some(*ms), _ => None }).collect();
+        assert_eq!(moves, [300], "{:?}", c.ops);
+    }
+
+    #[test]
     fn a_face_window_follows_its_frame() {
         // 続・殺戮のジャンゴ's face windows, as compared under wine: the
         // face named through a variable alias, a `*` that doesn't reach
