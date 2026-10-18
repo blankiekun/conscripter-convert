@@ -97,7 +97,7 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
     let game = Game { scripts, scenes: exe.scenes()?, lines, textures: textures(romfs, &pictures)?, pictures, sounds, waves, pic_ext, motions: exe.motions()? };
     let en_source = english.map(Source::read).transpose()?;
     let own = english.map(|en| own_pictures(romfs, en)).transpose()?.unwrap_or_default();
-    let compiled = match (english, &en_source) {
+    let mut compiled = match (english, &en_source) {
         (Some(en_dir), Some(en)) => {
             let (scripts, lines) = en.scripts()?;
             let en_game = Game { scripts, lines, textures: textures(en_dir, &game.pictures)?, pictures: game.pictures.clone(), scenes: game.scenes.clone(), sounds: game.sounds.clone(), waves: game.waves.clone(), motions: game.motions.clone(), pic_ext };
@@ -105,6 +105,15 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
         }
         _ => convert::compile(&game),
     };
+    // src: script_command, case "PLY": a voice's character from its
+    // name's first 3 letters; its row of the settings' voices is the
+    // character a voice switch is kept for.
+    let (rows, other) = exe.voice_rows()?;
+    for op in &mut compiled.ops {
+        if let conv_core::ir::Op::Text { voice: Some(v), .. } = op {
+            v.character = v.file.trim_start_matches("stream/").get(..3).and_then(|p| rows.get(p)).copied().unwrap_or(other);
+        }
+    }
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;
         super::question::write(romfs, opts.output, opts.font, false)?;

@@ -844,8 +844,7 @@ ours over `00_00`'s first 297 pages. How each was done: History
 ("Status as it stood before the 2026-10-18 prune" has the full table,
 Languages and Trace diff).
 
-Not yet: the other layer commands, FlowChart, the backlog, the
-settings' voice rows per character (T2), the Gallery's Music Player,
+Not yet: the other layer commands, FlowChart, the backlog, the Gallery's Music Player,
 Flowchart, Movie and Ending List.
 
 ### Next
@@ -875,8 +874,7 @@ Flowchart, Movie and Ending List.
    show only after flag 557 (`_RDED(557)`, the last lesson), as the
    exe reads (`FUN_00156720` scans the first 0xA8C picture names).
    `allui` (71 MB) is still not in the media folder.
-3. The menus: the settings' voice rows (T2: voice_bg's character rows,
-   on/off each, the user's choice; `FUN_00129fa0` builds them), the
+3. The menus: the
    rows waiting for engine features (below), the backlog; then the
    save list's route picture and chapter labels (by the phase). The
    settings rows drawn at the exe's defaults with no effect: the read
@@ -885,7 +883,10 @@ Flowchart, Movie and Ending List.
    (+0x5C, 3000 ms; the engine has one auto wait), 既読シーンのオート
    スキップ and its question box (+0x5E, +0x60), the text fade-ins
    (+0x61, +0x62), the system sound's mute (+0x66), the SE test, the
-   values' digits (`config_number`); the 推奨設定 question is not asked.
+   values' digits (`config_number`), the characters' volume sliders
+   (50 %) and voice tests; the 推奨設定 question is not asked. The
+   characters' rows show all 19 from the start (the exe shows a row once
+   its flag, 0x44D4B4, says the character was met).
 4. Still open in the exe: the motion keyframes' other fields.
 5. The full-route reference trace (Testing, step 3): rerun it whole
    once the machine has 8 GB free (Ryubing takes 5.5 GB), from the
@@ -955,6 +956,25 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **voices on or off per character** (T2; the user: on/off
+  each, no volumes). **Seen**: `_VPLY` (`script_command`, case "PLY")
+  looks its name's first 3 letters up in the table at 0x54D970 (55
+  prefixes, `FUN_00102360`; one not listed is character 0) and plays
+  it only while that character's bit (the mask table at 0xBE04D8's
+  pointer) is set in the settings' +0x24; the bit's log2 is the row of
+  `voice_bg` (`FUN_00129fa0`: 19 rows, the line at stage y 370.01 +
+  50.61 n, each with a face of `conf_faceicon` and a name of
+  `conf_name` from 0x44D500 and 0x44D5A0, a volume slider, a mute box
+  at x 476.33 and a test). A00 is row 0 (遠野志貴), A10-A12 row 1, B90
+  shares row 0, C50, C60, C80, C90, D*, M* are その他 (row 18).
+  **Ours**: `Exe::voice_rows` reads the table, `build.rs` gives each
+  voice its row as its character, and the Sound tab goes on over three
+  pages of 7, 7, 5 rows (▲ ▼), each row's mute box live
+  (`SettingValue::Voices`, `%970 + row`), the slider at 50 % and the
+  test drawn at rest. **Checked** headless from
+  `*tm_01_00_ARC01_1__LV00000`, 4110 pages: with `%970=1` the 604 A00
+  plays are gone and every other prefix plays as often as without.
 
 - 2026-10-18: **the settings** (`typemoon/settings.rs`, the shared
   `PagedSettings`; the system menu's Config tab and the title's
