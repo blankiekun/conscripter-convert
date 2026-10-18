@@ -72,7 +72,8 @@ pub enum TypemoonCommand {
         motion: Vec<usize>,
     },
     /// Write a RomFS folder's media for the build into `<output>`: every
-    /// `allpac` picture at full size as `pic/<name>.png` (`.webp` with
+    /// `allpac` picture at full size as `pic/<name>.png`, and the gallery's
+    /// CGs (`allpaccg`'s `IMG*`) as `cg/<name>.png` (`.webp` with
     /// `--webp`/`--webp-quality`; the `RULE_*` masks always PNG), each
     /// from its largest copy (a bare background's `.JPG`, else the larger
     /// `.NXGZ`); the movies as they are (H.264, remuxed to start playing
@@ -80,7 +81,7 @@ pub enum TypemoonCommand {
     /// `typemoon sounds` writes it. Pictures and movies already there are
     /// kept, so an interrupted run goes on where it stopped. With
     /// `--english`, the fan patch's pictures and movies that differ from
-    /// `dir`'s as `pic/en/` and `movie/en/`
+    /// `dir`'s as `pic/en/`, `cg/en/` and `movie/en/`
     Media {
         dir: PathBuf,
         #[arg(short, long)]
@@ -418,10 +419,12 @@ fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
 }
 
 fn media(dir: &Path, english: Option<&Path>, output: &Path, webp: Option<Option<u8>>, audio: AudioFormat) -> Result<()> {
-    pictures(dir, &output.join("pic"), webp, None)?;
+    pictures(dir, "allpac", &output.join("pic"), webp, None)?;
+    pictures(dir, "allpaccg", &output.join("cg"), webp, None)?;
     movies(&dir.join("movie"), &output.join("movie"), None)?;
     if let Some(en) = english {
-        pictures(en, &output.join("pic/en"), webp, Some(dir))?;
+        pictures(en, "allpac", &output.join("pic/en"), webp, Some(dir))?;
+        pictures(en, "allpaccg", &output.join("cg/en"), webp, Some(dir))?;
         movies(&en.join("movie"), &output.join("movie/en"), Some(&dir.join("movie")))?;
         // The sound comes from `dir` alone: the fan patch's is the same.
         let same = |rel: &str| -> Result<bool> { Ok(map(&dir.join(rel))?[..] == map(&en.join(rel))?[..]) };
@@ -436,29 +439,34 @@ fn media(dir: &Path, english: Option<&Path>, output: &Path, webp: Option<Option<
     sounds(dir, output, audio)
 }
 
-/// `allpac`'s pictures as PNG, or WebP (`webp`: its lossy quality, if
-/// any); the `rule_*` masks always PNG, exact. Per name (case ignored,
-/// extension dropped) the `.JPG` if there is one, else the largest entry.
-/// With `base` (another RomFS), only the pictures whose data differ from
-/// its own.
-fn pictures(dir: &Path, out: &Path, webp: Option<Option<u8>>, base: Option<&Path>) -> Result<()> {
+/// `archive`'s pictures (`allpac`, or `allpaccg`'s gallery CGs, the
+/// `IMG*` ones) as PNG, or WebP (`webp`: its lossy quality, if any); the
+/// `rule_*` masks always PNG, exact. Per name (case ignored, extension
+/// dropped) the `.JPG` if there is one, else the largest entry. With
+/// `base` (another RomFS), only the pictures whose data differ from its
+/// own.
+fn pictures(dir: &Path, archive: &str, out: &Path, webp: Option<Option<u8>>, base: Option<&Path>) -> Result<()> {
     let ext = |stem: &str| if webp.is_none() || stem.starts_with("rule_") { "png" } else { "webp" };
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-    let path = dir.join("allpac.mrg");
+    let path = dir.join(format!("{archive}.mrg"));
     let bytes = map(&path)?;
-    let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
+    let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).with_context(|| format!("reading {archive}.hed"))?;
     let mut best = typemoon::full_copies(&entries);
+    if archive == "allpaccg" {
+        // the flowchart's thumbnails and a dummy besides the CGs
+        best.retain(|stem, _| stem.starts_with("img"));
+    }
     if let Some(base) = base {
-        let path = base.join("allpac.mrg");
+        let path = base.join(format!("{archive}.mrg"));
         let base_bytes = map(&path)?;
-        let base_entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
+        let base_entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).with_context(|| format!("reading {archive}.hed"))?;
         let keep: std::collections::BTreeSet<String> = typemoon::differing(&typemoon::full_copies(&base_entries), &base_bytes, &best, &bytes)?.into_iter().collect();
         best.retain(|stem, _| keep.contains(stem));
     }
     fs::create_dir_all(out)?;
     let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.{}", ext(stem))).exists()).collect();
-    println!("allpac: {} pictures, {} to convert", best.len(), jobs.len());
+    println!("{archive}: {} pictures, {} to convert", best.len(), jobs.len());
     let (next, done, in_bytes, out_bytes) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicU64::new(0), AtomicU64::new(0));
     let failed = Mutex::new(Vec::new());
     let one = |stem: &str, e: &mrg::Entry| -> Result<()> {
@@ -506,7 +514,7 @@ fn pictures(dir: &Path, out: &Path, webp: Option<Option<u8>>, base: Option<&Path
         }
     });
     let mb = |a: &AtomicU64| a.load(Ordering::Relaxed) as f64 / 1e6;
-    println!("pic: {} written, {:.1} MB from {:.1} MB in the archive", jobs.len() - failed.lock().unwrap().len(), mb(&out_bytes), mb(&in_bytes));
+    println!("{archive}: {} written, {:.1} MB from {:.1} MB in the archive", jobs.len() - failed.lock().unwrap().len(), mb(&out_bytes), mb(&in_bytes));
     let failed = failed.into_inner().unwrap();
     for e in failed.iter().take(5) {
         println!("  {e}");

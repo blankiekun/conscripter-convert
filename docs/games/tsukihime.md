@@ -79,7 +79,8 @@ The flags are the other games' (`convert` takes the same, and its
 `0.txt` names the files they write). It writes every `allpac` picture
 once, from its full art (the `.JPG` for a bare background, else the
 larger of a name's two `.NXGZ`), at the texture's full size as
-`pic/<name>.png` (lowercase), or `.webp` with `--webp` (near-lossless)
+`pic/<name>.png` (lowercase), and the gallery's CGs (`allpaccg`'s
+1,023 `IMG*`, the same way) as `cg/<name>.png`, or `.webp` with `--webp` (near-lossless)
 or `--webp-quality N` (lossy); the 98 `RULE_*` masks always PNG. The
 movies as they are (H.264 1920 × 1080, remuxed with the index first, not
 re-encoded) as `movie/<name>.mp4`, at their own size as the other
@@ -92,7 +93,8 @@ so a stopped run goes on.
 
 Sizes for the Japanese copy: `stream/` 1.3 GB; `movie/` 1.7 GB; `se/`
 1,395 MB as WAV, 56 MB as Opus (32 kbit/s a channel, the shared
-default), 110 MB as Vorbis q4; `pic/` (14,763) 2.37 GB at
+default), 110 MB as Vorbis q4; `cg/` (1,023) 302 MB at
+`--webp-quality 85` (from 2 GB, 100 s); `pic/` (14,763) 2.37 GB at
 `--webp-quality 85`. On a sample of 57 pictures (12 sprites, 9 masks,
 36 large backgrounds; 167 MB as PNG) near-lossless WebP is 45 % of PNG
 and lossy q85 10 %: PNG would be about 23 GB, `--webp` about 10 GB.
@@ -101,8 +103,9 @@ and lossy q85 10 %: PNG would be about 23 GB, `--webp` about 10 GB.
 <game-en>` puts both copies of the scripts in one `0.txt` with a
 language switch ("Languages" under "Status"). `--english` on `typemoon
 media` (and `typemoon convert`) also writes the fan patch's pictures and movies that differ
-from `<game-102>`'s, as `pic/en/<name>` and `movie/en/<name>`: 155 of
-the 14,763 pictures (21 MB as WebP at 80) and 34 of the 46 movies
+from `<game-102>`'s, as `pic/en/<name>`, `cg/en/<name>` and
+`movie/en/<name>`: 155 of the 14,763 pictures (21 MB as WebP at 80), 7
+of the 1,023 CGs (3.9 MB at 85) and 34 of the 46 movies
 (1.4 GB: the 31 chapter titles, the endings with subtitles, the
 openings and prologue, `TM_CI` with the patch's own logo). 38 movies'
 bytes differ, but the patch re-encoded the four title backgrounds and
@@ -816,8 +819,19 @@ tab, Gallery, Config on the title.
    leans on, in order of use. `typemoon convert --dry-run` prints the
    counts. Splitting sprites into body and face crops is out unless
    the user asks.
-2. The other picture archives in the media folder: `allpaccg` (the
-   gallery's CGs, 2 GB), `allui` (71 MB).
+2. The CG gallery (Gallery on the title), from the exe's tables (History,
+   2026-10-18, "the gallery's tables"): its CGs are in the media folder
+   (`cg/`). Before the screen: the seen flags. The gallery needs about
+   1,100 of them (1,007 picture flags under 0xA8C, about 100 the
+   sprites map to, read flag 557); the converter's
+   `SlotCg::seen` is a whole variable, and the free globals are fewer.
+   A bit flag (a shared `Var` bit, or a CONscripter seen-picture set the
+   showing of a picture fills, as `kidoku`) is a shared change: its own
+   PR first. Then `PictureExtras` with the CG mode (the music, movies and
+   ending list later), slots from the 458-slot table and the thumbnails
+   (likely `allui`'s `CG_THUMB_PARTS_JA`, 22 MB, not looked at;
+   `allpaccg`'s `THUMCG_TOP.MZP` is a 2 KB stub). `allui` (71 MB) is
+   still not in the media folder.
 3. The menus: the settings tab (the defaults in "Accuracy", the
    日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
    from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
@@ -903,6 +917,42 @@ Open there, by size:
   build's font. Guesses: the glyph size (22 px), the buttons' anchor
   (their top left), the fade (167 ms); the window's pop from 105 % left
   out.
+
+- 2026-10-18: **the gallery's tables** (`cGallery`, `FUN_001042d0`
+  builds it, `FUN_00104470` lists the CGs it shows), **seen**, read
+  with `exe_call.py`'s loader (relocations applied):
+  - 458 slots (`FUN_0010b790`) at 0x54EC88, 0x20 bytes each: a pointer
+    to the slot's CGs and a condition (0–19, `FUN_0010b58c`: 0 always,
+    the others a global read flag through `FUN_001926b0`, words
+    110 + n/16; 270 slots have 0). A slot's CGs (1–65, 1,977 in all),
+    0x20 bytes each until a null name: the name with a prefix
+    (`" IMG1685.MZP"`, 1,148; `"-IMG3864.MZP"`, 829), a number (758;
+    not the flag), and the size it is shown at on 1080p (2106 × 1266,
+    3840 × 3915, …). Every `allpaccg` `IMG*` (1,023) is a gallery CG;
+    the other 954 are story pictures in `allpac`.
+  - 105 CGs (`FUN_0010b798`) at 0x5525C8, 0x28 bytes: a CG and up to
+    four story pictures that unlock it (`IMG3954` by
+    `SIE_A_63_00_N00`; a sprite's shot letter tried as A, L, M and S,
+    `FUN_001051e0`).
+  - A CG shows when its slot's condition holds and: one of its
+    pictures (from that table) has its CG flag, or its own name does
+    (`FUN_00175900`: its place in the picture names, `FUN_00177610`:
+    the flag), or global read flag 557 is set (`FUN_001922c0(0x22D)`,
+    words 300 + n/16; `_RDST(557)`, the last lesson `QA_25`).
+    **Not settled**: 926 CGs (most of `allpaccg`'s) are in neither the
+    unlock table nor the first 0xA8C picture names, so by this reading
+    only flag 557 shows them, which looks unlikely. `exe_call.py` on
+    `FUN_00175900` returned 0 for every name tried (the lookup needs
+    run-time state); the lookup (`FUN_00156720`) is the next thing
+    to read.
+  - The CG flags (bits at 0x7A8, under 0xC80): showing a picture sets
+    its own (`FUN_0015d3a0` → `FUN_001774f0`: its table index up to
+    0xA8C; a sprite past that through the table at 0x7533C0, name →
+    flag), and so does `_STCG(name)`.
+  - Ours: `typemoon media` (and `convert`) writes `allpaccg`'s 1,023
+    `IMG*` CGs to `cg/` (`cg/en/` the fan patch's that differ); the
+    flowchart's thumbnails (`GALLERY_FC_TH*`, 495) and a dummy are left
+    for the flowchart.
 
 - 2026-10-18: **`_STCF` waits a frame more**: `FUN_00162f90` always
   returns 1 (wait) and the wait is checked from the next frame, so
@@ -1605,8 +1655,19 @@ Left (was 46 `missing`, 149 `time`, 180 `text`; then 14 and 89):
    leans on, in order of use. `typemoon convert --dry-run` prints the
    counts. Splitting sprites into body and face crops is out unless
    the user asks.
-2. The other picture archives in the media folder: `allpaccg` (the
-   gallery's CGs, 2 GB), `allui` (71 MB).
+2. The CG gallery (Gallery on the title), from the exe's tables (History,
+   2026-10-18, "the gallery's tables"): its CGs are in the media folder
+   (`cg/`). Before the screen: the seen flags. The gallery needs about
+   1,100 of them (1,007 picture flags under 0xA8C, about 100 the
+   sprites map to, read flag 557); the converter's
+   `SlotCg::seen` is a whole variable, and the free globals are fewer.
+   A bit flag (a shared `Var` bit, or a CONscripter seen-picture set the
+   showing of a picture fills, as `kidoku`) is a shared change: its own
+   PR first. Then `PictureExtras` with the CG mode (the music, movies and
+   ending list later), slots from the 458-slot table and the thumbnails
+   (likely `allui`'s `CG_THUMB_PARTS_JA`, 22 MB, not looked at;
+   `allpaccg`'s `THUMCG_TOP.MZP` is a 2 KB stub). `allui` (71 MB) is
+   still not in the media folder.
 3. The menus: the settings tab (the defaults in "Accuracy", the
    日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
    from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
