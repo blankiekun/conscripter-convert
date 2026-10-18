@@ -847,22 +847,30 @@ click.
 
 `START_SCRIPT` and `00_00`'s first 297 pages (2026-10-17, "Testing",
 step 2): every page pairs with ours at the same command, in order.
-Not fixed yet:
+`_FADS` takes the exe's 3 frames besides its fade, even when nothing
+changed (`script_command`: `FUN_0012e0b0` asks for the pictures, a
+frame's countdown, the fade starts once `FUN_001b6920` has them all, it
+ends a frame after); a `_STMA` on a layer the next `_FADS` shows is
+marked as the `_STMA`'s in the source map; `trace_diff.py` matches a
+continued page by its own lines. Left (was 46 `missing`, 149 `time`,
+180 `text`):
 
-- 46 `missing`: 30 `_STMA` (motions that gave none of our commands
-  there, e.g. `00_00:212`, `1121`, `1311`, `2488`–`2493`) and 16
-  `_FADS` (`00_00:1575`, `1583`, `2278`, …).
-- 149 `time` (more than a frame apart, the original by the log's
-  clock): 94 where ours takes 0 ms, chiefly after `_FADS(1,0,0)` (68:
-  the original spends 3–8 frames, at times 1–1.6 s, on a fade of
-  0 ms; part of that may be the emulator loading textures), `_CLO3`
-  (17: 84 ms, the exe's 4-frame fade, ours none there) and `_SEFD`/
-  `_SEPL` (9); the rest are off by about 100–200 ms after `_SEPL`
-  (21), `_CLO3` (20), `_SEFD`, `_FADS` (ours shorter), and
-  `_MPLY(52)` at `00_00:4296` (ours 609 ms, original 1538 ms).
-- The 180 `text` findings are all one thing: our page record holds the
-  screen's earlier lines (`continues`), the original's only its own
-  line. The text itself matches on every page.
+- 14 `missing`: `_STMA` `00_00:212` and `1121` (`_STMA(7,5)`,
+  `_STMA(20,6)`, whose layer is shown by a later `_FADS`; why no
+  motion of ours comes from them is not traced yet), and 12 `_FADS(1,0,0)` that change
+  nothing visible in ours, so the trace has no event from them
+  (`00_00:1583`, `2278`, `3381`, …): a trace-side gap, not a
+  difference.
+- 89 `time`. The biggest group (30) is `_STGS(n,,255,1000,0)` then
+  `_STCF(n,8)` after a `_FADS`: the original's `_STCF` waits the
+  fade's 1 s there (`FUN_00162f90`, `FUN_001802c0`, `FUN_001329f0`:
+  mask 8 the fade, 0x20 a motion that doesn't loop), so the fade of a
+  layer already shown starts at the `_STGS`, not at the next `_FADS`
+  as ours has it. That `_STGS` timing and `_STCF` go together (a
+  draft that only adds the wait changed no finding). Then `_FADS`
+  after a new picture (19 after `_SEPL`, 13 after `_CLO3`, 6 after
+  `_SEFD`: the original's 2–10 frames loading it, left out), and
+  `_MPLY(52)` at `00_00:4296`.
 
 ### Next
 

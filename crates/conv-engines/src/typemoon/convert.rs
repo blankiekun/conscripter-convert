@@ -412,6 +412,11 @@ struct Lowering<'g, 'a> {
     /// the IR layers it runs on with the layer each shows (its own, its
     /// children's).
     loop_runs: Vec<(usize, Vec<(usize, usize)>)>,
+    /// Where each command's ops start ([`Compiled::source_map`]).
+    source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
+    /// The `_STMA` that gave a staged layer its `Layer::motion`: its
+    /// `spmotion` at the `_FADS` is marked as that command's.
+    motion_from: Vec<Option<conv_core::ir::SourceLoc>>,
 }
 
 impl Lowering<'_, '_> {
@@ -817,6 +822,7 @@ impl Lowering<'_, '_> {
         // src: exe 0x160840: the layer's motion stops (the shown one at once, unless argument 18
         // copies another's settings: then at the `_FADS`, which shows the copy's).
         let from = number(arg(18)).filter(|&s| (0..LAYERS as i32).contains(&s) && s as usize != n).map(|s| s as usize);
+        self.motion_from[n] = None;
         if arg(1).is_empty() || from.is_none() {
             self.stop_loop(n, &[], false);
         } else {
@@ -943,9 +949,12 @@ impl Lowering<'_, '_> {
             }
         }
         let fade_ms = if kind == 1 { 0 } else { ms.max(0) as u32 }; // src: exe script_command (type 1 returns at once)
-        if changed.is_empty() && fade_ms == 0 {
-            return;
-        }
+        // src: exe script_command `_FADS`: 3 frames besides the fade's own, even when nothing changed
+        // (FUN_0012e0b0 asks for the pictures, a frame's countdown, the fade started once FUN_001b6920
+        // has them all, a frame after it), here before it. Frames spent loading (the trace: 2–10 more
+        // where a picture is new) are left out.
+        self.ops.push(Op::Pause { ms: 50 });
+        let from: Vec<_> = std::mem::replace(&mut self.motion_from, vec![None; LAYERS]);
         let mask = (kind == 2).then(|| format!("pic/rule_{rule:02}.png"));
         self.ops.push(Op::BeginTransition { effect: format!("_FADS({kind},{ms},{rule})"), fade_ms, mask, style: TransitionStyle::Fade });
         for slot in changed {
@@ -967,9 +976,17 @@ impl Lowering<'_, '_> {
             }
         }
         // After every place: a parent's motion moves its children too.
+        let here = self.source_map.last().cloned();
         for (slot, m) in motions.into_iter().enumerate() {
             if let Some(m) = m {
+                let stma = self.slot_layer[slot].and_then(|i| from[i].clone());
+                if let Some(at) = stma.clone() {
+                    self.source_map.push((self.ops.len(), at));
+                }
                 self.run_motion(slot, m);
+                if let (Some(_), Some((_, at))) = (stma, here.clone()) {
+                    self.source_map.push((self.ops.len(), at));
+                }
             }
         }
         self.ops.push(Op::EndTransition);
@@ -988,6 +1005,7 @@ impl Lowering<'_, '_> {
             if let Some(l) = self.staged[n].as_mut() {
                 l.motion = None;
             }
+            self.motion_from[n] = None;
             return true;
         }
         if m as usize > self.g.motions.len() {
@@ -996,7 +1014,10 @@ impl Lowering<'_, '_> {
         match self.slot_layer.iter().position(|&l| l == Some(n)) {
             Some(slot) if self.shown[n].is_some() => self.run_motion(slot, m as usize),
             _ => match self.staged[n].as_mut() {
-                Some(l) => l.motion = Some(m as usize),
+                Some(l) => {
+                    l.motion = Some(m as usize);
+                    self.motion_from[n] = self.source_map.last().map(|(_, at)| at.clone());
+                }
                 None => return false,
             },
         }
@@ -1419,16 +1440,17 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         own,
         looping: vec![None; LAYERS],
         loop_runs: Vec::new(),
+        source_map: Vec::new(),
+        motion_from: vec![None; LAYERS],
     };
     let mut starts = Vec::new();
-    let mut source_map = Vec::new();
     for (name, commands) in &g.scripts {
         let name = &format!("{prefix}{name}");
         starts.push(l.ops.len());
         l.ops.push(Op::Label(label(name, None)));
         l.open_ifs.clear();
         for (index, c) in commands.iter().enumerate() {
-            source_map.push((l.ops.len(), conv_core::ir::SourceLoc { file: name.clone(), index }));
+            l.source_map.push((l.ops.len(), conv_core::ir::SourceLoc { file: name.clone(), index }));
             if let Some((_, why)) = LEFT_OUT.iter().find(|(k, _)| *k == c.opcode()) {
                 l.metrics.left_out(c.opcode(), why);
                 continue;
@@ -1442,7 +1464,7 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
             l.metrics.call(c.opcode(), c.args.iter().filter(|a| !a.trim().is_empty()).count(), reasons);
         }
     }
-    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics, starts, source_map }
+    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics, starts, source_map: l.source_map }
 }
 
 #[cfg(test)]
@@ -1565,6 +1587,15 @@ mod tests {
         let ops = compile(&g).ops;
         let Some(Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep }) = ops.last() else { panic!("{ops:?}") };
         assert_eq!(keys.iter().map(|k| (k.ms, k.y, k.zoom, k.zoom_y, k.opacity)).collect::<Vec<_>>(), [(0, 0, 100, 100, 256), (500, 26, 200, 200, 0)]);
+        // On a layer shown only by the next `_FADS`, the motion is written there, marked as the `_STMA`'s.
+        let g = Game { scripts: vec![("S".into(), script::parse("_STCH(1,img1,240,136);_STMA(1,1);_FADS(1,0,0);").into_iter().map(Result::unwrap).collect())], ..g };
+        let c = compile(&g);
+        let at = c.ops.iter().position(|o| matches!(o, Op::SpriteMotion2 { .. })).unwrap();
+        let mark = |i: usize| c.source_map.iter().rev().find(|(o, _)| *o <= i).map(|(_, l)| l.index);
+        assert_eq!((mark(at), mark(at + 1)), (Some(1), Some(2)));
+        // the exe's 3 frames, then the fade
+        let begin = c.ops.iter().position(|o| matches!(o, Op::BeginTransition { .. })).unwrap();
+        assert_eq!(c.ops[begin - 1], Op::Pause { ms: 50 });
     }
 
     #[test]
@@ -2002,7 +2033,7 @@ mod tests {
             Op::Text { .. } => Some("text"),
             _ => None,
         }).collect();
-        assert_eq!(ops, ["fade", "fade", "hide", "fade", "in", "text", "hide", "in", "text", "hide"]);
+        assert_eq!(ops, ["fade", "fade", "fade", "hide", "fade", "in", "text", "hide", "in", "text", "hide", "fade"]);
     }
 
     #[test]
@@ -2103,6 +2134,7 @@ mod tests {
             vec![
                 Op::Label("tm_S".into()),
                 Op::Label("tm_S__START".into()),
+                Op::Pause { ms: 50 },
                 Op::BeginTransition { effect: "_FADS(0,500,0)".into(), fade_ms: 500, mask: None, style: TransitionStyle::Fade },
                 Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(SpritePlacement { image: "pic/img1.webp".into(), x: 0, y: 0 }), keep_filters: false }], fade_ms: 0 },
                 Op::SpriteMove { layer, x: 640, y: 360, ms: 0 },
