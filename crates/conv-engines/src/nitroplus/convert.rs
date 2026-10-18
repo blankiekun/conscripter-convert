@@ -5050,6 +5050,25 @@ scene a.nss
     }
 
     #[test]
+    fn draw_does_not_wait_for_running_actions() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("bg", 5000, 1000, null, false);
+	Draw();
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let longest = c.ops.iter().filter_map(|op| match op {
+            Op::BeginTransition { fade_ms, .. } => Some(*fade_ms),
+            Op::Wait { ms } | Op::Pause { ms } => Some(*ms),
+            _ => None,
+        }).max();
+        assert_eq!(longest, Some(UNWAITED_MS), "{:?}", c.ops);
+    }
+
+    #[test]
     fn a_picture_turned_about_y_shows_mirrored() {
         let story = r#"
 scene a.nss
