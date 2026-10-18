@@ -2,7 +2,7 @@
 
 - **Delegate only what a few lines of prompt can fully describe**, to
   the cheapest type in `.claude/agents/`: `checker` (haiku) for reruns,
-  checks, greps, a clean rebase + push + `gh pr checks --watch`;
+  checks, greps, a clean rebase + push + `gh pr checks --required --watch`;
   `worker` (sonnet) for mechanical edits, doc updates, build-test-commit
   loops, route runs, releases; `builder` (opus, medium effort) for
   features and engine additions with a clear spec (a screen, a setting,
