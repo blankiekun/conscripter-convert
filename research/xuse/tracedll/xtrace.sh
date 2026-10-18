@@ -3,7 +3,7 @@
 # and write its JSONL trace. Headless: own Xvfb, ja_JP locale, null audio.
 #
 #   xtrace.sh -o trace.jsonl [--save SLOT.bin] [--choices 12,34|none]
-#             [--pages N] [--seconds S] [--display :N] [--shot NAME.png]
+#             [--pages N] [--seconds S] [--shot NAME.png] [--no-cover]
 #
 # GAME = the install folder (required). XTRACE_HOME (default out/xtrace in
 # the repo) keeps the wine prefix between runs (prepared on the first run,
@@ -11,23 +11,32 @@
 # research/tools/xuse_save.py) to slot 1 and loads it from the title;
 # without it the run starts with FIRST START. --pages stops after N
 # pages (default 200), --seconds after S seconds (default 600). --shot
-# saves the screen at the end. Records: research/xuse/tracedll/xtrace.c.
+# saves the screen at the end. Unless --no-cover, research/xuse/cover.py
+# addrs arms one-shot breakpoints ("hit" records; cover.py mark turns them
+# into the findings table's marks). Records: research/xuse/tracedll/xtrace.c.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${XTRACE_HOME:-$repo/out/xtrace}
-OUT= SAVE= CHOICES= PAGES=200 SECS=600 D=:71 SHOT=
+OUT= SAVE= CHOICES= PAGES=200 SECS=600 SHOT= COVER=1
 while [ $# -gt 0 ]; do case $1 in
   -o) OUT=$2; shift 2;; --save) SAVE=$2; shift 2;; --choices) CHOICES=$2; shift 2;;
-  --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;; --display) D=$2; shift 2;;
-  --shot) SHOT=$2; shift 2;; *) sed -n '2,15p' "$0"; exit 2;; esac; done
+  --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;; --no-cover) COVER=; shift;;
+  --shot) SHOT=$2; shift 2;; *) sed -n '2,17p' "$0"; exit 2;; esac; done
 [ -n "$OUT" ] && [ -d "$GAME/HD" ] || { echo "need -o and GAME=<install folder>" >&2; exit 2; }
 
-export WINEPREFIX=$H/prefix WINEDEBUG=-all WINEARCH=win64 DISPLAY=$D WAYLAND_DISPLAY=
+mkdir -p "$H/build"
+# a free display of its own (docs/tools.md), never a fixed number
+rm -f "$H/xvfb.d"
+Xvfb -displayfd 3 -screen 0 1024x768x24 -nolisten tcp 3>"$H/xvfb.d" >/dev/null 2>&1 & xpid=$!
+cleanup() { WINEPREFIX=$H/prefix wineserver -k 2>/dev/null || true; kill $xpid 2>/dev/null || true; }
+trap cleanup EXIT
+until [ -s "$H/xvfb.d" ]; do sleep 0.1; done
+
+export WINEPREFIX=$H/prefix WINEDEBUG=-all WINEARCH=win64 DISPLAY=:$(cat "$H/xvfb.d") WAYLAND_DISPLAY=
 export LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8 PULSE_SERVER=unix:/nonexistent
 export ALSA_CONFIG_PATH=$H/alsa-null.conf
 export WINEDLLOVERRIDES="winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"
-mkdir -p "$H/build"
 echo 'pcm.!default { type null }' > "$ALSA_CONFIG_PATH"
 
 for f in xtrace.c xlaunch.c; do  # rebuild when the source is newer
@@ -36,10 +45,6 @@ for f in xtrace.c xlaunch.c; do  # rebuild when the source is newer
     -static-libgcc -o "$b" "$here/$f"
 done
 
-[ -e /tmp/.X11-unix/X${D#:} ] && { echo "display $D is taken: pass --display" >&2; exit 2; }
-Xvfb $D -screen 0 1024x768x24 >/dev/null 2>&1 & xpid=$!; sleep 1
-cleanup() { wineserver -k 2>/dev/null || true; kill $xpid 2>/dev/null || true; }
-trap cleanup EXIT
 
 C=$WINEPREFIX/drive_c
 if [ ! -e "$H/prefix/.ready" ]; then
@@ -61,7 +66,9 @@ cp "$H/build/xtrace.dll" "$H/build/xlaunch.exe" "$C/xtrace/"
 sd=$(echo "$C"/users/*/Documents)/Xuse/最果てのイマ\ COMPLETE
 mkdir -p "$sd"
 [ -n "$SAVE" ] && cp "$SAVE" "$sd/Farthest2015_001.bin"
-rm -f "$C/xtrace/trace.jsonl"
+rm -f "$C/xtrace/trace.jsonl" "$C/xtrace/cover.txt"
+[ -n "$COVER" ] && python3 -I "$repo/research/xuse/cover.py" addrs "$GAME/Farthest2015.exe" > "$C/xtrace/cover.txt" \
+  && export XTRACE_COVER='C:\xtrace\cover.txt'
 
 export XTRACE_OUT='C:\xtrace\trace.jsonl' XTRACE_PAGES=$PAGES
 [ -n "$CHOICES" ] && export XTRACE_CHOICES=$CHOICES

@@ -423,6 +423,21 @@ rather than by browsing:
     with the function's own line), a text page with its text block, and
     sounds flushed after a statement with that statement; 装甲悪鬼村正:
     docs/games/muramasa.md, "Trace diff".
+24. **Which branches the original runs** (marks for the findings table,
+    step 16). The trace DLL (step 22) also arms one-shot breakpoints:
+    an `int3` on every code address of `names.tsv` and of the findings
+    table's source column, put back to the original byte at its first
+    hit by a vectored exception handler, which logs a `hit` record. Each
+    address costs one exception once, so the run keeps its speed. Only
+    instruction starts may be armed (an `int3` inside an instruction
+    breaks the game): check each address against `objdump -d`. A script
+    then marks every row by its addresses (`runs: <hit>; not: <never
+    hit>`, or `never runs`), or by its opcodes in the `cmd` records when
+    it cites no address. A "never runs" holds for the traced runs only:
+    it settles a `left_out` row when the runs cover where the script
+    uses it. 最果てのイマ: `research/xuse/cover.py` (`addrs`, which
+    `xtrace.sh` runs, and `mark trace.jsonl... --write`, which fills the
+    table's last column).
 
 ### Checklist: behaviours to map
 
