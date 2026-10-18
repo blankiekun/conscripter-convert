@@ -824,7 +824,12 @@ Config on the title.
 2. The Gallery's other modes (Music Player, Movie, Ending List,
    Flowchart; drawn in its menu, not clickable), and in the CG gallery
    what is left out (History, 2026-10-18, "the CG gallery"): the
-   viewer's zoom. 926 CGs, in neither unlock table,
+   viewer's zoom and pan (`FUN_0010c56c`: the right stick or a pinch
+   zooms between fitted and 1:1, a button toggles fitted and filling
+   the screen, the left stick or a drag pans, left and right step
+   through the slot's CGs; ours: a click steps on). It would need the
+   viewer's input in the script (`btnwait` keys, `spzoom` and `amsp`
+   on the CG). 926 CGs, in neither unlock table,
    show only after flag 557 (`_RDED(557)`, the last lesson), as the
    exe reads (`FUN_00156720` scans the first 0xA8C picture names).
    `allui` (71 MB) is still not in the media folder.
@@ -894,6 +899,17 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **the gallery viewer fits the CG**. `FUN_0010be84`
+  opens a CG at the smaller of the screen's width and height over its
+  size (the slot table's 1080p size), larger or smaller, centred
+  (+0x40, the zoom's floor; +0x44, its ceiling, 1:1 or the fitted
+  zoom when that is above 1). Ours: each CG resized to fit 1280 × 720
+  (`sys/gallery/fit/`, a new folder so a build's older `view/` files
+  aren't reused), centred, so nothing scrolls. Checked headless:
+  `IMG1685` (2106 × 1266) at 1198 × 720 from x 41, the bars black.
+  Guess: black under it (the viewer's backdrop widget,
+  `DAT_00566738` tinted 0.847 grey, not read).
 
 - 2026-10-18: **the gallery's slot conditions**. A slot's +8 (0–19)
   goes through `FUN_0010b58c`: 0 (270 slots) and past 19 always, the
