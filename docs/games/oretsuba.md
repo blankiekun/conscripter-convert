@@ -732,7 +732,7 @@ an index:
 
     conscripter-convert mages convert <game> -o out/oretsuba-web --loose
     python3 -I engine/src/cons_web/conscripter_index.py -i out/oretsuba-web \
-        -o out/oretsuba-web/onsyuri_index.json --title oretsuba --lazyload
+        -o out/oretsuba-web/cons_index.json --title oretsuba --lazyload
     cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/oretsuba-web/
     python3 -m http.server 8000 -d out/oretsuba-web   # then open /conscripter.html
 
