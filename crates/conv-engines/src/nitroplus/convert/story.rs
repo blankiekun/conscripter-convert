@@ -35,7 +35,8 @@ pub(super) fn compile_boot<'a>(c: &mut Compiler<'a, '_>, files: &'a BTreeMap<Str
     };
     let before = c.snapshot();
     c.restore(initial.clone());
-    let end = "conv_boot_end";
+    // Not conv-cons's `conv_boot_end` (its boot guard): one label each.
+    let end = "conv_boot_body_end";
     c.ops.push(Op::Jump(end.to_string()));
     c.ops.push(Op::Label(BOOT_LABEL.to_string()));
     c.call_function(boot, f, Vec::new());
