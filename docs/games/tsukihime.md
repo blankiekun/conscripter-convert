@@ -857,7 +857,8 @@ tables read (`typemoon exe`); `typemoon media`; scripts read (every
 command splits, text and voices join); `typemoon convert` plays from
 the start through `00_00` into the first arc (flow, text, pictures,
 sound, layers, motions, choices, text window fade, the lessons' yes/no
-question); boot logos, title,
+question); the 45 story movies (`_TOMP`: prologue, openings, day
+cards, endings, credits; History, 2026-10-18, "story movies"); boot logos, title,
 the system menu's Save and Load tabs, Config (the settings, also on
 the title; History, 2026-10-18, "the settings");
 the Gallery's CG gallery (its other modes drawn, not open);
@@ -922,17 +923,21 @@ Flowchart, Movie and Ending List.
    option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 2 on
    layers with no picture).
 6. Every kind has a row in `tsukihime.findings.tsv` (2026-10-17, from
-   the decompile; 47 rows open). The open ones that matter most, by
+   the decompile; 45 rows open). The open ones that matter most, by
    use: the layer quakes `_SQK2`/`_SHK2`/`_SSW2`, the screen
    shake's start delay (`_SHOK` argument 4, 260 uses), `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
    and `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY` (layer fields
    whose drawing is not found yet), `_VCWT` (wait for the voice),
    `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
-   chapter start (`_SELA`, `_TOMP`/`_TOMW`, `_ATSV`/`_WTSV`), the
+   chapter start (`_SELA`, `_ATSV`/`_WTSV`), the
    scenes' read flags (`_RDED(1..532)`, for the Flowchart; the
    lessons' are done, History 2026-10-18 "lesson read flags"), the
    `_SELD`'s choice number. `_FANX`, `_STQK` and `_TRPY` have no case in the
    exe: the next converter PR adds them to `LEFT_OUT`.
+7. The first launch's prologue (ours: straight to the title). Leads:
+   flag 485 unread sends the title's setup (`FUN_00190180`) down the
+   first-launch branch (`DAT_00be0e98`) and the game mode
+   (`FUN_00148ac0`) to scene 0x104 instead of 0x6E (`00_00`).
 7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 2
    `missing` (`_STMA` `00_00:212` and `1121`, never drawn in the exe)
    and 72 `time` (chiefly `_FADS` after a new
@@ -975,6 +980,28 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **story movies**. `_TOMP(n)` (`FUN_0016ef30`) opens overlay 0 with n; its start
+  (`FUN_001402a0`) plays the movie table's entry n (0x50B890, 0x30 bytes
+  an entry, the path first; `exe.rs` reads it): 4 `prologue`, 5-6 the
+  openings, 7 `phaseout`, 8-0x22 the 27 day cards, 0x23-0x25 the
+  endings, 0x26 `TM_CI`, 0x27-0x2D `credit00`-`06`. `_TOMW` waits for
+  it: ours is one blocking `mpegplay` at the `_TOMP` (the commands
+  between run after it). `_TOMP` stops skip and auto mode (`DAT_00be0568`,
+  `0670` cleared) except n = 7, which plays only while not skipping; no
+  script uses 7. The frame step (`FUN_00140480`, read in the disassembly:
+  its locals are floats the decompile drops) lets a press fade the movie
+  out, but for the prologue, the openings and the endings only once their
+  seen bit is set (`FUN_00192400` bits 2, 0, 1, 3, 4, 5; set as the movie
+  ends, `FUN_001923c0`): ours keeps the bits as globals %1904-%1909 and
+  plays those six unskippable until then. Left out: the 48-frame fade in
+  (day cards), the 1 s fade out on a press, and the hold to the exe's end
+  frame (day cards 420 frames against their 5.07 s, credits 618), and
+  music 2 the prologue's end starts. The English copy plays
+  `movie/en/<name>` where the fan patch's file differs in bytes (34;
+  not `phaseout` and the credits). Checked: the dry run has 124
+  `mpegplay`, every file in the full build; a headless scratch run from
+  `01_00_ARC01_1` plays `phasetitle_01_00` for 5,138 ms of game time
+  (156 frames presented; the movie is 5.07 s).
 - 2026-10-18: **screen shake**. `_SHOK(x, y, period = 300, turns = 3,
   delay = 0)` (`cmd_SHOK` → `FUN_0012ee70` kind 1, drawn each frame by
   `FUN_0012ef30`): one sine for both axes, a turn every `period` ms

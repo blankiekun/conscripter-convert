@@ -144,8 +144,8 @@ _STQK	no case in script_command	3	script_command	nothing	seen	left_out (add to L
 _STRA	(layer, < 0 all; v; ms): +0x238 to v over ms*60/1000 frames	569	cmd_STRA	nothing	unknown	open: what +0x238 draws
 _STRR	(layer, angle 1/100 deg, -99999 off) to 0xbe4 (the _STCH argument 19 field)	448	cmd_STRR	nothing	seen	open: what 0xbe4 draws (frame_update)
 _STTR	(layer, n, x): the layer's rule 0x8ec = n-1 with x << 12 (n < 1: none), set_rule_mask n-1	110	script_command, set_rule_mask	nothing	inferred	open: the layer's fades through rule n
-_TOMP	(n): overlay_open slot 0 kind 0 with n (7 kept while skipping), window flag 0x89E = 1; at each arc's start	48	cmd_TOMP, overlay_open	nothing	inferred	open: a chapter title card (inferred), kind 0 in the table 0x673730
-_TOMW	waits while state +0x48 is set	48	script_command	nothing	seen	open: with _TOMP
+_TOMP	(n): overlay_open slot 0 kind 0, movie table 0x50B890 entry n (4 prologue, 5-6 openings, 8-0x22 day cards, 0x23-0x25 endings, 0x27-0x2D credits); stops skip and auto (n 7 aside: kept while skipping, no script uses it); a press skips 4-6 and 0x23-0x25 only once their seen bit (FUN_001923c0 at the end) is set	48	FUN_0016ef30, FUN_001402a0, FUN_00140480	skipoff:autooff, mpegplay (click by the seen global %1904+bit)	seen	done; left out: fade in/out and the hold to the end frame (day cards 420, credits 618)
+_TOMW	waits while state +0x48 is set	48	script_command	nothing (our _TOMP blocks)	seen	done
 _TRPY	no case in script_command (trophies)	2	script_command	nothing	seen	left_out (add to LEFT_OUT)
 _VCWT	with a voice playing, wait flag 4: the frame loop holds the script until the voice ends	75	script_command, voice_state, frame_update	nothing	seen	open: wait for the voice
 _VPL2	as _VPLY, then plays the voice at once (FUN_001aa970) when not skipping and the character's voice is on	16	script_command case V "PL2"	nothing	seen	open: play the voice now
