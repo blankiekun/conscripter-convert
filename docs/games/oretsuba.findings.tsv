@@ -53,7 +53,7 @@ SpriteMove	:Position x, y, ease type 0-3, power (default 0, 1.0): ease_value pow
 SpriteMove	ease power 0 with type 1-3 (would jump or stay)	0	0x8103cc18	treated as 1	seen	not used (power 0 only with type 0)
 SpriteMove	:Curve c bows the path by c/2 of its length; negative the other way	12	0x8103cf20	MoveArc	seen	
 SpriteMove	:Scale lerped straight from the current zoom	202	FUN_81086a0c	spzoom	seen	
-SpriteMove	:Scale -2 (S01_05B: zoom through 0 to a mirrored 2×?)	1	stored as is (+0x28 → sprite +0x48)	clamped to 0: the picture shrinks away	unknown	find where the quad's corners use +0x48 (0x8103d53c's callers) or one frame
+SpriteMove	:Scale -2 (S01_05B: zoom through 0 to a 2× picture turned 180°)	1	stored as is (+0x28 → sprite +0x48), lerped straight (0x81086a0c); the quad (0x8103d53c) multiplies both corner offsets by it: run under exe_call.py, -2 gives scale 2's corners negated with the same UVs and vertex order (a half turn about the centre, not culled)	clamped to 0: the picture shrinks away and stays gone	seen	convert: a negative zoom as |scale| plus a 180° turn (spmotion2), through 0
 SpriteMove	:Roll (radians, kept)	12	+0x24 → sprite +0x38, GPU 0x8103d53c	dropped (direction and pivot not traced)	unknown	the quad's rotation in 0x8103d53c
 SpriteMove	:Wait 0 runs under the text	198	scene_load 0x27 (+0x3c), +8 set	spmotion without wait	seen	
 SpriteMove	:FadePosition, :Alpha, :Floor/:Ceil/:Gamma (fade, alpha, filters during a move)	0	scene_load 0x27, 8100da30 0x27 (FadePosition ≥ 0 fades)	not read	seen	not used

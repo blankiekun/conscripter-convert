@@ -467,9 +467,14 @@ build tested headless. Output 960×544.
   Sprite at (640, 560) and SpriteBG at (640 - w/2, 360 - h/2); ours
   centres it (no script relies on it). The characters' has-a-place
   flag (+0x44 in CharacterOpen's record) has no reader traced.
+- SpriteMove `:Scale -2` (S01_05B, once): the eboot turns the picture
+  180° at 2× (the zoom goes straight through 0 to it); ours clamps to 0,
+  so the picture shrinks away. Found by running the sprite quad
+  (0x8103d53c) under `research/tools/exe_call.py` (2026-10-18): a
+  negative scale negates both corner offsets, same UVs and vertex order.
+  To convert: |scale| with a 180° turn (`spmotion2`).
 - Unknown in the eboot (`docs/games/oretsuba.findings.tsv`: 88 rows,
-  6 unknown): SpriteMove `:Scale -2` (S01_05B; ours clamps to 0; does a
-  negative scale mirror?), keys with no value (6; inferred 0), the
+  5 unknown): keys with no value (6; inferred 0), the
   voice ducking's level and ramp (ours 50 %, 200/400 ms), where `Tag`
   and `End` are handled, SpriteQuake's `:Param` layout, whether the
   shake's `:Param` 0, 1 are pixels, EffectStart's variant code

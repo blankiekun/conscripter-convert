@@ -2,3 +2,4 @@
 /out
 /research/*/local
 __pycache__/
+/research/tools/.venv
