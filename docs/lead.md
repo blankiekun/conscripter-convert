@@ -22,3 +22,9 @@
   lands in `out/lead-scratch/ideas/`; give the user the top 3 with your
   opinion and queue only what they approve.
 - **A new game**: `docs/lead-new-game.md` (ask the user's plan first).
+- **Offer an idea agent when an issue needs one**: a bug of a kind
+  that keeps coming back (two lints this week found real bugs nobody
+  saw), an agent stuck twice on the same item, a design choice with no
+  clear option, or a gap no queued item covers. Ask the user in one
+  line ("Run an idea agent on <focus>?") with the focus outline you
+  would give it; start it only on a yes.
