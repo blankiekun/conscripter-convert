@@ -366,6 +366,8 @@ pub enum PairOption {
     ConfirmSave,
     /// The load question alone is asked.
     ConfirmLoad,
+    /// A click during auto mode ends it (off: `consset "clickautostop",0`).
+    ClickStopsAuto,
 }
 
 /// A line of text on a picture screen.

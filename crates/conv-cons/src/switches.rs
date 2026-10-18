@@ -52,6 +52,11 @@ pub(crate) fn def(s: Switch) -> (u32, Apply) {
         Switch::StopSkipAtChoice => (18, Commands { on: "consset \"selectkeep\",0", off: "consset \"selectkeep\",1" }),
         Switch::BgmFullForVoice => (19, Read),
         Switch::ConfirmQuickLoad => (20, Read),
+        Switch::ClickStopsAuto => (21, Commands { on: "consset \"clickautostop\",1", off: "consset \"clickautostop\",0" }),
+        Switch::ClickStopsSkip => (22, Commands { on: "consset \"clickskipstop\",1", off: "consset \"clickskipstop\",0" }),
+        // Read too by a page of links (`ops`: its wait).
+        Switch::ChoiceStopsAuto => (23, Commands { on: "consset \"selectkeepauto\",0", off: "consset \"selectkeepauto\",1" }),
+        Switch::ChoiceStopsSkip => (24, Commands { on: "consset \"selectkeepskip\",0", off: "consset \"selectkeepskip\",1" }),
     }
 }
 
@@ -100,11 +105,13 @@ mod tests {
         let all = vec![
             WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn,
             VoiceOn, ConfirmReset, Effects, SavePreview, TextShadow, ConfirmChapter, SceneSkipDialog, StopSkipAtChoice, BgmFullForVoice, ConfirmQuickLoad,
+            ClickStopsAuto, ClickStopsSkip, ChoiceStopsAuto, ChoiceStopsSkip,
         ];
         for s in &all {
             match s {
                 WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn
-                | ConfirmReset | Effects | SavePreview | TextShadow | ConfirmChapter | SceneSkipDialog | StopSkipAtChoice | BgmFullForVoice | ConfirmQuickLoad => {}
+                | ConfirmReset | Effects | SavePreview | TextShadow | ConfirmChapter | SceneSkipDialog | StopSkipAtChoice | BgmFullForVoice | ConfirmQuickLoad
+                | ClickStopsAuto | ClickStopsSkip | ChoiceStopsAuto | ChoiceStopsSkip => {}
             }
         }
         all

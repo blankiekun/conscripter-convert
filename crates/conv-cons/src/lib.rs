@@ -673,6 +673,8 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
                 .as_ref()
                 .filter(|s| s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })))
                 .map(|_| picture_settings::GAME_SPEED),
+            toggles: script.settings.as_ref().is_some_and(|m| menu::has_switch(m, Switch::ClickStopsAuto) || menu::has_switch(m, Switch::ClickStopsSkip))
+                || script.picture_settings.as_ref().is_some_and(|s| s.pairs.iter().any(|p| p.option == conv_core::ir::PairOption::ClickStopsAuto)),
         };
         menu::button_bar(&mut out, b, screens);
         if let Some(m) = &script.command_menu {

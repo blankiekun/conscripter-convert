@@ -183,8 +183,10 @@ fn settings_lua(m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option
     use crate::menu::{setting_var, SETTINGS_APPLY, SKIP_UNREAD, VOICE_OFF_BASE};
     let rows = &m.rows[..m.rows.len().min(6)];
     let voices = &m.voices[..m.voices.len().min(15)];
-    let switches = &m.switches[..m.switches.len().min(15)];
-    let pages = m.tab_labels.len().min(1 + usize::from(!voices.is_empty()) + usize::from(!switches.is_empty()));
+    // 15 switches a page, as many pages as there are tabs for.
+    let first_switch_page = 2 + usize::from(!voices.is_empty());
+    let pages = m.tab_labels.len().max(1).min(first_switch_page - 1 + m.switches.len().div_ceil(15));
+    let switches = &m.switches[..m.switches.len().min(15 * (pages + 1).saturating_sub(first_switch_page).max(1))];
     let size = m.font_size;
     let apply = format!("{{\"gosub\", \"*{SETTINGS_APPLY}\"}}");
     // "strsp" drops a line's last character unless there is a column to spare.
@@ -251,7 +253,7 @@ fn settings_lua(m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option
         ));
     }
     for (i, sw) in switches.iter().enumerate() {
-        let y = m.y + i as i32 * m.voice_pitch;
+        let y = m.y + (i % 15) as i32 * m.voice_pitch;
         // A switch the apply routine puts into effect does so at once.
         let then = if crate::switches::apply(sw.switch) != crate::switches::Apply::Read { format!(", action={apply}") } else { String::new() };
         w.push(format!(
@@ -260,7 +262,7 @@ fn settings_lua(m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option
             lua(&format!("%C　{}", sw.label)),
             m.label_x,
             text(sw.label.chars().count() + 2),
-            on_page(if voices.is_empty() { 2 } else { 3 })
+            on_page(first_switch_page + i / 15)
         ));
     }
     let ask = |q: Option<&String>, s: Switch| q.map(|q| format!(", confirm={}", question(q, s))).unwrap_or_default();

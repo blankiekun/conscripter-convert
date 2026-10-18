@@ -813,11 +813,14 @@ build needs the exe; a missing or different exe stops it with an error.
 - Screen positions and the blog bar's level number from the exe's layout
   tables (History, "Screen positions from the exe").
 - Settings not converted (six pages in the original; History item 26):
-  the auto waits as two rows, skip/auto switches (defaults are done),
+  the auto waits as two rows,
   antialiasing, the CG viewer's voices, the system voice, wheel
   sensitivity, frame rate, inactive-window behaviour, shortcut menu,
   gamepad. Autosave slots (original: right-click menu, dropped).
-  Settings' yes/no questions still use `*conv_confirm`.
+  Settings' yes/no questions still use `*conv_confirm`. The テキスト
+  page's four skip/auto boxes (a choice or a click ends skip or auto)
+  are on our 4th tab, スキップ・オート (2026-10-18); a link page counts
+  as a choice.
 - Hand-typed guesses a frame of the original would settle (History,
   "Value audit"): the save menu's thumbnail position, "New" mark and
   slot text; the yes/no message's y; text styles 3/4 rows (23 or 24)

@@ -695,7 +695,11 @@ impl<'a> Emitter<'a> {
             if bar.is_none() {
                 writeln!(out, "print 1").unwrap();
             }
-            writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
+            if script.settings.as_ref().is_some_and(menu::link_wait_keeps) {
+                writeln!(out, "gosub *{}", menu::LINK_WAIT).unwrap();
+            } else {
+                writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
+            }
             if bar.is_some() {
                 // A bar button or a right-click: handle it and wait again.
                 writeln!(out, "if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {} goto *{page}_c", menu::BAR_BUTTON_BASE)

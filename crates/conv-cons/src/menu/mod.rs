@@ -164,7 +164,7 @@ pub(crate) const SELECTED: &str = "%102"; // selected slot, 0 = none
 pub(crate) const SLOT: &str = "%103";
 pub(crate) const HAS_DATA: &str = "%104";
 pub(crate) const TMP: &str = "%105";
-const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
+pub(crate) const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
 pub(crate) const LABEL: &str = "$100";
 pub(crate) const STR_TMP: &str = "$104";
 // Globals (`globalon` keeps %200 and up; the game uses up to %220).

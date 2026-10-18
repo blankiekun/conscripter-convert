@@ -63,6 +63,26 @@ pub(crate) fn settings_apply(out: &mut String, m: &SettingsMenu) {
         w(format!("if {SKIP_UNREAD} == 1 kidokumode 0"));
     }
     w("return".into());
+    if link_wait_keeps(m) {
+        // A page of links' wait: a timed wait (textbtnwait: auto mode's
+        // time, none while skipping) when the mode goes on past a choice,
+        // as if the page had no link; else btnwait (it ends auto and skip).
+        w(format!("*{LINK_WAIT}"));
+        w(format!("isskip {MODE_STATE}:mov {TMP},0"));
+        w(format!("if {MODE_STATE} == 2 && {} == 1 mov {TMP},1", switch_off(Switch::ChoiceStopsAuto)));
+        w(format!("if {MODE_STATE} == 1 && {} == 1 mov {TMP},1", switch_off(Switch::ChoiceStopsSkip)));
+        w(format!("if {TMP} == 1 textbtnwait {BUTTON_VAR}:return"));
+        w(format!("btnwait {BUTTON_VAR}"));
+        w("return".into());
+    }
+}
+
+/// A page of links waits through [`LINK_WAIT`] (else a `btnwait`).
+pub(crate) const LINK_WAIT: &str = "conv_link_btnwait";
+
+/// The settings can let auto mode or skip go on past a choice.
+pub(crate) fn link_wait_keeps(m: &SettingsMenu) -> bool {
+    has_switch(m, Switch::ChoiceStopsAuto) || has_switch(m, Switch::ChoiceStopsSkip)
 }
 
 /// The switches the settings screen has (in its list or on picture
