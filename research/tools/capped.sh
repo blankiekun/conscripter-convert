@@ -2,7 +2,8 @@
 # capped.sh <GiB> <cmd> [args...]: run cmd with its memory capped, without a
 # kernel OOM kill (each one pops a "killed" notification on the user's desktop).
 # Own systemd --user scope: MemoryHigh=<GiB> (throttles), MemoryMax=<GiB>+1 (backstop).
-# A watchdog reads the scope's memory.current every 2 s and at 90 % of <GiB>
+# A watchdog reads the scope's memory.current less its page cache every 2 s
+# and at 90 % of <GiB>
 # sends SIGTERM (SIGKILL 5 s later) and exits 137. Refuses to start (exit 75)
 # when MemAvailable < <GiB>+2 GiB. Otherwise cmd's exit code is passed through.
 # Works under headless-run.sh (uses HEADLESS_USER_RUNTIME for the user bus only;
@@ -33,7 +34,9 @@ P=$!
     sleep 2
     [ -n "$CG" ] || CG=$("${BUS[@]}" systemctl --user show -P ControlGroup "$U" 2>/dev/null)
     [ -n "$CG" ] && [ -r "/sys/fs/cgroup$CG/memory.current" ] || continue
-    M=$(( $(cat "/sys/fs/cgroup$CG/memory.current" 2>/dev/null || echo 0) / 1048576 ))
+    # less the page cache (files read or mapped: the kernel drops it before an OOM)
+    M=$(( ($(cat "/sys/fs/cgroup$CG/memory.current" 2>/dev/null || echo 0) -
+           $(awk '$1 == "file" { print $2; exit }' "/sys/fs/cgroup$CG/memory.stat" 2>/dev/null || echo 0)) / 1048576 ))
     if [ "$M" -ge "$STOP" ]; then
       echo "capped.sh: stopped at $M MiB of $G GiB (leak or too big)" >&2
       echo 1 >"$F"
