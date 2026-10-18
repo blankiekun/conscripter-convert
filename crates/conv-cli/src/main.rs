@@ -186,7 +186,7 @@ fn run(command: Command) -> Result<()> {
             build::run(build, &title, xuse::build::OUTPUT_DIRS, |opts| xuse::build::build(&game, linear, opts))
         }
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
-            convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
+            convert_script(&game, script, &output, font.as_deref(), &title, webp.get(false)?, audio.format(false)?)
         }
         Command::ConvertNss { game, file, scene, chain, movies, no_movies, title, english, build } => {
             let run = nitroplus::build::Run { file: file.as_deref(), scene: scene.as_deref(), chain, movies: movies.as_deref(), no_movies, english: english.as_deref() };
@@ -319,7 +319,7 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
 
     let source = build::webp_tree(output, PICTURE_DIRS, webp, false, conv_cons::emit(&ir))?;
     build::reencode_audio(output, AUDIO_DIRS, audio)?;
-    let lost = build::write_game(output, &ir, &source, Some(&build::read_font(font)?), None)?;
+    let lost = build::write_game(output, &ir, &source, Some(&build::read_font(font)?), None, &version::media(webp, audio))?;
     println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
     build::summary(output, &ir, lost, Default::default(), None)
 }

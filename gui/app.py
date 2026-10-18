@@ -403,7 +403,7 @@ class App:
         if not ff:
             return False, ("Not found. This game needs ffmpeg with libx264: install it and add it to PATH, "
                            "or click Locate….")
-        encoders = tools.FFMPEG_ENCODERS + (("libopus",) if self._values().get("audio_codec") == "opus" else ())
+        encoders = tools.FFMPEG_ENCODERS + (("libopus",) if games.opus(self._values()) else ())
         missing = getattr(self, "_ffmpeg_checked", {}).get((ff, encoders))
         if missing is None:
             missing = tools.ffmpeg_missing_encoders(ff, encoders)
@@ -716,7 +716,7 @@ class Tooltip:
 
 def _webp_factor(values: dict) -> float:
     """About how much smaller WebP makes a build (the pictures are most of it)."""
-    if not values.get("webp"):
+    if not (values.get("webp") or values.get("small")):
         return 1.0
     return 0.5 if str(values.get("webp_quality", "")).strip() else 0.7
 

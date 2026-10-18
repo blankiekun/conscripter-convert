@@ -122,10 +122,10 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         }),
         TypemoonCommand::Extract { archive, output, prefix, png, max_bytes } => extract(&archive, &output, &prefix.to_lowercase(), png, max_bytes),
         TypemoonCommand::Check { dir } => check(&dir),
-        TypemoonCommand::Sounds { dir, output, audio } => sounds(&dir, &output, audio.format()?, false),
+        TypemoonCommand::Sounds { dir, output, audio } => sounds(&dir, &output, audio.format(false)?, false),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
         TypemoonCommand::Exe { main, romfs, motion } => exe_tables(&main, romfs.as_deref(), &motion),
-        TypemoonCommand::Media { dir, output, english, webp, audio } => media(&dir, english.as_deref(), &output, webp.get(), audio.format()?, false),
+        TypemoonCommand::Media { dir, output, english, webp, audio } => media(&dir, english.as_deref(), &output, webp.get(false)?, audio.format(false)?, false),
         TypemoonCommand::Convert { dir, exe, title, english, build } => {
             let exe = exe.unwrap_or_else(|| dir.join("../exefs/main"));
             crate::build::run(build, &title, &typemoon::build::OUTPUT_DIRS, |opts| {

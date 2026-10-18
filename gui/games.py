@@ -60,15 +60,20 @@ def _is_number(v: str) -> bool:
         return False
 
 
+def opus(values: dict) -> bool:
+    """Whether voices become Opus: chosen, or by "Smaller download" (--small)."""
+    return values.get("audio_codec") == "opus" or bool(values.get("small"))
+
+
 def _audio_quality_check(v: str, values: dict) -> Optional[str]:
-    low, high = (6, 256) if values.get("audio_codec") == "opus" else (-1, 10)
+    low, high = (6, 256) if opus(values) else (-1, 10)
     if _is_number(v) and not low <= float(v) <= high:
-        return f"from {low} to {high} for {values.get('audio_codec', 'vorbis').capitalize()}."
+        return f"from {low} to {high} for {'Opus' if opus(values) else 'Vorbis'}."
     return None
 
 
 def _audio_quality_steps(values: dict) -> tuple[tuple[str, str], ...]:
-    if values.get("audio_codec") == "opus":
+    if opus(values):
         return tuple(("", "32 kbit/s (default)") if k == 32 else (str(k), f"{k} kbit/s")
                      for k in (6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256))
     return (("", "original"), *((str(q), str(q)) for q in range(-1, 11)))
@@ -91,8 +96,11 @@ LOOSE = Option("loose", "Loose files (no .nsa archives)", "--loose",
 DRY_RUN = Option("dry_run", "Script only (dry run)", "--dry-run",
                  help="Write 0.txt only, no pictures or sounds: a quick check that the scripts convert.")
 
-# Every convert command takes these too (build.rs, WebpArgs).
+# Every convert command takes these too (build.rs, BuildArgs and WebpArgs).
 WEBP = (
+    Option("small", "Smaller download", "--small",
+           help="WebP pictures and Opus voices together (--webp --audio-codec opus): about two thirds of the size. "
+                "Needs CONscripter 0.21 or later, and on the desktop an SDL_image that reads WebP."),
     Option("webp", "WebP pictures", "--webp",
            help="Store pictures as WebP instead of PNG: about half the size, and smaller still with a WebP quality. "
                 "Works in CONscripter's web build, and on the desktop only if its SDL_image reads WebP."),
@@ -158,7 +166,7 @@ class Game:
         """Whether the build runs ffmpeg with these options (re-encoding
         the voices needs it even where the game's own build doesn't)."""
         values = {**self.defaults(), **values}
-        return self.needs_ffmpeg or values.get("audio_codec") == "opus" or bool(str(values.get("audio_quality", "")).strip())
+        return self.needs_ffmpeg or opus(values) or bool(str(values.get("audio_quality", "")).strip())
 
     def option_problems(self, values: dict) -> list[str]:
         values = {**self.defaults(), **values}

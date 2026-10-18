@@ -8,6 +8,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
+use conv_engines::media::{AudioCodec, AudioFormat};
 
 /// `build 2026-10-14, converter 562cbe2, CONscripter 0.17.0`.
 pub fn line() -> String {
@@ -19,13 +20,30 @@ pub fn line() -> String {
     )
 }
 
-/// Writes `version.txt`: the title, the line, and what it was made from
-/// (`source`, such as the original's ID and version) when known.
-pub fn write(output: &Path, title: &str, line: &str, source: Option<&str>) -> Result<()> {
+/// The media flags a build used, for `version.txt`:
+/// `--webp --audio-codec opus`, or `none (PNG, Vorbis)`.
+pub fn media(webp: Option<Option<u8>>, audio: AudioFormat) -> String {
+    let mut flags = Vec::new();
+    if let Some(quality) = webp {
+        flags.push("--webp".to_string());
+        flags.extend(quality.map(|q| format!("--webp-quality {q}")));
+    }
+    if audio.codec == AudioCodec::Opus {
+        flags.push("--audio-codec opus".into());
+    }
+    flags.extend(audio.quality.map(|q| format!("--audio-quality {q}")));
+    if flags.is_empty() { "none (PNG, Vorbis)".into() } else { flags.join(" ") }
+}
+
+/// Writes `version.txt`: the title, the line, what it was made from
+/// (`source`, such as the original's ID and version) when known, and the
+/// media flags ([`media`]).
+pub fn write(output: &Path, title: &str, line: &str, source: Option<&str>, media: &str) -> Result<()> {
     let mut text = format!("{title}\r\n{line}\r\n");
     if let Some(source) = source {
         text += &format!("from {source}\r\n");
     }
+    text += &format!("media: {media}\r\n");
     fs::write(output.join("version.txt"), text)?;
     Ok(())
 }
@@ -53,7 +71,16 @@ fn civil(days: i64) -> (i64, u32, u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::civil;
+    use super::{civil, media};
+    use conv_engines::media::{AudioCodec, AudioFormat};
+
+    #[test]
+    fn media_flags() {
+        let vorbis = AudioFormat { codec: AudioCodec::Vorbis, quality: None };
+        assert_eq!(media(None, vorbis), "none (PNG, Vorbis)");
+        assert_eq!(media(Some(None), AudioFormat { codec: AudioCodec::Opus, quality: None }), "--webp --audio-codec opus");
+        assert_eq!(media(Some(Some(80)), AudioFormat { codec: AudioCodec::Opus, quality: Some(24.0) }), "--webp --webp-quality 80 --audio-codec opus --audio-quality 24");
+    }
 
     #[test]
     fn dates() {
