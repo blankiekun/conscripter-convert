@@ -675,6 +675,11 @@ impl Compiler<'_, '_> {
                 // n 0 or below: a flip each frame (src: exe 004462d0, 1000 ÷ 0 → _ftol's
                 // 0x80000000; shake_frame 004578e0's signed `elapsed <= step` never holds)
                 let step = jolt.map(|(n, ease)| (if n > 0 { (1_000_000.0 / (60.0 * n as f64)).round() as u32 } else { 16 }, ease));
+                // The English port (src: its scenes pass `Shake`'s frequency as (1000 / n) * 20,
+                // Squirrel integers; CEffectShake 00484990/00484c60: a swing each frequency ms,
+                // the first half as long, eased by the tempo, the size straight): the swings
+                // as turns (shortcut: drawn as jumps, not eased; they last 1-2 frames).
+                let step = if self.game.diesel_shake { jolt.map(|(n, _)| (if n > 0 { (1000 / n.max(1) * 20) as u32 } else { 16 }, None)) } else { step };
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
                     // The picture alone: now if it is on the screen, else

@@ -11,11 +11,15 @@ It has no NPA archives and no NSS scripts.
 
 `docs/games/muramasa-en.findings.tsv`: the port's rows (tempo table, text,
 choices, pictures, subtitles) and the NSS built-ins it shares with the
-Japanese build (`muramasa.findings.tsv`). Open: the port's `Shake` is a
-Diesel `CEffectShake` (`sqSprite_shake` 004eb3f0 → 00484990, a period and
-repeat/round options), not mapped, so ours keeps the old 16 ms shake (n and
-tempo noted, 1,486); the port's `Transition` (DrawTransition) native is
-not mapped (ours: Muramasa.exe's `effectsoft`); `Move`/`Zoom`/`Rotate`
+Japanese build (`muramasa.findings.tsv`). Open: the port's `Transition`
+(DrawTransition) softness: its rule table is drawn by Mware's
+`psUpdateTransitionRule` shader, a level u (0-1) showing at
+sat(k(now − u) + u·now), k = 2 ÷ rate (decoded from the DXBC), a band about
+as wide all the way, where Muramasa.exe's (ours, `effectsoft`) widens with
+the threshold; how the script's rate (0-1000) and progress reach the shader
+isn't found (Mware's set-up code, or a frame of the original would settle
+it), and matching it needs a new `effectsoft` form in the engine;
+`Move`/`Zoom`/`Rotate`
 keep the Japanese curves. No names carried between muramasa_en.exe and
 Muramasa.exe: different engines (Diesel/Squirrel against NSS).
 
@@ -751,6 +755,17 @@ and the build prints one line per argument passed and not read
 | `setting.ini` keys | files table | there |
 
 ## History
+
+### Shake as the port's (2026-10-18)
+
+The port's `Shake` is a Diesel `CEffectShake`: its scenes pass the NSS's n
+as a frequency of (1000 / n) * 20 ms (Squirrel integers: 20 for n 501-1000,
+40 for 500) and the NSS tempo as the swings' (`beattempo`), the size going
+straight (00484990, 00484c60). Ours had the old 16 ms shake (pictures every
+100 ms); now `Game::diesel_shake` turns every frequency ms, the size
+straight (`screenshake` mode 2, `spmotion` keys), the swings drawn as
+jumps (1-2 frames each). The n and tempo notes are gone (gaps 4,786 →
+3,302).
 
 - **Eased fades (2026-10-17):** the port eases `Fade` and `Transition`
   (the NSS's `DrawTransition`) by their tempo as the Japanese exe does

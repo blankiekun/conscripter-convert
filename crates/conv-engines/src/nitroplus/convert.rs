@@ -211,6 +211,10 @@ pub struct Game {
     /// ([`Op::TransitionEase`]): 装甲悪鬼村正's and 続・殺戮のジャンゴ's exes
     /// as [`tempo`]; `None`, straight.
     fade_tempo: Option<Tempo>,
+    /// With `shake_jolts`: Full Metal Daemon Muramasa's English port's
+    /// `Shake` (a Diesel `CEffectShake`), turning every (1000 ÷ `n`) × 20
+    /// ms, the size straight (its tempo is the swings' own).
+    diesel_shake: bool,
 }
 
 impl Game {
@@ -238,6 +242,7 @@ impl Game {
         horizontal_box: None,
         box_text: &[],
         shake_jolts: false,
+        diesel_shake: false,
         fade_tempo: None,
     };
 
