@@ -76,7 +76,7 @@ impl<'a> NpaAssets<'a> {
             stem
         } else {
             use std::hash::{Hash, Hasher};
-            let mut h = std::collections::hash_map::DefaultHasher::new();
+            let mut h = crate::nitroplus::NameHasher::default();
             stem.hash(&mut h);
             format!("mv_{:08x}", h.finish() as u32)
         };
@@ -264,7 +264,7 @@ impl Assets for NpaAssets<'_> {
         let x1 = bounds.iter().map(|b| b.2).max()?;
         let y1 = bounds.iter().map(|b| b.3).max()?;
         use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::nitroplus::NameHasher::default();
         parts.hash(&mut h);
         let rel = format!("system/window_{:016x}.png", h.finish());
         if self.out.dry_run || self.out.root.join(&rel).exists() {
@@ -387,7 +387,7 @@ impl Assets for NpaAssets<'_> {
         let w = cells.iter().flatten().map(|c| c.1).max()?;
         let h = cells.iter().flatten().map(|c| c.2).max()?;
         use std::hash::{Hash, Hasher};
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        let mut hash = crate::nitroplus::NameHasher::default();
         parts.hash(&mut hash);
         let rel = format!("system/strip/{:016x}.png", hash.finish());
         let size = (w * cells.len() as u32, h);
@@ -510,7 +510,7 @@ impl Assets for NpaAssets<'_> {
     fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
         let (top, tw, th) = self.image(top)?;
         use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::nitroplus::NameHasher::default();
         (base, &top, zoom, opacity).hash(&mut h);
         let rel = format!("system/overlay_{:016x}.jpg", h.finish());
         if self.out.dry_run || self.out.root.join(&rel).exists() {
@@ -544,7 +544,7 @@ impl Assets for NpaAssets<'_> {
 
     fn stenciled(&mut self, image: &str, mask: &str, colour: bool, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
         use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::nitroplus::NameHasher::default();
         // (A stencil's key as before, so its cuts keep their names.)
         (image, mask, dx, dy, zoom).hash(&mut h);
         if colour {
@@ -576,7 +576,7 @@ impl Assets for NpaAssets<'_> {
 
     fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String> {
         use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
+        let mut h = crate::nitroplus::NameHasher::default();
         (mask, table).hash(&mut h);
         let rel = format!("system/veil_{:016x}.png", h.finish());
         if self.out.dry_run || self.out.root.join(&rel).exists() {

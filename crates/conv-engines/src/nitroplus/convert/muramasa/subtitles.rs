@@ -53,7 +53,7 @@ impl Compiler<'_, '_> {
         let w = drawn.iter().flatten().map(|l| l.width()).max().unwrap_or(1);
         let h = drawn.iter().flatten().map(|l| l.height()).max().unwrap_or(1);
         let cells = end.div_ceil(FRAME_MS) + 1;
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        let mut hash = crate::nitroplus::NameHasher::default();
         (&lines, end, w, h).hash(&mut hash);
         let name = format!("subtitle_{:016x}", hash.finish());
         let image = self.assets.frames_strip(&name, w, h, cells, &mut |i, out| {

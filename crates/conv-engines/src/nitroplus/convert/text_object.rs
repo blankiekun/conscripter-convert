@@ -120,7 +120,7 @@ impl Compiler<'_, '_> {
             img = imageops::crop_imm(&img, 0, 0, img.width(), h).to_image();
         }
         let (w, h) = img.dimensions();
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        let mut hash = crate::nitroplus::NameHasher::default();
         (&text, &style, wrap).hash(&mut hash);
         clip.inspect(|h| h.hash(&mut hash));
         let file = format!("{PREFIX}{:016x}", hash.finish());
