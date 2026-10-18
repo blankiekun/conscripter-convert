@@ -32,15 +32,6 @@ one build. List each executable the addresses come from:
 |---|---|---|
 | `<exe>` | `<version, or unknown>` | `<sha256sum; unknown if not at hand, never guessed>` |
 
-## Executables
-
-Every decompile address (`FUN_…`, `0x…`) in this document belongs to
-one build. List each executable the addresses come from:
-
-| File | Version | sha256 |
-|---|---|---|
-| `<exe>` | `<version, or unknown>` | `<sha256sum; unknown if not at hand, never guessed>` |
-
 ## Files and formats
 
 Archives, scripts, pictures, sounds, movies: how each is read (or a
