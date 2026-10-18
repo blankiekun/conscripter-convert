@@ -32,6 +32,7 @@
   },
   "enabledPlugins": {
     "frontend-design@anthropic-plugin-directory": false,
-    "engineering@anthropic-plugin-directory": false
+    "engineering@anthropic-plugin-directory": false,
+    "rust-analyzer-lsp@claude-plugins-official": true
   }
 }
