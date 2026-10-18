@@ -14,14 +14,10 @@
 # run (docs/new-game.md, "Trace speeds").
 # Setup of the data dir (firmware, keys, update): docs/games/tsukihime.md, "Testing".
 set -u
+[ -n "${HEADLESS:-}" ] || exec "$(dirname "$0")/../../research/tools/headless-run.sh" "$0" "$@"
 D=$(cd "$1" && pwd); T=$2; shift 2
 L=$D/../logs; mkdir -p "$L" "$D/xdg"
-Xvfb -displayfd 3 -screen 0 1280x720x24 -nolisten tcp 3>"$L/disp" 2>"$L/xvfb.log" &
-XPID=$!
-for i in $(seq 100); do [ -s "$L/disp" ] && break; sleep 0.1; done
-N=:$(cat "$L/disp"); echo "Xvfb $N pid $XPID"
-unset XDG_SESSION_TYPE WAYLAND_DISPLAY
-export WAYLAND_DISPLAY= DISPLAY=$N
+N=$DISPLAY
 timeout -k 10 "$T" systemd-run --user --scope -q -p MemoryMax=8G \
   flatpak run --nosocket=wayland --nosocket=fallback-x11 --nosocket=pulseaudio --socket=x11 \
   --env=WAYLAND_DISPLAY= --env=DISPLAY=$N --env=XDG_SESSION_TYPE=x11 --env=SDL_AUDIODRIVER=dummy \
@@ -56,4 +52,3 @@ wait $RPID; echo "exit $?"
 # (it outlives SIGTERM: SIGKILL after 10 s)
 mine=$(for p in $(pgrep -x Ryujinx); do grep -qxz "DISPLAY=$N" /proc/$p/environ 2>/dev/null && echo $p; done)
 if [ -n "$mine" ]; then kill $mine; for i in $(seq 10); do kill -0 $mine 2>/dev/null || break; sleep 1; done; kill -9 $mine 2>/dev/null; fi
-kill $XPID; wait $XPID 2>/dev/null

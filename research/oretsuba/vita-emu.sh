@@ -12,6 +12,7 @@
 # config.yml: show-welcome false, check-for-updates-mode 0, discord-rich-presence false.
 # Setup of the home dir (app, license, config): docs/games/oretsuba.md, "Testing".
 set -u; shopt -s nullglob
+[ -n "${HEADLESS:-}" ] || exec "$(dirname "$0")/../../research/tools/headless-run.sh" "$0" "$@"
 H=$(cd "$1" && pwd); T=$2; shift 2
 V=${V3K:-$H/../AppDir}; V=$(cd "$V" && pwd)
 L=$H/../logs; mkdir -p "$L"
@@ -29,13 +30,9 @@ S=$H/../share-shim; mkdir -p "$S"
 for f in "$V"/share/*; do [ "${f##*/}" = fonts ] || ln -sfn "$f" "$S/"; done
 ln -sfn /usr/share/fonts "$S/fonts"; ln -sfn "$S" /tmp/17-Tt; ln -sfn "$V/lib" /tmp/8_P
 for f in "$V"/share/Vita3K/*; do ln -sfn "../share/Vita3K/${f##*/}" "$V/bin/"; done
-Xvfb -displayfd 3 -screen 0 1280x720x24 -nolisten tcp 3>"$L/disp" 2>"$L/xvfb.log" &
-XPID=$!
-for i in $(seq 100); do [ -s "$L/disp" ] && break; sleep 0.1; done
-N=:$(cat "$L/disp"); echo "Xvfb $N pid $XPID"
+N=$DISPLAY
 timeout -k 10 "$T" systemd-run --user --scope -q -p MemoryMax=6G \
-  env -u WAYLAND_DISPLAY -u XDG_SESSION_TYPE -u DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS=disabled: \
-  BROWSER=true PATH="$B:$PATH" DISPLAY=$N HOME="$H" XDG_RUNTIME_DIR="$H/run" \
+  env PATH="$B:$PATH" HOME="$H" XDG_RUNTIME_DIR="$H/run" \
   SDL_VIDEO_DRIVER=x11 SDL_VIDEODRIVER=x11 QT_QPA_PLATFORM=xcb \
   XDG_DATA_HOME="$H/data" XDG_CONFIG_HOME="$H/config" XDG_CACHE_HOME="$H/cache" \
   SDL_AUDIODRIVER=dummy ${WRAP:-} "$V/bin/Vita3K" ${APP--r PCSG00299} "$@" >"$L/vita3k.log" 2>&1 &
@@ -55,4 +52,3 @@ while kill -0 $RPID 2>/dev/null; do
   fi
 done
 wait $RPID; echo "exit $?"
-kill $XPID; wait $XPID 2>/dev/null
