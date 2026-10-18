@@ -417,6 +417,9 @@ impl Compiler<'_, '_> {
             }
             "SetAlias" => {
                 let (obj, alias) = (self.object_name(&arg(0)), self.var_string(&arg(1)));
+                // src: Django.exe 00432da0, Muramasa.exe 004475b0: one alias slot
+                // per object (+0x100), which the new alias overwrites.
+                self.aliases.retain(|_, o| *o != obj);
                 if obj != alias {
                     self.aliases.insert(alias, obj);
                 }
