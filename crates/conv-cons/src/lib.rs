@@ -40,6 +40,7 @@ mod movies;
 mod music;
 mod notice;
 pub mod nsa;
+pub mod strtab;
 mod picture_screen;
 mod picture_extras;
 mod picture_gallery;
