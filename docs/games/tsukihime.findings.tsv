@@ -77,11 +77,11 @@ _WTTM	ms*3/50 frames	14828	script_command	delay ms	seen
 _WTTM	argument 1: less the frame counter DAT_00be0a00	14821	script_command	ignored (gap)	inferred	when DAT_00be0a00 is reset
 _SEPL	plays on its channel in place of the one there; the same loop there at volume > 0 goes on	14543	FUN_0016a340	loop stopped first (#347)	seen	
 _SEPL	a one-shot cut by the next sound on its channel	2408	FUN_0019caa0	let play	inferred	FUN_0019caa0
-_SEPL	option 17 volume, 1 fade-in, 68, 70	14509	FUN_0016a340	ignored (gap)	inferred	read the option switch
+_SEPL	option 17 volume, 1 fade-in, 68, 70	14509	FUN_0016a340	SoundVolume before SePlay (chvolfade), SeFadeIn	seen	
 _SEFD	channel (< 0 all), option 1 fade ms	3516	FUN_0016b310	chvolfade	seen	
 _SEFD	option 68	583	FUN_0016b310	ignored (gap)	unknown	read FUN_0016b310
 _MPLY	n < 0 stops; sound n-1; option 1 fade-in	1171	cmd_MPLY	bgm	seen	
-_MPLY	option 17 volume, 69 start (samples), 49 flag	1170	cmd_MPLY	ignored (gap)	seen	
+_MPLY	option 17 volume, 69 start (samples), 49 flag	1170	cmd_MPLY	17: SoundVolume before BgmPlay; 69, 49 ignored (gap)	seen	
 _MPLY	heard-music flag n + 0xC80 (n < 0x418)	1171	cmd_MPLY	not kept	seen	open: for the music room
 _MFAD	option 1 fade, 11 a second fade	724	FUN_00164fa0	bgmfadeout; 11 not converted	inferred	read FUN_00164fa0
 _VPLY	voice file; argument 2	16690	script_command	voice	inferred	read the case
@@ -104,7 +104,7 @@ _IFP4	jumps to argument 1's label, no condition	204	script_command case I "FP4"	
 _IFSC	jumps to argument 1's label when DAT_00c34af0 is 0	2	scene_mode_flag	goto always	inferred	done; check: FUN_00148ac0, where it sets the flag to 1 (0 in normal play inferred)
 _IFUR	(1, L, LV): jumps when all_read_check(1) is false (every completion bit set); one use, QA_25, before an _RTM_	1	script_command case I "FUR", all_read_check	nothing: runs on into the label as if complete	seen	open: needs _RDED's global read flags
 _MSQK	text window shake: ms (over 10000 -> 1000), a*640/1280, b*448/720	30	window_quake	nothing	seen	open
-_MVOL	music volume to option 17 over option 1 ms; not while skipping or replaying	780	cmd_MVOL	nothing	seen	open: a timed music volume
+_MVOL	music volume to option 17 over option 1 ms; not while skipping or replaying	780	cmd_MVOL	SoundVolume (chvolfade -1)	seen	skipping: the exe leaves it out
 _NOP_	nothing	1	script_command case N	nothing	seen	done
 _PGST	the page a load replays to (state +0x8c4)	17202	script_command case P	left out	seen	left_out
 _RDAS	(n): out of mode 2, with setting 03d8+0x5e on and global read flag n set: a 3.0 indicator (FUN_0013b480), waits while DAT_00bfec90 is set, then DAT 06b0 = 1 (read-skip)	530	script_command, read_flag_global, cmd_RDAS_skip	nothing	inferred	open: low; CONscripter's own read skip covers the lines
@@ -119,7 +119,7 @@ _SELA	choice screen mode 3 (two slots, the name _Dnnn its id) when state +0x8bc 
 _SELD	opens the _SELR slots' choice (mode 1); argument 1 (choice 1-0x52) sets its flowchart flags (table 0x4594d0) and reads 07b0[n]	170	script_command, choice_flow_flags	the choice; argument 1 ignored (83)	seen	open: argument 1 for the flowchart
 _SELS	choice screen mode 2 (two slots: yes, no) with no _SELR; one use, QACALL	1	cmd_SELS	a yes/no ButtonScreen per F027 lesson (question.rs): dialog_BG, dialog_win, the question (system message 0x5A5 + F027), No (index 0) left, Yes (index 1) right	seen	done
 _SESP	stops channel n % 20 (< 0: all 20) at once	18	script_command case S "ESP"	nothing	seen	open
-_SEVL	channel n % 20 volume to option 17 over option 1 ms (0: 2000 ms); a waiting loop only stores it	1285	cmd_SEVL	nothing	seen	open: chvolfade as _SEFD
+_SEVL	channel n % 20 volume to option 17 (none: 0) over option 1 ms (none: at once); a waiting loop only stores it	1285	cmd_SEVL	SoundVolume (chvolfade)	seen	skipping: the exe leaves it out
 _SGMA	(layer, m, k): the layer's live x, y, alpha, picture and clip into key k of motion m, so the motion starts where the layer is	109	cmd_SGMA	nothing	seen	open: with the motion keys
 _SHAF	(): ends the screen shake at once; (ms): it decays over ms*60/1000 frames	397	shake_stop, shake_decay	nothing	seen	open: with _SHOK
 _SHOK	screen shake FUN_0012ee70(1, a0, a1, a2 = 300, a3 = 3, a4 = 0); not while skipping	870	cmd_SHOK	nothing	seen	open: read FUN_0012ee70 for what each argument does
@@ -135,7 +135,7 @@ _SPFC	preloads a picture into one of 30 cache slots (FUN_001b6a20) with _SNX2/_S
 _SPRC	releases the 30 cache slots	85	script_command	nothing	seen	done
 _SPRD	(layer, name, a0, a1, b0, b1): preloads name_aa_bb over the ranges with the layer's effect	36	script_command	nothing	seen	done (a cache)
 _SPMA	(b): byte +8 of every layer's motion state (saved and live) = (b == 1)	189	cmd_SPMA	nothing	seen	open: what +8 does in FUN_00197b80 (pause, inferred)
-_STCF	(layer, mask = 63; layer > 39: all): the script waits until layer_busy is false for the mask (1-8 counters +0x78, +0x7e, +0x84, +0x8a; 16 +0x13c; 32 the motion)	5179	cmd_STCF, layer_busy, frame_update	nothing: the script runs on	seen	open: wait for the fade or motion (which counter bit 8 is: the alpha, inferred)
+_STCF	(layer, mask = 63; layer > 39: all): the script waits until layer_busy is false for the mask (1-8 counters +0x78, +0x7e, +0x84, +0x8a; 16 +0x13c; 32 the motion)	5179	cmd_STCF, layer_busy, frame_update	waits for the fade (8) or motion (32)	seen	
 _STCG	sets the picture's CG flag (bitset 07a8, < 0xc80) for the gallery	39	script_command, cg_flag_set	a global per picture name (convert::cg_flags), read by the gallery's seen test with its pictures and flag 557	seen	done (only index <= 0xA8C, as script_command; 6 gallery CGs read one)
 _STCL	(?, layer, x0, y0, x1, y1, ms, ease): stops the motion and moves the layer (x*640/1280, y*480/720)	9	cmd_STCL	nothing	seen	open
 _STNS	(layer, n 0-12): +0x1b0 = n, +0x1b1 = 1 if n > 2 else 3	196	cmd_STNS	nothing	unknown	open: what +0x1b0 draws

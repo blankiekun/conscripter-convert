@@ -899,12 +899,10 @@ Flowchart, Movie and Ending List.
    option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 2 on
    layers with no picture), `_WTTM` 1 (with it, the wait less
    `DAT_00be0a00`, a frame count `FUN_00181b30` adds to; when it is
-   reset not found), `_SEPL` option 17.
+   reset not found).
 6. Every kind has a row in `tsukihime.findings.tsv` (2026-10-17, from
    the decompile; 47 rows open). The open ones that matter most, by
-   use: `_STCF` (5,179: the script waits for a layer's fade or
-   motion; ours runs on), `_SEVL`/`_MVOL` (sound and music volume
-   fades), the layer quakes `_SQK2`/`_SHK2`/`_SSW2` and the screen
+   use: the layer quakes `_SQK2`/`_SHK2`/`_SSW2` and the screen
    shake `_SHOK`/`_SHAF`, `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
    and `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY` (layer fields
    whose drawing is not found yet), `_VCWT` (wait for the voice),
@@ -952,11 +950,21 @@ Open there, by size:
 - Motion keys' priority (0x3C, 23,115 calls) and expression (0x32/0x34,
   5,254), and the stepped fields 0x24-0x2A (shader, effect and colour
   changes mid-motion?).
-- `_SEPL`/`_MPLY` volume (option 17) and `_SEVL` (not converted, 1,285):
-  every sound at full volume.
 
 ## History
 
+- 2026-10-18: **volumes and their fades**. `_SEPL`/`_MPLY` option 17
+  (0-100, default 100, clamped by `FUN_0016a340`) is the volume the
+  sound starts at (`chvolfade` before it); `_SEPL` option 1 fades it in
+  to that volume. `_SEVL(ch)` (`FUN_0016ae10`, channel ch % 20) and
+  `_MVOL` (`cmd_MVOL`) go to option 17 (none: 0) over option 1 ms:
+  the exe's step a frame is |to − now| · 1000 / 60 / ms
+  (`FUN_0019d0b0`, `FUN_0019ca00`; the mixer `FUN_0019b7f0` adds it
+  each frame), so the fade lasts ms; `_SEVL` with no time steps 2000 a
+  frame, at once (`FUN_0019d0b0` sets it at 1666.67 or more). Both are
+  `chvolfade` (channel, or -1 the music). Left: the exe skips both
+  while skipping or replaying, and `_SEVL` on a waiting loop only
+  stores the volume (ours sets it if the channel's sound plays).
 - 2026-10-18: **voices on or off per character** (T2; the user: on/off
   each, no volumes). **Seen**: `_VPLY` (`script_command`, case "PLY")
   looks its name's first 3 letters up in the table at 0x54D970 (55

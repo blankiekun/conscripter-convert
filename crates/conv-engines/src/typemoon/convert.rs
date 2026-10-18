@@ -713,7 +713,31 @@ impl Lowering<'_, '_> {
                 if let Some((old, true)) = self.se_channels.insert(ch, (file.clone(), looped)) {
                     self.ops.push(Op::SeFadeOut { file: Some(old), ms: 0 });
                 }
+                // Option 17: the volume (0–100, default 100), reached over option 1's ms.
+                let fade = option(a, 1).unwrap_or(0).max(0) as u32;
+                if fade > 1 {
+                    self.ops.push(Op::SeFadeIn { ms: fade });
+                }
+                let percent = option(a, 17).unwrap_or(100).clamp(0, 100) as u32;
+                if percent < 100 {
+                    self.ops.push(Op::SoundVolume { file: Some(file.clone()), percent, ms: 0 });
+                }
                 self.ops.push(Op::SePlay { file, looped });
+            }
+            // `_SEVL(channel, …)` (`FUN_0016ae10`): the sound on channel n % 20
+            // to option 17's volume (0–100, none: 0) over option 1's ms (none: at once).
+            "_SEVL" => {
+                let ch = number(arg(0)).unwrap_or(0) % 20;
+                let percent = option(a, 17).unwrap_or(0).clamp(0, 100) as u32;
+                let ms = option(a, 1).unwrap_or(0).max(0) as u32;
+                if let Some((file, _)) = self.se_channels.get(&ch) {
+                    self.ops.push(Op::SoundVolume { file: Some(file.clone()), percent, ms });
+                }
+            }
+            // `_MVOL(…)` (`cmd_MVOL`): the music to option 17's volume (none: 0) over option 1's ms.
+            "_MVOL" => {
+                let percent = option(a, 17).unwrap_or(0).clamp(0, 100) as u32;
+                self.ops.push(Op::SoundVolume { file: None, percent, ms: option(a, 1).unwrap_or(0).max(0) as u32 });
             }
             "_SEFD" => {
                 let ms = option(a, 1).unwrap_or(0).max(0) as u32;
@@ -734,6 +758,10 @@ impl Lowering<'_, '_> {
                     return true;
                 }
                 let Some(name) = self.g.sounds.get(n as usize - 1).and_then(|s| s.strip_prefix("STRM_")) else { return false };
+                let percent = option(a, 17).unwrap_or(100).clamp(0, 100) as u32;
+                if percent < 100 {
+                    self.ops.push(Op::SoundVolume { file: None, percent, ms: 0 });
+                }
                 self.ops.push(Op::BgmPlay { file: format!("stream/{name}.ogg"), fade_in_ms: option(a, 1).unwrap_or(0).max(0) as u32 });
             }
             "_MFAD" => {
@@ -2063,6 +2091,18 @@ mod tests {
             _ => None,
         }).collect();
         assert_eq!(ops, ["se/a.wav loop", "stop se/a.wav", "se/a.wav loop", "stop se/a.wav", "se/b.wav", "se/a.wav"]);
+    }
+
+    #[test]
+    fn volumes_and_their_fades() {
+        let src = "_SEPL(3,1,A,,`001:4000,,`017:50);_SEVL(23,,,,`001:3000,,`017:30);_SEVL(4,,,,`017:30);_MPLY(2,,`017:80);_MVOL(,,`001:5000);";
+        let g = Game { pictures: HashMap::new(), waves: [("A".into(), "a.wav".into())].into(), sounds: vec!["STRM_X".into(), "STRM_Y".into()], ..game(src) };
+        let ops: Vec<String> = compile(&g).ops.iter().filter_map(|o| match o {
+            Op::SeFadeIn { ms } => Some(format!("in {ms}")),
+            Op::SoundVolume { file, percent, ms } => Some(format!("{file:?} {percent} {ms}")),
+            _ => None,
+        }).collect();
+        assert_eq!(ops, ["in 4000", "Some(\"se/a.wav\") 50 0", "Some(\"se/a.wav\") 30 3000", "None 80 0", "None 0 5000"]);
     }
 
     #[test]
