@@ -223,6 +223,14 @@ pub struct Game {
     /// callable): the game's logos and warnings ([`compile_boot`]). An
     /// empty source: none.
     boot_logos: (&'static str, &'static str),
+    /// A function of [`Game::boot_logos`]' file that draws the first title
+    /// of a run coming up, run after the logos as the boot script does:
+    /// compiled at [`OPENING_LABEL`] for the title's
+    /// [`conv_core::ir::TitleOpening::script`]; and a flag it reads, then
+    /// compiled once with it 0 (there) and once with it 1 (at
+    /// [`OPENING_LABEL`] `1`), so that no runtime `if` on it has to be
+    /// merged (TitleSet's `#ClearG` buttons). Empty: none.
+    title_opening: (&'static str, &'static str),
 }
 
 impl Game {
@@ -254,6 +262,7 @@ impl Game {
         diesel_transition: false,
         fade_tempo: None,
         boot_logos: ("", ""),
+        title_opening: ("", ""),
     };
 
     /// Fills `script`'s system screens.
@@ -424,6 +433,9 @@ pub struct Replay {
 /// The label of the [`Game::boot_logos`] subroutine ([`conv_core::ir::BootStep::gosub`]).
 pub const BOOT_LABEL: &str = "conv_boot";
 
+/// The label of the [`Game::title_opening`] subroutine.
+pub const OPENING_LABEL: &str = "conv_title_script";
+
 /// Compiles the game's [`Game::boot_logos`] into a subroutine at
 /// [`BOOT_LABEL`], jumped over, from the story's `initial` state (the
 /// state now put back after it). At the end of the ops, so the story's
@@ -453,6 +465,26 @@ fn compile_boot<'a>(c: &mut Compiler<'a, '_>, files: &'a BTreeMap<String, NssFil
     c.call_function(boot, f, Vec::new());
     c.sync(0);
     c.ops.push(Op::Return);
+    // Compiled from where the logos leave things, as it runs after them.
+    let (function, flag) = game.title_opening;
+    let opening = files[boot].items.iter().find_map(|item| match item {
+        Item::Function(f) if f.name == function => Some(f),
+        _ => None,
+    });
+    if let Some(f) = opening {
+        let after_logos = c.snapshot();
+        for v in if flag.is_empty() { 0..1 } else { 0..2 } {
+            c.restore(after_logos.clone());
+            if !flag.is_empty() {
+                c.vars.insert(flag.to_string(), Value::Int(v));
+            }
+            let suffix = if v == 0 { String::new() } else { v.to_string() };
+            c.ops.push(Op::Label(format!("{OPENING_LABEL}{suffix}")));
+            c.call_function(boot, f, Vec::new());
+            c.sync(0);
+            c.ops.push(Op::Return);
+        }
+    }
     c.ops.push(Op::Label(end.to_string()));
     c.restore(before);
 }
@@ -1292,7 +1324,7 @@ impl Wave {
 }
 
 /// [`Object::shake`]: the process, the keys.
-type ShakeLoop = (String, Vec<MotionKey>);
+type ShakeLoop = (String, Vec<MotionKey>, usize);
 
 impl Object<'_> {
     /// Mirrored (left to right, upside down) as its turn shows it.
@@ -1648,6 +1680,12 @@ struct Compiler<'a, 'b> {
     /// Pictures not shown yet that `Move`s since the last sync: where they
     /// start, from where they end (shown there and moved, [`Compiler::sync`]).
     pending_from: HashMap<String, (i64, i64)>,
+    /// Of those, the ones that `Rotate` about z over time: the angle they
+    /// had (shown at it and turned as they move).
+    pending_angle_from: HashMap<String, i64>,
+    /// Pictures that `Zoom` over time since the last sync: the zoom they
+    /// had (for a turn's motion, [`turn::Turning::zoom`]).
+    pending_size_from: HashMap<String, (i64, i64)>,
     /// Pictures that `Zoom`s since the last sync zoom from or to 0 along
     /// an axis over time: the zoom they had (squashed away or grown back,
     /// [`Compiler::sync`]).
@@ -2482,6 +2520,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shake_once: HashMap::new(),
             pending_path: HashMap::new(),
             pending_from: HashMap::new(),
+            pending_angle_from: HashMap::new(),
+            pending_size_from: HashMap::new(),
             pending_zoom_from: HashMap::new(),
             action_process: None,
             process_lead: 0,
@@ -3360,6 +3400,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
             None => wait,
         };
         match wait {
+            // src: Django.exe 004310e0: a number n waits n ms, the action going on.
+            &Value::Int(n) if n > 1 && (n as u32) < ms => {
+                // (Drawn as `Wait` draws the actions still running, a click
+                // ending it as it ends a whole one.)
+                self.timed(i64::from(ms), &Value::Null, targets);
+                let n = n as u32;
+                let shown = std::mem::take(&mut self.pending_ms).min(n);
+                self.sync(shown);
+                if n > shown {
+                    self.ops.push(Op::Wait { ms: n - shown });
+                }
+            }
             Value::Null | Value::Int(0) => {
                 self.pending_ms = self.pending_ms.max(ms);
                 for t in targets {
@@ -3369,7 +3421,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             _ => {
                 if matches!(wait, Value::Int(n) if *n > 1) {
-                    self.note("timed action that waits only part of its time");
+                    self.note("timed action that waits longer than its time");
                 }
                 for t in targets {
                     let p = self.pending_by.entry(t.clone()).or_default();
@@ -5086,6 +5138,34 @@ scene a.nss
     }
 
     #[test]
+    fn a_picture_turning_as_it_zooms_and_fades_out_does_all_three() {
+        // boot.nss TitleLogo: the Nitroplus logo shot away (Zoom, Rotate
+        // about x, Fade at once over 500 ms).
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("logo", 100, 0, 0, "cg/a.png");
+	Fade("logo", 0, 1000, null, true);
+	Zoom("logo", 500, 500, 500, Dxl2, false);
+	Rotate("logo", 500, @60, @0, @0, Dxl2, false);
+	Fade("logo", 500, 0, null, true);
+}
+"#;
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+        let keys = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, .. } => Some(keys),
+            _ => None,
+        }).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let last = *keys.last().unwrap();
+        // Half the size, squashed to half again up and down; gone.
+        assert_eq!((last.ms, last.zoom, last.zoom_y, last.opacity, last.x, last.y), (500, 50, 25, 0, 0, 0), "{keys:?}");
+    }
+
+    #[test]
     fn a_face_window_turning_away_squashes_out_then_goes() {
         // `WindowCloseR(frame, face, 500, 0,90,0, Dxl1, true)`.
         let story = r#"
@@ -6295,6 +6375,47 @@ scene a.nss
         let c = compile(&story(2), &library);
         assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteMotion2 { end: MotionEnd::Loop, .. })), "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.contains("Comic") || n.contains("paper")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_loop_process_rolls_in_after_a_wait_then_loops() {
+        // boot.nss TumbleweedMove: still for 3 s, faded in and rolled once,
+        // then rolling by again and again.
+        let library = format!("{LIBRARY}{}", r#"
+function Roll()
+{
+	Wait(3000);
+	Fade("@c", 1000, 1000, null, false);
+	Move("@c", 2000, @600, @0, null, true);
+	$Rolling = 1;
+	while($Rolling == 1)
+	{
+		Move("@c", 0, -100, 100, null, true);
+		Move("@c", 6000, @900, @0, null, true);
+		Wait(3000);
+	}
+}
+"#);
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("c", 100, 100, 100, "cg/ef/a.png");
+	Fade("c", 0, 0, null, true);
+	CreateProcess("P", 150, 0, 0, "Roll");
+	Request("P", Start);
+	Wait(100);
+}
+"#;
+        let c = compile(story, &library);
+        let (keys, from) = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::LoopFrom(from), .. } => Some((keys.clone(), *from)),
+            _ => None,
+        }).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let at = |ms: u32| keys.iter().find(|k| k.ms == ms).map(|k| (k.x, k.opacity)).unwrap_or_else(|| panic!("{ms}: {keys:?}"));
+        assert_eq!((at(0), at(3000), at(4000), at(5000)), ((0, 0), (0, 0), (300, 256), (600, 256)), "{keys:?}");
+        // The loop: from where the roll ends, back to the left and across.
+        assert_eq!((keys[from].ms, keys.last().map(|k| (k.ms, k.x))), (5000, Some((14000, 700))), "{keys:?}");
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
     }
 
     #[test]

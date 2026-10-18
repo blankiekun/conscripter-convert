@@ -452,6 +452,8 @@ impl<'a> Compiler<'a, '_> {
             || !self.shake_once.is_empty()
             || !self.pending_path.is_empty()
             || !self.pending_from.is_empty()
+            || !self.pending_angle_from.is_empty()
+            || !self.pending_size_from.is_empty()
             || !self.pending_zoom_from.is_empty()
             || !self.fade_from_zero.is_empty()
             || self.pending_mask.is_some()
@@ -467,7 +469,7 @@ impl<'a> Compiler<'a, '_> {
             v.join(",")
         };
         format!(
-            "{} {} {} {:?} {} {} {} {} {} {} {} {} {:?} {:?} {:?}",
+            "{} {} {} {:?} {} {} {} {} {} {} {} {} {} {} {:?} {:?} {:?}",
             self.pending_ms,
             sorted(&self.pending_by),
             sorted(&self.pending_tempo),
@@ -478,6 +480,8 @@ impl<'a> Compiler<'a, '_> {
             sorted(&self.shake_once),
             sorted(&self.pending_path),
             sorted(&self.pending_from),
+            sorted(&self.pending_angle_from),
+            sorted(&self.pending_size_from),
             sorted(&self.pending_zoom_from),
             sorted(&self.fade_from_zero),
             self.pending_mask,
@@ -505,6 +509,8 @@ impl<'a> Compiler<'a, '_> {
         self.shake_once.clear();
         self.pending_path.clear();
         self.pending_from.clear();
+        self.pending_angle_from.clear();
+        self.pending_size_from.clear();
         self.pending_zoom_from.clear();
         self.fade_from_zero.clear();
         self.pending_mask = None;

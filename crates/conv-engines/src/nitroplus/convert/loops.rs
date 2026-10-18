@@ -237,12 +237,33 @@ impl<'a> Compiler<'a, '_> {
                 self.shake_loop(name, body, &made);
             }
         } else if let Some((prelude, cond, body)) = split(stmts, LOOP_CALLS) {
+            // Timed actions after a wait before the loop (TumbleweedMove's
+            // first roll): played on paper ahead of it, as its lead-in.
+            let calls: Vec<&str> = prelude.iter().filter_map(|s| match &s.kind {
+                StmtKind::Expr(Expr::Call { name, .. }) => Some(name.as_str()),
+                _ => None,
+            }).collect();
+            let lead_in = prelude.iter().all(|s| match &s.kind {
+                StmtKind::Label(_) | StmtKind::Assign { .. } => true,
+                StmtKind::Expr(Expr::Call { name, .. }) => LOOP_CALLS.contains(&name.as_str()),
+                _ => false,
+            }) && calls.iter().skip_while(|&&c| c != "Wait").any(|&c| c != "Wait");
             self.action_process = Some(name.to_string());
-            self.exec_block(prelude);
+            if lead_in {
+                for s in prelude.iter().filter(|s| matches!(s.kind, StmtKind::Assign { .. })) {
+                    self.exec(s);
+                }
+            } else {
+                self.exec_block(prelude);
+            }
             self.action_process = None;
             let made = self.adopt(name, before);
             if self.eval(cond).truthy() {
-                self.action_loop(name, function, body, &made);
+                if lead_in {
+                    self.lead_in_loop(name, function, prelude, body, &made);
+                } else {
+                    self.action_loop(name, function, body, &made);
+                }
             }
         } else if let Some((prelude, cond, then, otherwise)) = split_if(stmts) {
             self.action_process = Some(name.to_string());
@@ -321,21 +342,21 @@ impl<'a> Compiler<'a, '_> {
         }
         let Some(target) = target else { return };
         let keys = shake_keys(&parts).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None }).collect();
-        self.set_loop(name, &target, keys);
+        self.set_loop(name, &target, keys, 0);
     }
 
     /// A loop of `Fade`, `Move`, `Zoom`, `Rotate`, `BezierMove` and `Wait`.
     fn action_loop(&mut self, name: &str, function: &str, body: &'a [Stmt], made: &[(String, String)]) {
         let (sw, sh) = self.game.screen;
         let mut first: HashMap<String, Pass> = HashMap::new();
-        let len = self.play(body, &mut first, (sw, sh), made);
+        let len = self.play(body, &mut first, (sw, sh), made, 0);
         if len == 0 {
             self.note(format!("loop process without time: {function}"));
             return;
         }
         // The second pass, from where the first left each picture.
         let mut second: HashMap<String, Pass> = first.iter().map(|(k, p)| (k.clone(), Pass::starting(p.ends()))).collect();
-        self.play(body, &mut second, (sw, sh), made);
+        self.play(body, &mut second, (sw, sh), made, 0);
         if second.iter().any(|(k, p)| p.ends() != first[k].ends()) {
             self.note(format!("loop process that doesn't come back to where it started: {function}"));
         }
@@ -355,14 +376,46 @@ impl<'a> Compiler<'a, '_> {
                 o.turn.2 = -(v[4].round() as i64);
                 o.opacity = top.round() as i64;
             }
-            self.set_loop(name, &target, keys);
+            self.set_loop(name, &target, keys, 0);
         }
     }
 
-    /// Plays `body` once on paper into `passes` (a picture's pass starts
-    /// where the object is, unless it is there already); its length.
-    fn play(&mut self, body: &'a [Stmt], passes: &mut HashMap<String, Pass>, (sw, sh): (i64, i64), made: &[(String, String)]) -> u32 {
-        let mut clock = 0u32;
+    /// [`Self::action_loop`] after `prelude`, played on paper once: one
+    /// motion through the prelude and the body, the body's part looped.
+    fn lead_in_loop(&mut self, name: &str, function: &str, prelude: &'a [Stmt], body: &'a [Stmt], made: &[(String, String)]) {
+        let (sw, sh) = self.game.screen;
+        let mut passes: HashMap<String, Pass> = HashMap::new();
+        let lead = self.play(prelude, &mut passes, (sw, sh), made, 0);
+        let len = self.play(body, &mut passes, (sw, sh), made, lead) - lead;
+        if len == 0 {
+            self.note(format!("loop process without time: {function}"));
+            return;
+        }
+        let mut targets: Vec<(String, Pass)> = passes.into_iter().collect();
+        targets.sort_by(|a, b| a.0.cmp(&b.0));
+        for (target, pass) in targets {
+            let v = pass.values(0);
+            let Some(keys) = pass.keys(lead + len) else { continue };
+            if keys.len() > MAX_KEYS {
+                self.note(format!("loop process over {MAX_KEYS} keys: {function} ({})", keys.len()));
+                continue;
+            }
+            let from = keys.iter().position(|k| k.ms >= lead).unwrap_or(0);
+            let top = pass.top(lead + len);
+            if let Some(o) = self.objects.get_mut(&target) {
+                (o.x, o.y) = (v[0].round() as i64, v[1].round() as i64);
+                o.zoom = (v[2].round() as i64, v[3].round() as i64);
+                o.turn.2 = -(v[4].round() as i64);
+                o.opacity = top.round() as i64;
+            }
+            self.set_loop(name, &target, keys, from);
+        }
+    }
+
+    /// Plays `body` once on paper into `passes` from `clock` (a picture's
+    /// pass starts where the object is, unless it is there already); the
+    /// clock at its end.
+    fn play(&mut self, body: &'a [Stmt], passes: &mut HashMap<String, Pass>, (sw, sh): (i64, i64), made: &[(String, String)], mut clock: u32) -> u32 {
         for s in body {
             let StmtKind::Expr(Expr::Call { name: call, args }) = &s.kind else { continue };
             if call == "Wait" {
@@ -470,9 +523,10 @@ impl<'a> Compiler<'a, '_> {
 
     /// Picture `target` loops `keys` while process `name` runs, after the
     /// process's waits ([`Compiler::process_lead`]).
-    fn set_loop(&mut self, name: &str, target: &str, keys: Vec<MotionKey>) {
+    /// The loop repeats from key `from` on (0: all of them).
+    fn set_loop(&mut self, name: &str, target: &str, keys: Vec<MotionKey>, from: usize) {
         let Some(o) = self.objects.get_mut(target) else { return };
-        o.shake = Some((name.to_string(), keys.clone()));
+        o.shake = Some((name.to_string(), keys.clone(), from));
         let Some(s) = self.shown.get(target) else { return };
         // Moving now: the next sync makes the move the lead-in.
         let moving = self.pending_by.get(target).copied().unwrap_or(0);
@@ -481,12 +535,12 @@ impl<'a> Compiler<'a, '_> {
             return;
         }
         // Already shown: it starts now, or after the lead.
-        self.ops.push(lead_in_loop(s.layer, (0, 0, 0), self.process_lead, keys));
+        self.ops.push(lead_in_loop(s.layer, (0, 0, 0), self.process_lead, keys, from));
     }
 
     /// Loop process `owner` deleted: its pictures stop.
     pub(super) fn stop_loops(&mut self, owner: &str) {
-        let stopped: Vec<String> = self.objects.iter().filter(|(_, o)| o.shake.as_ref().is_some_and(|(p, _)| p == owner)).map(|(k, _)| k.clone()).collect();
+        let stopped: Vec<String> = self.objects.iter().filter(|(_, o)| o.shake.as_ref().is_some_and(|(p, ..)| p == owner)).map(|(k, _)| k.clone()).collect();
         for k in stopped {
             self.objects.get_mut(&k).unwrap().shake = None;
             if let Some(s) = self.shown.get(&k) {
@@ -499,20 +553,21 @@ impl<'a> Compiler<'a, '_> {
 /// A loop of `keys` on `layer` after a lead-in of `lead` ms, in which the
 /// picture comes from (x, y) away (its offsets from its place) back to its
 /// place over `ms` (`spmotion` loop 4). Without a lead-in, or past
-/// [`MAX_KEYS`], the plain loop.
-pub(super) fn lead_in_loop(layer: u32, (x, y, ms): (i32, i32, u32), lead: u32, keys: Vec<MotionKey>) -> Op {
+/// [`MAX_KEYS`], the plain loop. The loop repeats from key `from` on.
+pub(super) fn lead_in_loop(layer: u32, (x, y, ms): (i32, i32, u32), lead: u32, keys: Vec<MotionKey>, from: usize) -> Op {
     use conv_core::ir::MotionEnd;
     let lead = lead.max(ms);
     let Some(&first) = keys.first().filter(|_| lead > 0 && keys.len() + 2 <= MAX_KEYS) else {
-        return Op::SpriteMotion2 { layer, keys, end: MotionEnd::Loop };
+        let end = if from > 0 { MotionEnd::LoopFrom(from) } else { MotionEnd::Loop };
+        return Op::SpriteMotion2 { layer, keys, end };
     };
     let mut all = vec![MotionKey { ms: 0, x: first.x + x, y: first.y + y, ..first }];
     if ms > 0 && ms < lead {
         all.push(MotionKey { ms, ..first });
     }
-    let from = all.len();
+    let start = all.len() + from;
     all.extend(keys.into_iter().map(|k| MotionKey { ms: k.ms + lead, ..k }));
-    Op::SpriteMotion2 { layer, keys: all, end: MotionEnd::LoopFrom(from) }
+    Op::SpriteMotion2 { layer, keys: all, end: MotionEnd::LoopFrom(start) }
 }
 
 /// `BezierMove` along `pts` (anchors, and between them any number of
