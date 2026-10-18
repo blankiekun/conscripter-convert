@@ -820,7 +820,7 @@ impl<'a> Emitter<'a> {
             writeln!(out, "bgmfadeout {fade_out_ms}").unwrap();
             writeln!(out, "bgmstop").unwrap();
         }
-        Op::Wait { ms } => writeln!(out, "delay {ms}").unwrap(),
+        Op::Wait { ms } => writeln!(out, "{}delay {ms}", unless_auto(script, i)).unwrap(),
         Op::Pause { ms } => writeln!(out, "wait {ms}").unwrap(),
         Op::Flash { colour, opacity, ms } => {
             // An additive sprite2: over the picture, under the text window.
@@ -886,6 +886,8 @@ impl<'a> Emitter<'a> {
         }
         // (Read by the sound op after it.)
         Op::SoundEase { .. } => {}
+        // The wait right after it runs only when this one didn't.
+        Op::AutoWait { ms } => writeln!(out, "isskip {0}\nif {0} == 2 delay {ms}", menu::TMP).unwrap(),
         Op::SoundVolume { file, percent, ms } => {
             // Right before the sound starts: for the channel it will
             // play on (CONscripter keeps a channel's volume for its next
@@ -939,7 +941,7 @@ impl<'a> Emitter<'a> {
         }
         Op::ClickWait { skippable } => {
             *needs_click_wait = true;
-            writeln!(out, "mov {BUTTON_VAR},{}:gosub *{CLICK_WAIT}", u8::from(*skippable)).unwrap();
+            writeln!(out, "{}mov {BUTTON_VAR},{}:gosub *{CLICK_WAIT}", unless_auto(script, i), u8::from(*skippable)).unwrap();
         }
         Op::Movie { file, skippable } => {
             // The web build plays it in a <video> element over the game.
@@ -1055,6 +1057,15 @@ impl<'a> Emitter<'a> {
 /// The `chvolfade`/`chfreq` curve of the sound op at `i`: the
 /// [`Op::SoundEase`] right before it, as an `spmotion` curve (`None`
 /// straight).
+/// The condition that keeps a wait to normal play when an [`Op::AutoWait`]
+/// right before it waits in auto mode.
+fn unless_auto(script: &Script, i: usize) -> String {
+    match i.checked_sub(1).and_then(|j| script.ops.get(j)) {
+        Some(Op::AutoWait { .. }) => format!("if {} != 2 ", menu::TMP),
+        _ => String::new(),
+    }
+}
+
 fn sound_curve(script: &Script, i: usize, eased: &mut BTreeMap<(u8, u32), u32>) -> Option<u32> {
     match i.checked_sub(1).and_then(|j| script.ops.get(j)) {
         Some(&Op::SoundEase { ease, exponent }) => Some(crate::ease::curve(Some((ease, exponent)), eased)).filter(|&c| c > 0),

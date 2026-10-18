@@ -4661,6 +4661,20 @@ scene a.nss
     }
 
     #[test]
+    fn auto_mode_ends_a_waitkey_after_1500_ms() {
+        let story = "scene a.nss\n{\n\tWaitKey(2000);\n\tWaitKey(1000);\n\tWaitKey();\n}\n";
+        let c = compile(story, LIBRARY);
+        let waits: Vec<String> = c.ops.iter().filter_map(|op| match op {
+            Op::Wait { ms } => Some(format!("w{ms}")),
+            Op::AutoWait { ms } => Some(format!("a{ms}")),
+            Op::ClickWait { .. } => Some("click".into()),
+            _ => None,
+        }).collect();
+        // The shorter one needs none.
+        assert_eq!(waits, ["a1500", "w2000", "w1000", "a1500", "click"], "{:?}", c.ops);
+    }
+
+    #[test]
     fn a_cut_the_script_waits_for_plays_as_a_movie_over_its_last_frame() {
         // MovieSEStart: wait for the cut, then for RemainTime + 500.
         let story = r#"
