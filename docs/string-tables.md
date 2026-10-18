@@ -119,6 +119,16 @@ one more row.
   counter: a rebuild keeps every ID whose source line keeps its 0.txt
   lines, whatever moved around it. Without a map the line's own text
   stands for the source. Clashes (48 bits) are detected and salted.
+- **Not keyed by the Japanese text alone.** deepLuna (the Tsukihimates'
+  tool) keys translations by the hash of the Japanese line, with
+  per-offset overrides where one line needs two translations. We key by
+  source place instead: the same Japanese line in two places (「……」,
+  「はい」) gets two IDs from the start, with no override list, and a
+  converter change to a line's tags keeps its ID. The text hash stays as
+  the fallback: a table line whose ID a rebuild dropped is matched again
+  by the hash of its Japanese text (the Japanese table holds it), when
+  that text is unique in its scene (phase 2, in the kit); and the engine
+  finds saves of builds without tables by it.
 - **English by source.** The English build's lines of the same scene and
   source instruction go to the same IDs (the k-th Japanese line takes
   the k-th English one; the last takes the rest, the others are left
