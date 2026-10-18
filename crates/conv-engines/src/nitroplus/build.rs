@@ -155,6 +155,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         global_border: Some(convert::GLOBAL_BORDER),
         window: compiled.window,
         ops: compiled.ops,
+        source_map: compiled.source_map,
         single_byte_text: run.english.is_some(),
         language: if run.english.is_some() { "en" } else { "ja" }.into(),
         ..Default::default()

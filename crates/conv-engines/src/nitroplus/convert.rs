@@ -378,6 +378,9 @@ pub struct Compiled {
     /// The voice classes, in the order of their character numbers
     /// ([`Voice::character`]).
     pub voice_classes: Vec<String>,
+    /// Where the ops came from: the statement (file, line) each run of ops
+    /// was lowered from ([`Script::source_map`]).
+    pub source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
 }
 
 /// What the system screens may need from the compiled story.
@@ -411,7 +414,7 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     let base = c.next_dynamic.max(FLAG_LOCAL_BASE);
     c.subroutines(&initial, base);
     c.ops.push(Op::Label(end.to_string()));
-    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes })
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes, source_map: c.source_map })
 }
 
 /// Compiles a whole story that one scene drives by calling the chapter
@@ -458,7 +461,7 @@ pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     }
     c.sync(0);
     c.ops.push(Op::ReturnToTitle);
-    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes })
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes, source_map: c.source_map })
 }
 
 /// Plays story files from `start` (`ma01_001.nss`), as the story
@@ -638,7 +641,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.ops.push(Op::Label(file_label(&name)));
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
-    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes }, played))
+    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes, source_map: c.source_map }, played))
 }
 
 /// The flag a helper holds on the leaves that set it, when those that
@@ -1251,6 +1254,8 @@ impl Object<'_> {
 #[derive(Debug, Clone)]
 struct TextObject<'a> {
     block: &'a Text,
+    /// The `<PRE>` statement (file, line): its pages' source.
+    at: Option<(&'a str, u32)>,
     /// `LoadText`: box size, letter spacing, line pitch, font size.
     layout: Option<(i64, i64, i64, i64, i64)>,
     rotation: i64,
@@ -1641,6 +1646,10 @@ struct Compiler<'a, 'b> {
     random_users: HashMap<String, bool>,
     paper: u32,
     random_sites: usize,
+    /// (op index, statement) marks for [`Compiled::source_map`], and the
+    /// lines of the statements being run, innermost last.
+    source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
+    running: Vec<(&'a str, u32)>,
 }
 
 /// One way through a fork: its state at the end, and the op that marks it
@@ -2039,7 +2048,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // After each marker, last first so the earlier positions hold.
         inserts.sort_by_key(|i| std::cmp::Reverse(i.0));
         for (at, op) in inserts {
-            self.ops.insert(at + 1, op);
+            self.insert_op(at + 1, op);
         }
         if leaves.iter().any(|l| l.state.shown != leaves[0].state.shown) {
             self.note("branches of a runtime if end with different pictures");
@@ -2414,6 +2423,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             random_users: HashMap::new(),
             paper: 0,
             random_sites: 0,
+            source_map: Vec::new(),
+            running: Vec::new(),
         }
     }
 
@@ -2476,7 +2487,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 checkpoint = self.checkpoint(stmts, i).or(checkpoint.filter(|_| random::simple(s)));
                 self.exec(s);
             }
-            self.flush_sounds();
+            self.flush_sounds_after(s.line);
         }
     }
 
@@ -2498,7 +2509,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if let Some((end, flow)) = self.exec_drawing(part, i, &mut checkpoint) {
                     skip = end + 1;
                     if self.in_function == 0 {
-                        self.flush_sounds();
+                        self.flush_sounds_after(s.line);
                     }
                     match flow {
                         Flow::Normal => continue,
@@ -2513,7 +2524,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     rest.extend_from_slice(&parts[pi + 1..]);
                     self.runtime_if_then(cond, then, otherwise.as_deref(), &rest);
                     if self.in_function == 0 {
-                        self.flush_sounds();
+                        self.flush_sounds_after(s.line);
                     }
                     return Flow::Normal;
                 }
@@ -2522,7 +2533,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // A statement of a scene (not of a helper) has finished
                 // setting up the sounds it started.
                 if self.in_function == 0 {
-                    self.flush_sounds();
+                    self.flush_sounds_after(s.line);
                 }
                 match flow {
                     Flow::Normal => {}
@@ -2534,6 +2545,45 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn exec(&mut self, stmt: &'a Stmt) -> Flow {
+        self.running.push((self.file, stmt.line));
+        self.mark();
+        let flow = self.exec_statement(stmt);
+        self.running.pop();
+        self.mark(); // what follows a call comes from the calling statement
+        flow
+    }
+
+    /// Marks the ops from here on as lowered from the statement being run.
+    fn mark(&mut self) {
+        let Some(&(file, line)) = self.running.last() else { return };
+        let n = self.ops.len();
+        let map = &mut self.source_map;
+        // ops taken back (a pick compiled again) and marks with no op
+        while map.last().is_some_and(|m| m.0 >= n) {
+            map.pop();
+        }
+        if map.last().is_none_or(|m| m.1.index != line as usize || m.1.file != file) {
+            map.push((n, conv_core::ir::SourceLoc { file: file.to_string(), index: line as usize }));
+        }
+    }
+
+    /// [`Self::flush_sounds`] after the statement at `line`, its ops marked as
+    /// that statement's.
+    fn flush_sounds_after(&mut self, line: u32) {
+        self.running.push((self.file, line));
+        self.mark();
+        self.flush_sounds();
+        self.running.pop();
+        self.mark();
+    }
+
+    /// `ops.insert`, keeping the source marks after `at` on their ops.
+    fn insert_op(&mut self, at: usize, op: Op) {
+        self.ops.insert(at, op);
+        self.source_map.iter_mut().filter(|m| m.0 >= at).for_each(|m| m.0 += 1);
+    }
+
+    fn exec_statement(&mut self, stmt: &'a Stmt) -> Flow {
         self.steps += 1;
         if self.steps > MAX_STEPS {
             if self.steps == MAX_STEPS + 1 {
@@ -3033,7 +3083,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     (*fade_ms, *mask) = (0, None);
                 }
                 let end = self.ops.len() - 1;
-                self.ops.insert(end, movie);
+                self.insert_op(end, movie);
             }
             _ => self.ops.push(movie),
         }
@@ -3554,7 +3604,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let prev = prev.trim_start_matches('@').to_string();
             self.objects.remove(&prev);
         }
-        let text = TextObject { block: t, layout: self.box_layouts.get(&window).copied(), rotation: 0 };
+        let text = TextObject { block: t, at: self.running.last().copied(), layout: self.box_layouts.get(&window).copied(), rotation: 0 };
         let (priority, x, y) = self.objects.get(&window).map_or((20001, 0, 0), |o| (o.priority, o.x, o.y));
         let o = self.create(name.clone(), Kind::Text(text), priority, 0, 0);
         (o.x, o.y) = (x, y);
@@ -3793,9 +3843,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.sync(0);
         let pages = self.pages(t.block);
         for page in &pages {
+            // (the page's code is its <PRE> file's, wherever it is shown)
+            let pre_file = t.at.map_or(self.file, |a| a.0);
+            let shown_from = std::mem::replace(&mut self.file, pre_file);
             for &s in &page.code {
                 self.exec(s);
             }
+            self.file = shown_from;
             self.flush_sounds();
             if page.text.is_empty() && !page.goes_on {
                 continue;
@@ -3873,6 +3927,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             if page.goes_on && text.trim_end_matches(conv_core::ir::GOES_ON_MARK).trim().is_empty() {
                 text.retain(|c| c == conv_core::ir::GOES_ON_MARK);
             }
+            // The page comes from its <PRE> block, wherever it is shown.
+            if let Some(at) = t.at {
+                self.running.push(at);
+                self.mark();
+            }
             match runtime_text(&text).and_then(|(var, before, after)| Some((var, before, after, self.flag_texts.get(&var)?.clone()))) {
                 Some((var, before, after, texts)) => {
                     // (Named by the file and page, so that no other label's
@@ -3890,6 +3949,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.ops.push(Op::Label(end));
                 }
                 None => self.ops.push(page_op(text)),
+            }
+            if t.at.is_some() {
+                self.running.pop();
+                self.mark();
             }
             self.texts_shown += 1;
         }
@@ -6635,5 +6698,19 @@ scene a.nss
         let Some(Op::Sprites { changes, .. }) = c.ops.iter().rev().find(|op| matches!(op, Op::Sprites { .. })) else { panic!() };
         assert_eq!(changes.len(), 2, "{changes:?}");
         assert!(changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "color/000000_1024x576.png")));
+    }
+
+    #[test]
+    fn each_op_maps_to_the_statement_it_came_from() {
+        let story = "scene a.nss\n{\n\tCreateTextureEX(\"bg\", 100, 0, 0, \"cg/bg/a.jpg\");\n\tFade(\"bg\", 500, 1000, null, true);\n<PRE @box0>\n[text0010]\nあ\n</PRE>\n\tSetText();\n\tTypeBegin();\n\tWait(300);\n}\n";
+        let c = compile(story, LIBRARY);
+        let at = |i: usize| c.source_map.iter().rev().find(|m| m.0 <= i).map(|m| format!("{}:{}", m.1.file, m.1.index)).unwrap();
+        let find = |f: &dyn Fn(&Op) -> bool| c.ops.iter().position(f).unwrap_or_else(|| panic!("{:#?}", c.ops));
+        // the page from its <PRE> line, though TypeBegin shows it
+        assert_eq!(at(find(&|op| matches!(op, Op::Text { .. }))), "a.nss:5");
+        // the box faded out by TypeBegin's line in the library
+        assert_eq!(at(find(&|op| matches!(op, Op::HideTextWindow))), "function.nss:24");
+        assert_eq!(at(find(&|op| matches!(op, Op::Pause { ms: 300 } | Op::Wait { ms: 300 }))), "a.nss:11");
+        assert!(c.source_map.windows(2).all(|w| w[0].0 < w[1].0), "{:?}", c.source_map);
     }
 }

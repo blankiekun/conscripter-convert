@@ -392,6 +392,17 @@ rather than by browsing:
     it runs for hundreds of pages unattended. 最果てのイマ:
     `research/xuse/tracedll/` (`xtrace.sh`, docs/games/saihate-no-ima.md,
     "Running the original under wine").
+    An engine that runs source text (Nitroplus NSS) has no dispatch table:
+    redirect the interpreter's calls instead (5-byte `call rel32` at the
+    call site to a stub that logs and jumps to the callee), and take
+    "at" as `<file>:<line>` counted in the text the exe loaded (check it
+    against the file: 装甲悪鬼村正's loaded text turns the CR LF of a
+    text block's header and code lines into LF LF). Its waits are timed in ms by the process's own
+    thread, not by frames: log `ms` and diff with `--ms`. Turn auto mode
+    on by patching one script line in place (lines must not move), where
+    the script itself unlocks it. 装甲悪鬼村正:
+    `research/nitroplus/tracedll/` (`ntrace.sh`, docs/games/muramasa.md,
+    "Running the original under wine").
 23. **Diff the two traces**: with the converter's `--source-map <file>`
     (each 0.txt line's `<script>:<instruction>`; the engine's lowering
     fills `Script::source_map`, as `xuse/convert.rs`'s `lower_script`
@@ -406,7 +417,12 @@ rather than by browsing:
     stalled 134 s once between two frames). A `missing` command that
     had nothing to change (a `csp -1` with no sprites) is no finding:
     ours writes an `ev` only for a change. 最果てのイマ:
-    docs/games/saihate-no-ima.md, "Trace diff".
+    docs/games/saihate-no-ima.md, "Trace diff". In an engine whose
+    compiler runs the script at convert time (Nitroplus NSS), mark each
+    op with the statement being run when it is pushed (a function's ops
+    with the function's own line), a text page with its text block, and
+    sounds flushed after a statement with that statement; 装甲悪鬼村正:
+    docs/games/muramasa.md, "Trace diff".
 
 ### Checklist: behaviours to map
 
