@@ -21,9 +21,12 @@
 //!
 //! Coordinates: the exe's widgets are placed in 1080p pixels (`FUN_0011fa60`
 //! with 1920 × 905 from y 109); here × 2/3. A slot is listed only while
-//! its condition holds (`FUN_0010b58c`: scene-read flags). Left out: the list in pages of 6 rows (the exe scrolls it,
-//! 6 across); the viewer's zoom (a CG shown to cover the screen, its far part scrolled
-//! to); the Music Player, Flowchart, Movie and Ending List (drawn, not
+//! its condition holds (`FUN_0010b58c`: scene-read flags). The viewer
+//! shows a CG fitted into the screen (`FUN_0010be84`). Left out: the list
+//! in pages of 6 rows (the exe scrolls it, 6 across); the viewer's zoom
+//! and pan (`FUN_0010c56c`: the right stick or a pinch zooms from fitted to
+//! 1:1, a button toggles fitted and filling the screen, the left stick or a
+//! drag pans; here a click goes to the next CG); the Music Player, Flowchart, Movie and Ending List (drawn, not
 //! clickable).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -323,11 +326,13 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
                 Ok(boxed(&imageops::crop_imm(t.get("cg_thumb_all")?, x, y, THUMB.0, THUMB.1).to_image()))
             });
             let thumbnail = save(&format!("th/{}", cg.number), thumb.transpose()?)?;
-            // guess: the viewer covers the screen, the far part scrolled to
-            let k = (SCREEN.0 as f32 / cg.size.0 as f32).max(SCREEN.1 as f32 / cg.size.1 as f32);
+            // src: FUN_0010be84: the CG opens fitted into the screen, centred
+            // (its zoom the smaller of the screen's width and height over
+            // its size, larger or smaller)
+            let k = (SCREEN.0 as f32 / cg.size.0 as f32).min(SCREEN.1 as f32 / cg.size.1 as f32);
             let (w, h) = ((cg.size.0 as f32 * k).round() as i32, (cg.size.1 as f32 * k).round() as i32);
             let source = if s.cgs.contains(&lower) { format!("cg/{lower}.{}", s.pic_ext) } else { format!("pic/{lower}.{}", s.pic_ext) };
-            let image = format!("{DIR}/view/{lower}.png");
+            let image = format!("{DIR}/fit/{lower}.png");
             views.push((source, image.clone(), (w as u32, h as u32)));
             // FUN_00104470: its pictures, its own name, then flag 557
             let mut any = Vec::new();
@@ -337,7 +342,8 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
             any.extend(marked.iter().map(|&v| Seen::Var(v)));
             any.push(Seen::Var(flag557));
             let seen = if any.len() == 1 { any.pop().unwrap() } else { Seen::Any(any) };
-            out.push(SlotCg { seen, picture: Placed { image, x: 0, y: 0, w, h }, thumbnail });
+            let (x, y) = ((SCREEN.0 as i32 - w) / 2, (SCREEN.1 as i32 - h) / 2);
+            out.push(SlotCg { seen, picture: Placed { image, x, y, w, h }, thumbnail });
         }
         gallery_slots.push(PictureSlot { cgs: out, reversed: false, shown_if: Vec::new() });
     }
