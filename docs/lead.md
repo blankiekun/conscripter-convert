@@ -40,3 +40,8 @@
   (cargo, snapshot, pr-report, engine builds, convert-game) when under
   6 GiB of memory is free. `tests/land.sh` takes `out/land.lock` (one
   landing at a time) and refuses a draft or non-OPEN PR.
+- **A bug the user found** (the PR's "Found by: user", from
+  `tests/pr-report.sh`): land it only when the PR names the check that
+  now catches its kind (or "none possible" and why) and what of the
+  report is still open; queue what is open. A user report fixed "in
+  part" without that came back the next day (#339, #436).
