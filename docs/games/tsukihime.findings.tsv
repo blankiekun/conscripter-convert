@@ -74,7 +74,7 @@ _ZM/_MSAD	next text fades the window in over 18 frames when hidden	-	FUN_0016e0d
 _ZM/_MSAD	@n joins the next line	-	FUN_0016e0d0	held	seen	
 _WNTY	type 0/1: line offset 3.5 or 5.5	58576	FUN_00138ea0, FUN_001391a0	page end flag	seen	what the offset changes on screen
 _WTTM	ms*3/50 frames	14828	script_command	delay ms	seen	
-_WTTM	argument 1: less the frame counter DAT_00be0a00	14821	script_command	ignored (gap)	inferred	when DAT_00be0a00 is reset
+_WTTM	argument 1: the decompile takes off DAT_00be0a00, a frame count never reset; the trace waits ms anyway	14821	script_command	nothing (the wait is ms)	seen	
 _SEPL	plays on its channel in place of the one there; the same loop there at volume > 0 goes on	14543	FUN_0016a340	loop stopped first (#347)	seen	
 _SEPL	a one-shot cut by the next sound on its channel	2408	FUN_0019caa0	let play	inferred	FUN_0019caa0
 _SEPL	option 17 volume, 1 fade-in, 68, 70	14509	FUN_0016a340	SoundVolume before SePlay (chvolfade), SeFadeIn	seen	

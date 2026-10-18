@@ -1,11 +1,10 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "948a4026",
+"commit": "c5c390ea",
 "commit_date": "2026-10-18",
-"totals": {"calls": 1082419, "full": 1019834, "gaps": 36621, "left_out": 25964, "weighted": 1031224.8},
+"totals": {"calls": 1082419, "full": 1034655, "gaps": 21800, "left_out": 25964, "weighted": 1038635.3},
 "kinds": {
-"_WTTM": {"calls": 14828, "gaps": 14821, "reasons": [["_WTTM argument 1 ignored", 14821]], "weighted": 7417.5},
 "_SEPL": {"calls": 14543, "gaps": 3513, "reasons": [["_SEPL option 68 ignored", 3467], ["not converted", 31], ["_SEPL option 70 ignored", 19], ["_SEPL option 18 ignored", 15]], "weighted": 13819.0},
 "_FANX": {"calls": 2741, "gaps": 2741, "reasons": [["not converted", 2741]], "weighted": 0.0},
 "_SNX2": {"calls": 1678, "gaps": 1678, "reasons": [["not converted", 1678]], "weighted": 0.0},
@@ -75,6 +74,7 @@
 "_WKAD": {"calls": 45691, "gaps": 0, "reasons": [], "weighted": 45691.0},
 "_FADS": {"calls": 34029, "gaps": 0, "reasons": [], "weighted": 34029.0},
 "_PGST": {"calls": 17202, "gaps": 0, "left_out": 17202, "reasons": [["the page a load replays to; CONscripter's saves restore the state", 17202]], "weighted": 0.0},
+"_WTTM": {"calls": 14828, "gaps": 0, "reasons": [], "weighted": 14828.0},
 "_STEC": {"calls": 12906, "gaps": 0, "reasons": [], "weighted": 12906.0},
 "_CLO3": {"calls": 12208, "gaps": 0, "reasons": [], "weighted": 12208.0},
 "_SNX4": {"calls": 8762, "gaps": 0, "left_out": 8762, "reasons": [["the Switch exe ignores it", 8762]], "weighted": 0.0},

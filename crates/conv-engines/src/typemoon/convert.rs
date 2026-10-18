@@ -735,7 +735,15 @@ impl Lowering<'_, '_> {
                 }
                 self.ops.push(Op::Text { speaker: None, text: body, voice: self.voice.take(), links: vec![], ruby, styles, hang: None, continues });
             }
-            "_WTTM" => self.ops.push(Op::Wait { ms: number(arg(0)).unwrap_or(0).max(0) as u32 }),
+            // `_WTTM(ms[, 1])`: ms (at least a frame). The decompile seems to take
+            // off a frame counter (0x1473cde) with a second argument, but nothing
+            // resets it (two code references: here and the tick adding to it),
+            // and the original's trace waits ms (33 of 46 within 2 frames, the
+            // rest shorter with `0` as with `1`): the 1 changes nothing seen.
+            "_WTTM" => {
+                arg(1);
+                self.ops.push(Op::Wait { ms: number(arg(0)).unwrap_or(0).max(0) as u32 });
+            }
             // `_SEPL(channel, loop, sound, …)` (`FUN_0016a340`): the sound
             // plays on its channel, in place of the one there. (The same
             // sound looping there already at a volume above 0 goes on.)
