@@ -151,6 +151,7 @@ fn audio(jobs: &BTreeMap<String, super::assets::AudioJob>, output: &Path, format
 /// Converts the USM movies to H.264 + AAC MP4 with ffmpeg (loose files:
 /// CONscripter plays movies from the folder, not from archives).
 fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
+    let mut failed = 0;
     for (rel, usm) in jobs {
         let dest = output.join(rel);
         if dest.exists() {
@@ -159,6 +160,7 @@ fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
         let data = fs::read(usm).with_context(|| format!("reading {}", usm.display()))?;
         let Some((video, audio)) = super::usm::demux(&data) else {
             println!("  movie error: {} is not a USM movie", usm.display());
+            failed += 1;
             continue;
         };
         let dir = dest.parent().unwrap();
@@ -174,9 +176,13 @@ fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
         let _ = fs::remove_file(&a);
         match result {
             Ok(()) => println!("  movie {rel}"),
-            Err(e) => println!("  movie error: {}: {e}", usm.display()),
+            Err(e) => {
+                println!("  movie error: {}: {e}", usm.display());
+                failed += 1;
+            }
         }
     }
+    anyhow::ensure!(failed == 0, "{failed} of {} movies failed (above; is ffmpeg installed?)", jobs.len());
     Ok(())
 }
 

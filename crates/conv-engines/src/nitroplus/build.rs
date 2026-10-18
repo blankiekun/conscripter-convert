@@ -36,6 +36,9 @@ pub struct Run<'a> {
     /// The movie folder; default: the game's own `movie` (続・殺戮のジャンゴ),
     /// else `ムービー` beside the game data (装甲悪鬼村正's disc).
     pub movies: Option<&'a Path>,
+    /// Build without the movies (`--no-movies`): otherwise a full build
+    /// with no movie folder, or no ffmpeg to convert them, fails.
+    pub no_movies: bool,
     /// The English release's folder (`script.npk`): its text replaces the
     /// Japanese.
     pub english: Option<&'a Path>,
@@ -115,9 +118,18 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         Some(m) => Some(m.to_path_buf()).filter(|m| m.is_dir()),
         None => find_movies(game),
     };
+    // A build without its movies has dead extras screens (#487): only on request.
     match movies {
+        _ if run.no_movies => println!("--no-movies: the movies are left out"),
+        Some(_) if !opts.dry_run && std::process::Command::new("ffmpeg").arg("-version").output().is_err() => {
+            anyhow::bail!("ffmpeg not found: the movies need it (install ffmpeg, or pass --no-movies to leave them out)")
+        }
         Some(m) => assets.movie_dir = Some(m),
-        None => println!("no movie folder (movie, movies or ムービー, in {} or beside it): the movies are left out", game.display()),
+        None if opts.dry_run => println!("no movie folder (movie, movies or ムービー, in {} or beside it)", game.display()),
+        None => anyhow::bail!(
+            "no movie folder (movie, movies or ムービー, in {} or beside it): give it with --movies, or pass --no-movies to leave the movies out",
+            game.display()
+        ),
     }
     // The game's own additions to the compiler, by its exe.
     let g = GAMES.iter().find(|(exe, _)| *exe == exe_name).map_or(&Game::PLAIN, |(_, g)| *g);

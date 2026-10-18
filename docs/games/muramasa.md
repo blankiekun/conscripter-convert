@@ -61,7 +61,9 @@ The other convert options (`--loose`, `--audio-codec`,
   (as on the disc); `--movies <dir>` names another. They
   are not in the archives. The first build encodes them to `movie/`
   (loose files, H.264; a few minutes, kept by later builds into the same
-  output); without the folder the build leaves them out and says so.
+  output). A full build without the folder, or without ffmpeg, fails
+  unless given `--no-movies` (then it leaves them out); a dry run only
+  says so.
 - `NSS_TRACE=1` prints each file as it is compiled and a `flag %N name`
   line per story flag.
 - Every build prints a ranked "not converted or approximated" list and
@@ -687,7 +689,7 @@ Open, by area (each is small; most noticeable first):
     voice switch.
   - Extras: the four modes' screens; the gallery's viewer is still the
     script's.
-  - Extras: a build without the disc's movies (`--movies`) has no sound
+  - Extras: a build without the disc's movies (`--no-movies`) has no sound
     room or 3D viewer (both read movies): their buttons are drawn faint,
     as locked ones. Build with the movies; `tests/extras_smoke.py <build>`
     fails on such a build. A songs-only sound room without the movies is

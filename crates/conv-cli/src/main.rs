@@ -90,6 +90,10 @@ enum Command {
         /// 装甲悪鬼村正's disc)
         #[arg(long)]
         movies: Option<PathBuf>,
+        /// Build without the movies (a full build otherwise fails when it
+        /// finds no movie folder or no ffmpeg)
+        #[arg(long)]
+        no_movies: bool,
         /// Window caption
         #[arg(long, default_value = "CONscripter-convert")]
         title: String,
@@ -184,8 +188,8 @@ fn run(command: Command) -> Result<()> {
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
         }
-        Command::ConvertNss { game, file, scene, chain, movies, title, english, build } => {
-            let run = nitroplus::build::Run { file: file.as_deref(), scene: scene.as_deref(), chain, movies: movies.as_deref(), english: english.as_deref() };
+        Command::ConvertNss { game, file, scene, chain, movies, no_movies, title, english, build } => {
+            let run = nitroplus::build::Run { file: file.as_deref(), scene: scene.as_deref(), chain, movies: movies.as_deref(), no_movies, english: english.as_deref() };
             build::run(build, &title, &nitroplus::assets::OUTPUT_DIRS, |opts| nitroplus::build::build(&game, &run, opts))
         }
         Command::Games { dir, json } => {
