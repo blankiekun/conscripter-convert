@@ -10,7 +10,7 @@ use std::fmt::Write;
 
 use conv_core::ir::{
     ArithOp, ConfirmDialog, Op, ScreenEffect, SliderSetting, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
-    SourceLoc, TransitionStyle, Var, ZoomStyle,
+    SourceLoc, TransitionStyle, Var, ZoomStyle, RowControl, SettingValue,
 };
 
 /// A line writer onto `out` (a closure, so `out` is free again after its last use): each call appends the line and a newline.
@@ -1206,7 +1206,8 @@ fn starts_ascii(line: &str) -> bool {
 
 /// The settings switch voices per character (%970 + character, `menu::VOICE_OFF_BASE`).
 pub(crate) fn voice_switches(script: &Script) -> bool {
-    script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some())
+    script.settings.as_ref().is_some_and(|s| !s.voices.is_empty() || s.pictures.as_ref().is_some_and(|p| p.pages.iter().flat_map(|p| &p.rows).any(|r| matches!(r, RowControl::Choice { value: SettingValue::Voices(_), .. } | RowControl::Toggle { value: SettingValue::Voices(_), .. }))))
+        || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some())
 }
 
 /// The settings screen has switch `s` (in its list or on a picture page).

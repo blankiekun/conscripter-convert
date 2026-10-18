@@ -25,6 +25,11 @@ const MOTION_KEY_COUNT: usize = 71_905;
 const MOTION_LOOP: usize = 0x19_99A0;
 const SCENES: usize = 0x45_0D58;
 const SCENE_COUNT: usize = 551;
+/// `_VPLY`'s voice prefixes (`FUN_00102360`): 55 × {name pointer, character}.
+const VOICE_PREFIXES: usize = 0x54_D970;
+/// The pointer to each character's bit of the settings' voice rows
+/// (`FUN_00129390`: the row is its log2).
+const VOICE_MASKS: usize = 0xBE_04D8;
 
 /// A picture `_STCH` can name: the name's archive entry is `<name>.NXGZ`
 /// in `allpac`.
@@ -331,6 +336,19 @@ impl Exe {
                 Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys, mask, loop_from }.through_resolved())
             })
             .collect()
+    }
+
+    /// Each voice prefix (a `_VPLY` name's first 3 letters) and its row of
+    /// the settings' voices; a prefix not listed is character 0's row.
+    pub fn voice_rows(&self) -> Result<(std::collections::HashMap<String, u32>, u32), FormatError> {
+        let masks = self.pointer(VOICE_MASKS);
+        let row = |c: i32| -> Result<u32, FormatError> { Ok(self.u32(masks + 4 * c as usize)?.max(1).ilog2()) };
+        let mut out = std::collections::HashMap::new();
+        for i in 0..55 {
+            let name = self.string(self.pointer(VOICE_PREFIXES + 16 * i))?;
+            out.insert(name, row(self.i32(VOICE_PREFIXES + 16 * i + 8)?)?);
+        }
+        Ok((out, row(0)?))
     }
 
     /// Each script's scene number, in `allscr` order: `_JUMP(n)` goes to

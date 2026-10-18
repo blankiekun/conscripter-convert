@@ -68,6 +68,31 @@ const SE: [(f32, f32); 5] = [(245.333, 132.326), (121.0, 87.526), (452.333, 132.
 const SYS_SE: [(f32, f32); 4] = [(245.333, 160.533), (121.0, 115.733), (452.333, 160.533), (476.667, 155.556)];
 /// すべてのボイスの再生 ON, OFF; メッセージ送り時の音声停止 ON, OFF.
 const VOICES: [(f32, f32); 4] = [(242.667, 236.444), (242.667, 258.844), (242.667, 297.007), (242.667, 319.407)];
+/// src: FUN_00129fa0: the characters' rows (19), row n's line at stage
+/// y 370.0148 + 50.607407 n; FUN_0012d980 draws each row's strip of
+/// voice_bg 9.956 above it and its face and name (FUN_0012d040) at x 144,
+/// 4.978 above it and 24.889 below.
+const CHARACTERS: u32 = 19;
+const ROW_Y: (f32, f32) = (370.0148, 50.607407);
+/// src: exe 0x44D640: voice_bg's header, a row's strip, the foot under the last.
+const ROW_STRIP: (u32, u32) = (386, 508);
+const ROW_FOOT: (u32, u32) = (508, 527);
+/// src: exe 0x44D500 (faces in conf_faceicon) and 0x44D5A0 (names in
+/// conf_name): x0, y0, x1, y1 by character, as FUN_00129fa0 picks them
+/// once the character is met (cell n for row n).
+const FACES: [(u32, u32, u32, u32); 19] = [
+    (32, 32, 336, 112), (32, 128, 336, 208), (32, 224, 336, 304), (32, 320, 336, 400), (32, 416, 336, 496), (32, 512, 336, 592), (32, 608, 336, 688),
+    (32, 704, 336, 784), (32, 800, 336, 880), (32, 896, 336, 976), (352, 32, 656, 112), (352, 128, 656, 208), (352, 320, 656, 400), (352, 224, 656, 304),
+    (352, 416, 656, 496), (352, 512, 656, 592), (352, 608, 656, 688), (352, 704, 656, 784), (352, 896, 656, 976),
+];
+const NAMES: [(u32, u32, u32, u32); 19] = [
+    (32, 32, 168, 80), (32, 96, 168, 144), (32, 160, 168, 208), (32, 224, 168, 272), (32, 288, 168, 336), (32, 352, 168, 400), (32, 416, 168, 464),
+    (184, 32, 320, 80), (184, 96, 320, 144), (184, 160, 320, 208), (184, 224, 320, 272), (184, 288, 320, 336), (184, 416, 320, 464), (184, 352, 320, 400),
+    (336, 32, 472, 80), (336, 96, 472, 144), (336, 160, 472, 208), (336, 224, 472, 272), (336, 352, 472, 400),
+];
+/// ours: the rows on pages of their own after the Sound page, 7 a page
+/// (the clip is 858 px, a row 122), the first row's strip at the clip's top.
+const ROWS_A_PAGE: u32 = 7;
 /// src: FUN_0012b930: a slider's knob moves 169.33 (stage) from value 0 to its most.
 const TRAVEL: f32 = 169.333;
 
@@ -263,17 +288,31 @@ pub fn settings(romfs: &Path, output: &Path, font: &[u8], dry_run: bool, languag
         slider(&src, "bgm", SettingValue::Level(Setting::BgmVolume), &BGM, 0, false)?,
         slider(&src, "se", SettingValue::Level(Setting::SeVolume), &SE, 0, false)?,
         slider(&src, "sys", SettingValue::Level(Setting::SystemVolume), &SYS_SE, 0, false)?,
-        mute(&src, "bgm_mute", Switch::BgmOn, BGM[3])?,
-        mute(&src, "se_mute", Switch::SeOn, SE[3])?,
+        mute(&src, "bgm_mute", sw(Switch::BgmOn), BGM[3], 0)?,
+        mute(&src, "se_mute", sw(Switch::SeOn), SE[3], 0)?,
         choice(&src, "voices", sw(Switch::VoiceOn), &[(1, 0, VOICES[0]), (0, 1, VOICES[1])], 0)?,
         // ON: the click stops the voice.
         choice(&src, "stop", sw(Switch::VoiceKeepsPlaying), &[(0, 0, VOICES[2]), (1, 1, VOICES[3])], 0)?,
     ];
 
+    // The characters' voices on or off (the user's choice for the exe's
+    // volume sliders and mute boxes), on pages after the Sound page; a
+    // voice's character is its row (build.rs).
+    let mut voice_pages: Vec<Vec<RowControl>> = Vec::new();
+    for n in 0..CHARACTERS {
+        if n % ROWS_A_PAGE == 0 {
+            voice_pages.push(Vec::new());
+        }
+        let y = ROW_Y.0 + ROW_Y.1 * n as f32;
+        voice_pages.last_mut().unwrap().push(mute(&src, "voice_mute", SettingValue::Voices(vec![n]), (476.333, y - 4.978), row_shift(n))?);
+    }
+    let voice_count = voice_pages.len();
+
     // The pages' pictures.
     let bases = labels.as_ref().map(|l| bases(&src, l, language.is_some())).transpose()?;
     let mut pages = Vec::new();
-    for (i, rows) in [page1, page2, sound, Vec::new()].into_iter().enumerate() {
+    let all: Vec<Vec<RowControl>> = [page1, page2, sound].into_iter().chain(voice_pages).chain([Vec::new()]).collect();
+    for (i, rows) in all.into_iter().enumerate() {
         let file = format!("{DIR}/page{}.png", i + 1);
         if let Some(b) = &bases {
             src.save(&file, &b[i])?;
@@ -285,7 +324,8 @@ pub fn settings(romfs: &Path, output: &Path, font: &[u8], dry_run: bool, languag
     }
 
     let mut tabs = Vec::new();
-    for (row, x, pages) in [(0, 136.0, (0, 1)), (1, 218.667, (2, 2)), (2, 296.0, (3, 3))] {
+    let manual = 3 + voice_count;
+    for (row, x, pages) in [(0, 136.0, (0, 1)), (1, 218.667, (2, manual - 1)), (2, 296.0, (manual, manual))] {
         let button = src.button(&format!("tab{row}"), "btn_base0", &[tab_cell(row, 0), tab_cell(row, 1)], hd(x, 39.822))?;
         let selected = src.button(&format!("tab{row}_on"), "btn_base0", &[tab_cell(row, 2)], hd(x, 39.822))?;
         tabs.push(PageTab { button, selected: selected.image, pages });
@@ -359,11 +399,20 @@ const AUTO: Setting = Setting::AutoWait { page_step: 1100, char_step: 0 };
 /// default): 25 ms a level, 35 at level 9.
 const TEXT_MS: [u32; 11] = [250, 225, 200, 175, 150, 125, 100, 75, 50, 35, 0];
 
-/// A mute box: checked while the switch is off.
-fn mute(src: &Source, name: &str, switch: Switch, p: (f32, f32)) -> Result<RowControl> {
-    let button = src.button(name, "btn_mute", &[mute_cell(0), mute_cell(1)], hd(p.0, p.1))?;
-    let checked = src.button(&format!("{name}_on"), "btn_mute", &[mute_cell(2), mute_cell(2)], hd(p.0, p.1))?;
-    Ok(RowControl::Toggle { value: SettingValue::Switch(switch), on: 0, button, checked: checked.image })
+/// A mute box at a stage point `dy` 1080p pixels lower: checked while the
+/// value is off.
+fn mute(src: &Source, name: &str, value: SettingValue, p: (f32, f32), dy: i32) -> Result<RowControl> {
+    let (x, y) = hd(p.0, p.1);
+    let button = src.button(name, "btn_mute", &[mute_cell(0), mute_cell(1)], (x, y + dy))?;
+    let checked = src.button(&format!("{name}_on"), "btn_mute", &[mute_cell(2), mute_cell(2)], (x, y + dy))?;
+    Ok(RowControl::Toggle { value, on: 0, button, checked: checked.image })
+}
+
+/// How far (1080p) a character's row moves up from the exe's unscrolled
+/// panel to its page: its page's first row's strip at the clip's top.
+fn row_shift(n: u32) -> i32 {
+    let first = n / ROWS_A_PAGE * ROWS_A_PAGE;
+    CLIP.1 - hd(0.0, VOICE_Y).1 - ROW_STRIP.0 as i32 - hd(0.0, ROW_Y.1 * first as f32).1
 }
 
 fn side_by_side(cells: &[&RgbaImage]) -> RgbaImage {
@@ -466,10 +515,37 @@ fn bases(src: &Source, labels: &Labels, language: bool) -> Result<Vec<RgbaImage>
     draw(&mut p3, src, "btn_mute", mute_cell(0), SYS_SE[3], 0)?;
     draw(&mut p3, src, "btn_test", (0, 0, 136, 120), SE[4], 0)?;
 
+    // The characters' pages: their rows' strips (the last page's foot
+    // under them), each row's face and name, its slider at the exe's 50 %
+    // and the voice test at rest.
+    let (strip, row_foot) = (rows(&voice, ROW_STRIP.0, ROW_STRIP.1), rows(&voice, ROW_FOOT.0, ROW_FOOT.1));
+    let mut pages = vec![p1, p2, p3];
+    for first in (0..CHARACTERS).step_by(ROWS_A_PAGE as usize) {
+        let last = (first + ROWS_A_PAGE).min(CHARACTERS);
+        let mut parts = vec![strip.clone(); (last - first) as usize];
+        if last == CHARACTERS {
+            parts.push(row_foot.clone());
+        }
+        let mut page = Canvas(common.0.clone());
+        page.panel(&stack(&parts), (hd(PANEL.0, 0.0).0, CLIP.1));
+        for n in first..last {
+            let (y, dy) = (ROW_Y.0 + ROW_Y.1 * n as f32, row_shift(n));
+            let cell = |r: (u32, u32, u32, u32)| (r.0, r.1, r.2 - r.0, r.3 - r.1);
+            draw(&mut page, src, "conf_faceicon", cell(FACES[n as usize]), (144.0, y - 4.978), dy)?;
+            draw(&mut page, src, "conf_name", cell(NAMES[n as usize]), (144.0, y + 24.889), dy)?;
+            draw(&mut page, src, "conf_sbtn", (0, 0, 936, 252), (120.667 + TRAVEL * 0.5, y - 44.8), dy)?;
+            draw(&mut page, src, "conf_stxt01", step_cell(false, 0), (245.0, y), dy)?;
+            draw(&mut page, src, "conf_stxt01", step_cell(true, 0), (452.0, y), dy)?;
+            draw(&mut page, src, "btn_test", (0, 0, 136, 120), (560.333, y - 3.733), dy)?;
+        }
+        pages.push(page);
+    }
+
     // 操作説明: the manual.
     let mut p4 = Canvas(common.0);
     p4.panel(&src.get("conf_manual0_ja")?, hd(133.333, 73.007));
-    Ok([p1, p2, p3, p4].iter().map(Canvas::screen).collect())
+    pages.push(p4);
+    Ok(pages.iter().map(Canvas::screen).collect())
 }
 
 #[cfg(test)]
@@ -480,7 +556,12 @@ mod tests {
     fn places_from_the_stage() {
         let m = settings(Path::new("/nonexistent"), Path::new("/nonexistent"), &[], true, None).unwrap();
         let p = m.pictures.unwrap();
-        assert_eq!(p.pages.len(), 4);
+        assert_eq!(p.pages.len(), 7);
+        // The characters' boxes: row 7 first on its page, 24 px under the
+        // clip's top as row 0 is under its strip's top (1080p 892 - 868),
+        // its box 12 px above the line.
+        let RowControl::Toggle { button, value, .. } = &p.pages[4].rows[0] else { panic!() };
+        assert_eq!((value, button.y), (&SettingValue::Voices(vec![7]), px(165.0 + 24.0 - 12.0)));
         // The unread speed's knob at 0 ms (level 10) on the left: its glow
         // at the track's left end, stage 276.67 (1080p 830).
         let RowControl::Slider { knob, travel, .. } = &p.pages[0].rows[0] else { panic!() };
