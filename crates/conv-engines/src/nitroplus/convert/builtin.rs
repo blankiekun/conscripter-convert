@@ -52,6 +52,17 @@ impl Compiler<'_, '_> {
         let read = Cell::new(0u64);
         self.forget_ended_sounds();
         let value = self.builtin_reading(name, a, &read);
+        if name.starts_with("Create") && let Some(v) = a.first() {
+            let made = self.object_name(v);
+            if self.objects.contains_key(&made) {
+                self.untracked.remove(&made);
+            } else {
+                self.untracked.insert(made);
+            }
+        } else if name == "Delete" && let Some(v) = a.first() {
+            let gone = self.object_name(v);
+            self.untracked.retain(|k| !glob(&gone, k));
+        }
         for (i, v) in a.iter().enumerate().take(64) {
             let harmless = UNREAD_HARMLESS.iter().any(|&(b, k, value, _)| b == name && k == i && value.is_none_or(|x| if x == "null" { matches!(v, Value::Null) } else { v.string() == x }));
             if read.get() & (1 << i) == 0 && !harmless {
@@ -296,6 +307,10 @@ impl Compiler<'_, '_> {
                 let wait = if a.len() == 4 { arg(3) } else { arg(4) };
                 let (ms, to) = (arg(1).int(), arg(2));
                 let targets = self.matching(&arg(0));
+                if self.no_object(&arg(0)) {
+                    (0..a.len()).for_each(|i| drop(arg(i)));
+                    return Value::Null;
+                }
                 let mut window_only = !targets.is_empty();
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
@@ -356,6 +371,10 @@ impl Compiler<'_, '_> {
             }
             "Move" => {
                 let targets = self.matching(&arg(0));
+                if self.no_object(&arg(0)) {
+                    (0..a.len()).for_each(|i| drop(arg(i)));
+                    return Value::Null;
+                }
                 let (ms, to_x, to_y, tempo) = (arg(1).int(), arg(2), arg(3), tempo(&arg(4)));
                 // (In a process its wait holds only the process: `timed`.)
                 let blocking = !matches!(arg(5), Value::Null | Value::Int(0)) && self.action_process.is_none();

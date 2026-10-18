@@ -741,14 +741,11 @@ Open, by area (each is small; most noticeable first):
   `絵背景*` before a `Wait`/`WaitKey`), calls on no object (`Comic*`);
   the 30 to 300 ms steps where the original is slower are its frames and
   loads under wine. Open:
-  - A waited action that starts none doesn't wait in the original
-    (`cb_Fade` 0044f020 starts none on no object or an unchanged
-    opacity; 00445ac0 waits on the objects' action slots, 004502b0):
-    ma00_000:2501 `Fade("silver_son*", 500, 0, null, true)` +500 ms,
-    function_process:1147 +481, :3028/:3038 +300. Not done: the compiler
-    doesn't track every object (`@boxCC` matches none, so "no object, no
-    wait" drops 5717 box `delay`s), and "unchanged, no wait" changes 158
-    hunks (cockpit sprite numbers) still to check.
+  - A waited `Fade` that leaves the opacity as it was doesn't wait in
+    the original (`cb_Fade` 0044f020 starts no action then); ours does.
+    Not done: it changes 158 hunks (cockpit sprite numbers) still to
+    check. (A `Fade`/`Move` on no object: History, "Actions on no
+    object".)
   - An unwaited `Fade` before a sound or the text is played out by the
     next sync (up to `UNWAITED_MS`): ma00_000:1625, :1674 (+280 ms).
 - **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
@@ -1408,6 +1405,22 @@ out on purpose.
 - Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
   held (seen once in a small test script; not looked into).
 
+
+### Actions on no object (2026-10-18)
+
+A `Fade` or `Move` whose name matches no object starts no action in
+the original (`cb_Fade` 0044f020 queues none; the wait, 00445ac0, waits
+on the objects' action slots), so a waited one doesn't wait and an
+unwaited one adds nothing for the next sync to play out: ma00_000:2501
+`Fade("silver_son*", 500, 0, null, true)` after they went (+500 ms in
+ours), and above all `TypeEnd`'s unwaited `Fade("@Face_Sepia", 150, …)`
+(function.nss:1058), which made ours wait 150 ms after each page
+(4329 `delay 150`s): the trace has the next statements 30 ms after it.
+The compiler keeps the names of the objects it leaves out (a `Create*`
+that makes no object, as the choice screen's plates) until a `Delete`,
+and an action on one still waits as before. The earlier worry ("@boxCC
+matches none") was these: the boxes are kept, `@Face_Sepia` is never
+created.
 
 ### Auto mode and `WaitKey` (2026-10-18)
 
