@@ -94,13 +94,13 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
     let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), format!("{}.{ext}", w.name))).collect::<HashMap<_, _>>();
     let sounds = stream_names(romfs, bfsar::sound_names(&bfsar)?)?;
     let pic_ext = if opts.webp.is_some() { "webp" } else { "png" }; // as `typemoon media` writes them
-    let game = Game { scripts, scenes: exe.scenes()?, lines, textures: textures(romfs, &pictures)?, pictures, sounds, waves, pic_ext, motions: exe.motions()? };
+    let game = Game { scripts, scenes: exe.scenes()?, lines, textures: textures(romfs, &pictures)?, pictures, sounds, waves, pic_ext, motions: exe.motions()?, movies: exe.movies()? };
     let en_source = english.map(Source::read).transpose()?;
     let own = english.map(|en| own_pictures(romfs, en)).transpose()?.unwrap_or_default();
     let mut compiled = match (english, &en_source) {
         (Some(en_dir), Some(en)) => {
             let (scripts, lines) = en.scripts()?;
-            let en_game = Game { scripts, lines, textures: textures(en_dir, &game.pictures)?, pictures: game.pictures.clone(), scenes: game.scenes.clone(), sounds: game.sounds.clone(), waves: game.waves.clone(), motions: game.motions.clone(), pic_ext };
+            let en_game = Game { scripts, lines, textures: textures(en_dir, &game.pictures)?, pictures: game.pictures.clone(), scenes: game.scenes.clone(), sounds: game.sounds.clone(), waves: game.waves.clone(), motions: game.motions.clone(), movies: en_movies(romfs, en_dir, &game.movies)?, pic_ext };
             super::language::compile(&game, &en_game, &own, text_window(false), text_window(true))
         }
         _ => convert::compile(&game),
@@ -167,6 +167,21 @@ fn own_pictures(ja: &Path, en: &Path) -> Result<std::collections::HashSet<String
     let je = mrg::parse(&jh, Some(&jn)).context("reading allpac.hed")?;
     let ee = mrg::parse(&eh, Some(&en_)).context("reading allpac.hed")?;
     Ok(super::differing(&super::full_copies(&je), &jb, &super::full_copies(&ee), &eb)?.into_iter().collect())
+}
+
+/// `movies` (the exe's table) as the English copy plays them: from
+/// `movie/en/` where the fan patch's file differs from 1.0.2's (as
+/// `typemoon media --english` keeps them; the four title backgrounds
+/// it drops as looking the same are not `_TOMP`'s).
+fn en_movies(ja: &Path, en: &Path, movies: &[String]) -> Result<Vec<String>> {
+    movies
+        .iter()
+        .map(|m| {
+            let (a, b) = (ja.join(m), en.join(m));
+            let same = !b.is_file() || a.is_file() && fs::metadata(&a)?.len() == fs::metadata(&b)?.len() && map(&a)?[..] == map(&b)?[..];
+            Ok(if same { m.clone() } else { m.replacen("movie/", "movie/en/", 1) })
+        })
+        .collect()
 }
 
 /// The size of each picture's full art in `allpac` (what `typemoon media`

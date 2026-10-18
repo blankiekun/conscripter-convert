@@ -39,6 +39,23 @@ const READ_FLAGS: u16 = 400;
 /// [`CG_FLAGS`], which the gallery reads ([`cg_flags`]).
 // ours: after gallery::FLAG_557 (1003), in alloc.rs's free %1111-%1999
 const CG_FLAGS: u16 = 1004;
+/// The movie-seen bits (`FUN_001923c0`, set as the movie ends): a click
+/// skips the openings, the prologue and the endings once they were seen.
+// ours: one global a bit, after the CG flags (fewer than 100)
+const MOVIE_SEEN: u16 = 1104;
+
+/// `_TOMP(n)`'s seen bit (`FUN_00140480`), for the movies a click skips
+/// only once seen; every other movie a click skips.
+fn movie_seen(n: usize) -> Option<Var> {
+    let bit = match n {
+        4 => 2,
+        5 => 0,
+        6 => 1,
+        0x23..=0x25 => n as u16 - 0x20,
+        _ => return None,
+    };
+    Some(Var { global: true, index: MOVIE_SEEN + bit })
+}
 
 /// The globals `_STCG` sets, by lowercase picture name.
 pub fn cg_flags(scripts: &[(String, Vec<Command>)]) -> BTreeMap<String, Var> {
@@ -88,6 +105,9 @@ pub struct Game<'a> {
     pub waves: HashMap<String, String>,
     /// The exe's motions: `_STMA(layer, m)` runs `motions[m - 1]`.
     pub motions: Vec<super::exe::Motion>,
+    /// The exe's movie table ([`super::exe::Exe::movies`]), the English
+    /// copy's as `movie/en/<name>` where the fan patch has its own.
+    pub movies: Vec<String>,
 }
 
 pub struct Compiled {
@@ -559,6 +579,33 @@ impl Lowering<'_, '_> {
                 self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(1) });
             }
             "_END_" => self.ops.push(Op::ReturnToTitle),
+            // `_TOMP(n)` (`FUN_0016ef30`) plays movie-table entry n in
+            // overlay 0 and `_TOMW` waits for it: one blocking movie here.
+            // It stops skip and auto mode (but n = 7, which no script
+            // plays); a press fades it out (`FUN_00140480`). Left out: the
+            // 48-frame fade in, the 1 s fade out on a press, and the hold
+            // to the exe's end frame (day cards 420, credits 618).
+            "_TOMP" => {
+                let n: usize = arg(0).parse().unwrap_or(usize::MAX);
+                let Some(file) = self.g.movies.get(n).cloned() else { return false };
+                self.ops.push(Op::StopAutoSkip);
+                match movie_seen(n) {
+                    None => self.ops.push(Op::Movie { file, skippable: true }),
+                    Some(var) => {
+                        let (seen, done) = (label(script, Some(&format!("movie{n}_seen"))), label(script, Some(&format!("movie{n}_done"))));
+                        self.ops.extend([
+                            Op::If { var, cmp: Compare::Eq, value: Operand::Const(1), label: seen.clone() },
+                            Op::Movie { file: file.clone(), skippable: false },
+                            Op::Jump(done.clone()),
+                            Op::Label(seen),
+                            Op::Movie { file, skippable: true },
+                            Op::Label(done),
+                            Op::Arith { var, op: ArithOp::Set, value: Operand::Const(1) },
+                        ]);
+                    }
+                }
+            }
+            "_TOMW" => {}
             "_GOTO" => self.ops.push(Op::Jump(label(script, Some(arg(0))))),
             // `cmd_SHOK(x, y, period = 300, turns = 3, delay = 0)` (`FUN_0012ee70`
             // kind 1, drawn by `FUN_0012ef30`): both axes on one sine, a turn
@@ -1676,7 +1723,19 @@ mod tests {
 
     /// A game with one script and nothing else; tests override fields with `..game(src)`.
     fn game(src: &str) -> Game<'_> {
-        Game { scripts: scripts(src), scenes: vec![], lines: vec![], pictures: HashMap::new(), textures: HashMap::new(), sounds: vec![], waves: HashMap::new(), pic_ext: "webp", motions: vec![] }
+        Game { scripts: scripts(src), scenes: vec![], lines: vec![], pictures: HashMap::new(), textures: HashMap::new(), sounds: vec![], waves: HashMap::new(), pic_ext: "webp", motions: vec![], movies: vec![] }
+    }
+
+    #[test]
+    fn tomp_plays_the_movie_table_entry_skippable_once_seen() {
+        let movies: Vec<String> = (0..9).map(|i| format!("movie/m{i}.mp4")).collect();
+        let g = Game { movies, ..game("_TOMP(8);_TOMW();_TOMP(4);_TOMW();") };
+        let played: Vec<(String, bool)> = compile(&g).ops.iter().filter_map(|o| match o { Op::Movie { file, skippable } => Some((file.clone(), *skippable)), _ => None }).collect();
+        let m = |f: &str, s| (f.to_string(), s);
+        // a day card always; the prologue unskippable until its seen bit (2)
+        assert_eq!(played, [m("movie/m8.mp4", true), m("movie/m4.mp4", false), m("movie/m4.mp4", true)]);
+        assert_eq!(movie_seen(4), Some(Var { global: true, index: MOVIE_SEEN + 2 }));
+        assert_eq!((movie_seen(0x25).unwrap().index, movie_seen(8)), (MOVIE_SEEN + 5, None));
     }
 
     #[test]
@@ -1823,6 +1882,7 @@ mod tests {
             waves: HashMap::new(),
             pic_ext: "webp",
             motions: vec![Motion { mask: u64::MAX, length_ms: 1500, keys: keys.clone(), loop_from }],
+            movies: vec![],
         };
         // (None: a stop; `_STMA(n, 0)` stops it where it is, an empty Keep)
         let ends = |ops: &[Op]| ops.iter().filter_map(|o| match o {

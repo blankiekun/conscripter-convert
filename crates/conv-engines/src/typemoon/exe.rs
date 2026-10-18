@@ -30,6 +30,9 @@ const VOICE_PREFIXES: usize = 0x54_D970;
 /// The pointer to each character's bit of the settings' voice rows
 /// (`FUN_00129390`: the row is its log2).
 const VOICE_MASKS: usize = 0xBE_04D8;
+/// The movie table (`FUN_001017c0`): 0x30 bytes an entry, the file's
+/// path first (`movie/titlebg1.mp4`), up to a null path.
+const MOVIES: usize = 0x50_B890;
 
 /// A picture `_STCH` can name: the name's archive entry is `<name>.NXGZ`
 /// in `allpac`.
@@ -349,6 +352,12 @@ impl Exe {
             out.insert(name, row(self.i32(VOICE_PREFIXES + 16 * i + 8)?)?);
         }
         Ok((out, row(0)?))
+    }
+
+    /// The movie table's paths (`movie/<name>.mp4`): `_TOMP(n)` plays
+    /// entry n.
+    pub fn movies(&self) -> Result<Vec<String>, FormatError> {
+        (0..).map(|i| self.pointer(MOVIES + 0x30 * i)).take_while(|&p| p != 0).map(|p| self.string(p)).collect()
     }
 
     /// Each script's scene number, in `allscr` order: `_JUMP(n)` goes to
