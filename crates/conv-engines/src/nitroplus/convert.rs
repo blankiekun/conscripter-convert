@@ -6783,4 +6783,18 @@ scene a.nss
         assert_eq!(at(find(&|op| matches!(op, Op::Pause { ms: 300 } | Op::Wait { ms: 300 }))), "a.nss:11");
         assert!(c.source_map.windows(2).all(|w| w[0].0 < w[1].0), "{:?}", c.source_map);
     }
+
+    #[test]
+    fn a_waited_fade_of_the_texts_window_fades_the_text_out() {
+        // 続・殺戮のジャンゴ's TypeEnd: the window drawn under the text faded out.
+        let story = "scene a.nss\n{\n\tCreateWindow(\"box00\", 10300, 50, 472, 750, 130, true);\n\tRequest(\"@text001\", \"Enter\");\n<PRE box00>\n[text001]\nあ\n</PRE>\n\tFade(\"@box*\", 100, 0, null, true);\n}\n";
+        static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        assert!(c.ops.iter().any(|op| matches!(op, Op::WindowFade { alpha: 0, ms: 100, .. })), "{:?}", c.ops);
+        assert!(!c.ops.iter().any(|op| matches!(op, Op::HideTextWindow)), "{:?}", c.ops);
+    }
 }
