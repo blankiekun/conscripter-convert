@@ -1236,3 +1236,29 @@ python3 -I research/tools/test_saves.py out/muramasa-cons research/nitroplus/mur
 Global variables (the `#` flags from finished routes, `%800` up) live in
 `gloval.sav`, not in a save, so they are set for the run but don't come
 with the zip.
+
+## Film list and shot index
+
+Running the original is the last resort and costs a session each time,
+so doubts are batched:
+
+- Search first: `research/tools/shots.py find <words>` looks through
+  every `research/*/local/shots/INDEX.tsv` (git-ignored; columns: file,
+  game, scene, page, what it shows, date). Add each new shot with
+  `shots.py add <file> <game> <scene> <page> <what>`.
+- If only the original can settle a doubt, append a line to
+  `research/<engine>/local/film-list.md` (git-ignored) and carry on; do
+  not start wine/Vita3K/Ryujinx for it. Format:
+
+  ```
+  | game | scene / page | question | asked by | date |
+  | saihate-no-ima | s9 l3 | does the save toast fade or cut? | xuse agent | 2026-10-18 |
+  ```
+
+- A filming session takes the whole list at once (one start per game),
+  indexes the shots, and answers each line in the game document.
+- Run the original only through `research/tools/headless-run.sh` or a
+  script that re-runs itself under it (`xtrace.sh`, `ntrace.sh`,
+  `vita-emu.sh`, `switch-emu.sh`); `.claude/hooks/emu_run.py` refuses
+  direct `wine`, `wineserver`, `Vita3K`, `Ryujinx`, `Xvfb` commands
+  (self-test: `python3 .claude/hooks/emu_run.py --test`).

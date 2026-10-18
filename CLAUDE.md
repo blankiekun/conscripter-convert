@@ -210,7 +210,12 @@ on each later turn; several agents run at once.
   questions (Rules, "Wine is the last resort"). When you do film the
   original, film it once per screen and keep the shots in
   `research/<engine>/local/shots/` (git-ignored) with a name that says
-  what they show; reuse them before starting wine again.
+  what they show; reuse them before starting wine again. Search
+  `research/tools/shots.py find <words>` first, `shots.py add` every
+  new shot; park a doubt only the original can settle in
+  `research/<engine>/local/film-list.md` (docs/new-game.md, "Film
+  list"). A hook refuses wine/Xvfb/Vita3K/Ryujinx run outside
+  `research/tools/headless-run.sh`.
 - **Batch** independent commands into one call; keep replies short, no
   progress narration between steps.
 - **Stop at the end of the item asked for** (commit, push, update the
