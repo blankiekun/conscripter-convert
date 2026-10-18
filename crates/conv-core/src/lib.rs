@@ -2,4 +2,5 @@
 //! output stage.
 
 pub mod alloc;
+pub mod ease;
 pub mod ir;
