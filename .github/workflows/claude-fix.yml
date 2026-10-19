@@ -2,6 +2,7 @@
 # send worker in blankiekun.github.io's worker/ sends the repository_dispatch). Claude
 # reads the report, fixes what it can here, and this opens a pull request for review.
 # Secrets: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), REPORT_SECRET (the worker's),
+# REPORT_SESSION_KEY (the private half of .github/report-session.pub.pem),
 # DISCORD_WEBHOOK_URL (the bug report channel's, for Claude's session).
 name: Fix with Claude
 
@@ -85,20 +86,26 @@ jobs:
 
             Notes from blankiekun: ${{ github.event.client_payload.notes || '(none)' }}
 
-      # Also when Claude failed, so its session still reaches Discord. The key's step runs
-      # only openssl (by full path): git reads hooks, filters and config Claude may have
-      # written, so it runs after, in a step without the key.
+      # Also when Claude failed, so its session still reaches Discord. Encrypted with a
+      # public key: no secret is on this runner after Claude has run.
       - name: Encrypt the session
         if: ${{ !cancelled() && steps.claude.outcome != 'skipped' }}
         env:
           SESSION: ${{ steps.claude.outputs.execution_file }}
-          KEY: ${{ secrets.REPORT_SECRET }}
         run: |
           mkdir -p /tmp/out
           # Artifacts of a public repository can be downloaded by anyone, and the session
           # holds the player's report (and whatever Claude printed): encrypted until the
-          # publish job, on a fresh runner, has checked it for secrets.
-          [ ! -f "$SESSION" ] || /usr/bin/openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in "$SESSION" -out /tmp/out/session.json.enc
+          # publish job, on a fresh runner, has checked it for secrets. A random key
+          # encrypts the session; the public key encrypts that key. The public key is read
+          # from main, not from the tree Claude could edit.
+          if [ -f "$SESSION" ]; then
+            git show origin/main:.github/report-session.pub.pem > /tmp/pub.pem
+            /usr/bin/openssl rand -hex 32 > /tmp/k
+            /usr/bin/openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:/tmp/k -in "$SESSION" -out /tmp/out/session.json.enc
+            /usr/bin/openssl pkeyutl -encrypt -pubin -inkey /tmp/pub.pem -pkeyopt rsa_padding_mode:oaep -in /tmp/k -out /tmp/out/session.key.enc
+            rm /tmp/k
+          fi
 
       - name: Hand over the change
         if: ${{ !cancelled() && steps.claude.outcome != 'skipped' }}
@@ -138,13 +145,16 @@ jobs:
           ID: ${{ github.event.client_payload.id }}
           CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           REPORT_SECRET: ${{ secrets.REPORT_SECRET }}
+          SESSION_KEY: ${{ secrets.REPORT_SESSION_KEY }}
           CHANGE: ${{ runner.temp }}/change
         run: |
           [[ "$ID" =~ ^[0-9a-f-]{36}$ ]] || { echo "bad report id"; exit 1; }
           f="$CHANGE/session.json.enc"
           if [ -f "$f" ]; then
-            openssl enc -d -aes-256-cbc -pbkdf2 -pass env:REPORT_SECRET -in "$f" -out "$CHANGE/session.json"
-            rm "$f"
+            printf '%s\n' "$SESSION_KEY" > "$RUNNER_TEMP/key.pem"
+            openssl pkeyutl -decrypt -inkey "$RUNNER_TEMP/key.pem" -pkeyopt rsa_padding_mode:oaep -in "$CHANGE/session.key.enc" -out "$RUNNER_TEMP/k"
+            openssl enc -d -aes-256-cbc -pbkdf2 -pass file:"$RUNNER_TEMP/k" -in "$f" -out "$CHANGE/session.json"
+            rm "$f" "$CHANGE/session.key.enc" "$RUNNER_TEMP/key.pem" "$RUNNER_TEMP/k"
           fi
           # The change goes public and the session to Discord. If a secret got into either
           # (as is, reversed or in base64, which the log's *** masking misses), send nothing.
