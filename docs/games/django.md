@@ -342,7 +342,9 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   each choice plate: 9,176 pages in 353 s. `frame_diff.py <segments>
   <ours> --map <map> --groups 15`: 5,576 of 5,654 pages pair. Missing
   1,656, extra 2,149, end 740, path 943, duration 688, zoom 174; copy 265
-  are not differences. The largest groups, to triage (Next 4):
+  are not differences. The largest groups (triaged 2026-10-19, History,
+  "The whole-route frame diff's five largest groups"; run it now with
+  `--alias LoadFrame=cg/sys/windowframe.png --ignore cg/sys/push/`):
   1. missing `color:…` (414): the original's colour boxes fade
      (`CreateColor` + `Fade`); ours draws most as a screen transition, not a
      sprite, so the pairing sees none. Check what is real.
@@ -596,8 +598,6 @@ Open:
    original's frames.
 3. Extras: film the doors and the rifle beside the original once wine
    is next used (ours from the scripts' times only).
-4. The whole-route frame diff ("Running the original under wine", "The
-   whole route, frame by frame"): triage its five largest groups.
 4. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
    kinds, 18,947 notes at the 2026-10-16 dry run), most visible first;
    what the original does is from the scripts and
@@ -630,6 +630,50 @@ Open:
       the wait; the six such calls take 0 ms.
 
 ## History
+
+### The whole-route frame diff's five largest groups (2026-10-19)
+
+Triaged from the scripts and both traces; no wine. None of the five is a
+difference in what is drawn; each was how `frame_diff.py` read the
+traces. The tool now handles each one (self-test, run in CI):
+
+1. Missing `color:000000:800x600` (414): `上下枠中` (`ShowFrameM`/`HideFrameM`,
+   `Fade` 100 ms) and `黒板` (`BlackFadeIn`/`Out`). Ours draws most of
+   them as a screen transition (`msp`, `print 4`), which has no
+   `sample`. They are now kind `screen` (not a difference) when ours
+   runs an effect in the window. One real difference is left over
+   (lane T's, `sync.rs`): a `黒板` fade still running at the next page
+   is cut there by `csp` (dja003_01:36: the 1,500 ms fade cut at about
+   60 %). In the route run (`--auto-play 0`), 279 motions ended
+   `removed` before 90 % of their time, 40 of them colour boxes.
+2. and 3. Extra `cg/sys/windowframe.png` (174) and missing
+   `frame03`/`frame04` (89): one cause. The frames are
+   `CreateTexture(..., "@LoadFrame")`, a `LoadImage` that the trace
+   doesn't record, so the two sides never paired (`--alias
+   LoadFrame=cg/sys/windowframe.png`). The turns about y (`WindowRotate*`)
+   leave the original's x as it is (ours is squashed about its centre).
+   These now compare the drawn width (zx·|cos ry|) and ours by its
+   centre. A reset to alpha 0 straight after a fold is no longer counted
+   as part of the motion. When there are two candidates (the two
+   frames), the one that starts nearer is taken. 205 findings are left
+   on the frames: windows that hold several flips (ours uses a new
+   sprite for each, the original one object), and the headless run
+   presenting about 30 frames a second (one sample in a 200 ms move).
+4. Missing `長押しメッセージN` (40, dja050): ours draws the hold prompt as
+   `mpeghold`'s cell sprite (`:a/10,100,0`), which has no motion
+   (`--ignore cg/sys/push/`).
+5. Extra pre-zoomed copies and backgrounds (about 150) are camera
+   children (`@窓/カメラ/...`). The original's objects keep their own
+   place while `MoveCamera` moves the camera, and ours moves the
+   sprites. They are now kind `camera` when the original runs
+   `MoveCamera` within 20 s (the longest call) before the window, or in
+   the window or the one next to it.
+
+Ours also gets a sample where each `spmotion` starts (from its `motion`
+keys): samples otherwise begin up to 4 frames in, which made the
+durations short.
+Result (same traces): missing 1,656 to 1,132, extra 2,149 to 935;
+`screen` 411, `camera` 963 (not differences).
 
 ### A 0 ms `Move` stops the move in flight (2026-10-18)
 
