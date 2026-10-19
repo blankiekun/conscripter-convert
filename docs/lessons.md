@@ -163,7 +163,7 @@ The steps that apply them are in `docs/new-game.md`.
   fixed numbers so old saves still load.
 - **The font must be fixed-width.** ONScripter draws every character in
   a full-width cell, so a proportional font leaves gaps after narrow
-  glyphs. Use IPA Gothic (`ipag.ttf`).
+  glyphs (`docs/cli.md`, `--font`). Use IPA Gothic (`ipag.ttf`).
 - **The target's image decoder limits the asset formats.** Check a new
   format with one test file in every target build (the web build
   especially) before changing the converter. WebP needed CONscripter's
@@ -282,11 +282,9 @@ Still worth building, in rough order of payoff:
 
 ## Open items from the October 2026 audit
 
-The audit itself is in git history (docs/audit-2026-10.md, removed). Still open:
-
-- **Colours into the IR (step 17):** skipped while one game has links;
-  move them into the IR when a second game needs other ones.
-- **Rename `onsyuri` (step 21):** done: the web index is
-  `cons_index.json`, saves `/cons_save`, the JS factory `cons`, the
-  Android package `io.github.blankiekun.conscripter`. The stock page does
-  not move old `/onsyuri_save` saves (the site's page does).
+- **Colours into the IR:** skipped while one game has links; move them
+  into the IR when a second game needs other ones.
+- The `onsyuri` rename is done (web index `cons_index.json`, saves
+  `/cons_save`, JS factory `cons`, Android package
+  `io.github.blankiekun.conscripter`); the stock page does not move old
+  `/onsyuri_save` saves (the site's page does).
