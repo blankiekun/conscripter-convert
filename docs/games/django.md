@@ -313,7 +313,7 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   for 60 s, the script clicks.
 - **Per-frame state trace** (2026-10-19): `ntrace.sh --frames` writes an
   `obj` record each frame for every shown object whose state changed:
-  x, y and alpha as drawn that frame (+0x3ec/+0x3f0, render +0x14); zoom
+  x, y and alpha as drawn that frame (render record +0xc/+0x10, +0x14); zoom
   and rotation as drawn too (the texture record at render +0x20: zoom
   +0xb4/+0xb8 per mille, rotation +0xa8..+0xb0, as the Zoom and Rotate
   frame callbacks 0x43eec0 and 0x43f190 write them); the creating call (+0x180) on its
