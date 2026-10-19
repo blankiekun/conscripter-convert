@@ -488,7 +488,7 @@ CharacterActionEnd wait. Ours again on main with #581 (route 4, 23200
 pages): 0 text, 0 page, 0 extra; 93 missing: SeStop 56 (each right after
 another SeStop, nothing playing), CharacterActionEnd 14 (the action
 already waited for by CharacterWait, or never started), InOut once
-(S03C_03C:4030, nothing staged after the skipped headerless block), and
+(S03C_03C:4030, nothing staged after the headerless block the eboot skips), and
 the 22 in Status.
 
 ## Milestones
