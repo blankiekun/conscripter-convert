@@ -337,6 +337,16 @@ rather than by browsing:
 15. **Timing and blocking.** For each timed command: does the script
     wait, go on, or wait part of the time; ms or frames, and at what
     frame rate; what a click does mid-effect (finish, cancel, skip).
+    Then **overlap**, the part a per-argument row can't show: what an
+    unwaited action does while later commands run (keeps going, snaps
+    to its end, restarts), what a wait or sync does to the actions
+    still in flight, and what a 0 ms action does to them. Map it from
+    the exe's scheduler as `(scheduler)` rows in the findings table, and
+    list the game's own script helpers that chain timed built-ins
+    (Django's `FadeFade`, function.nss:887). For each, give the
+    converter a test or a dry-run check of the composed output, not
+    just of each call (Django lost 16 s pans to a 0 ms fade's sync, and
+    only the trace diff caught it).
 16. **Track inferred findings to the end.** Keep a machine-readable
     table per game (`docs/games/<game>.findings.tsv`, or a section):
     every argument and branch marked seen, inferred or unknown. An
