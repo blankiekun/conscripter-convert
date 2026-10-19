@@ -828,9 +828,6 @@ Open, by area (each is small; most noticeable first):
   loads under wine. (A `Fade` that leaves the opacity as it was, or
   on no object: History, "Fades that change nothing", "Actions on no
   object".)
-- **Picture diff of ma00_000** (#457's 24 blocks, 2026-10-18): small
-  differences left, not fixed (History, "ma00_000 picture diff: what is left").
-- **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
 - **Per-scene snapshots** (2026-10-18): all 881 story scenes dumped from
   saves ("Per-scene snapshots"). Next: compare each scene's objects with
   our engine's at the same label (the scene-start check), then run the
