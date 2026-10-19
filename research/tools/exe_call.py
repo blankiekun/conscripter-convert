@@ -26,6 +26,7 @@ NTRACE_DUMPS) so calls run against the game's real state. --dump-in PREFIX
 does that from the command line.
 """
 import argparse
+import io
 import struct
 import sys
 import os
@@ -201,17 +202,30 @@ class Exe:
     def load_dump(self, prefix):
         """Map a process memory dump over the image: <prefix>.map (a line per
         region: base size protect type offset, hex; offset `-`: left out) and
-        <prefix>.bin (ntrace.c NTRACE_DUMPS). The exe's code and import slots
+        <prefix>.bin (ntrace.c NTRACE_DUMPS); a scene dump (NTRACE_SCENE_DUMPS)
+        names its base in its first line and holds only the pages that differ. The exe's code and import slots
         are put back as the file has them (a trace DLL's patches, the real
         DLLs' addresses), so imports stay stubs. Returns the regions loaded."""
         n = 0
-        with open(prefix + ".bin", "rb") as b:
+        if os.path.exists(prefix + ".bin.zst"):  # packed after the run (ntrace.sh --scene-dumps)
+            from compression import zstd  # Python 3.14
+            b = io.BytesIO(zstd.decompress(open(prefix + ".bin.zst", "rb").read()))
+        else:
+            b = open(prefix + ".bin", "rb")
+        with b:
             for line in open(prefix + ".map"):
-                base, size, _, _, off = line.split()
-                if off == "-":
+                f = line.split()
+                if f[0] == "base":  # a scene dump: the base first, then its changed pages ("P addr size offset")
+                    n += self.load_dump(os.path.join(os.path.dirname(prefix), f[1]))
                     continue
-                b.seek(int(off, 16))
-                self._map(int(base, 16), b.read(int(size, 16)))
+                if f[0] == "P":
+                    b.seek(int(f[3], 16))
+                    self._map(int(f[1], 16), b.read(int(f[2], 16)))
+                    continue
+                if f[4] in ("-", "d"):  # left out; a scene dump's region (its pages: P lines)
+                    continue
+                b.seek(int(f[4], 16))
+                self._map(int(f[0], 16), b.read(int(f[1], 16)))
                 n += 1
         if self.arch == "x86":
             base, img = self.image
