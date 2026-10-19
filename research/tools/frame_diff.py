@@ -8,6 +8,9 @@ ORIG: ntrace.sh --frames' trace ("obj" records: an object's x, y, alpha
 each frame it changed, the call that made it on its first record).
 OURS: CONscripter's --trace of a --real-time --auto-play run, whose
 "sample" records give each moving sprite every few frames (engine/DEBUG.md).
+For xtrace's records (最果てのイマ: an object id and a picture slot,
+no file name), a motion matches the nearest of ours that starts within
+64 px instead.
 MAP: the converter's --source-map. Pages pair by the instruction that shows
 them (in order, any distance ahead: a run may start earlier). Between two
 paired pages (one window), each object the original moves (two records differing in x,
@@ -37,6 +40,7 @@ import trace_diff as td  # noqa: E402
 
 WINDOW = 30000  # ms after a page that its motions are looked for in
 TOL_ZOOM = 2  # percent
+POS_PX = 64  # a nameless motion (xtrace's) matches ours starting this close
 
 
 def picture(call):
@@ -52,8 +56,12 @@ def orig_side(path):
     for line in open(path, errors="replace"):
         r = json.loads(line)
         if r["t"] == "page":
-            pages.append({"at": r["at"], "ms": r["ms"]})
+            pages.append({"at": r["at"], "ms": r["ms"]})  # already in source_key's form ("4:19", "x.nss:12")
         elif r["t"] == "obj" and "gone" not in r:
+            if "id" in r:  # xtrace's (Xuse): an object id and a picture slot, no file name; scale in percent
+                objs.append({"ms": r["ms"], "n": f"obj{r['id']}", "pic": f"slot:{r['pic']}", "x": r["x"], "y": r["y"],
+                             "a": r["a"] * 255 // 256, "z": r.get("sx", 100)})
+                continue
             if "call" in r:
                 pic[r["n"]] = picture(r["call"])
             objs.append({"ms": r["ms"], "n": r["n"], "pic": pic.get(r["n"], ""), "x": r["x"], "y": r["y"], "a": r["a"],
@@ -121,7 +129,12 @@ def compare(o_pages, o_objs, u_pages, u_samples, tol_px=4, tol_ms=50):
         keys_o.setdefault(key(seq[0]["pic"]), set()).add(w)
     for w, page, name, seq in om_all:
         kk = key(seq[0]["pic"])
-        cand = [c for c in left if key(c[3][0]["pic"]) == kk and abs(c[0] - w) <= 1]
+        if kk.startswith("slot:"):  # no file name: the nearest of our motions starting within POS_PX, by where it starts
+            cand = [c for c in left if abs(c[0] - w) <= 1 and abs(c[3][0]["x"] - seq[0]["x"]) + abs(c[3][0]["y"] - seq[0]["y"]) <= POS_PX]
+            cand.sort(key=lambda c: abs(c[3][0]["x"] - seq[0]["x"]) + abs(c[3][0]["y"] - seq[0]["y"]))
+            cand = cand[:1]
+        else:
+            cand = [c for c in left if key(c[3][0]["pic"]) == kk and abs(c[0] - w) <= 1]
         if not cand:
             finds.append(("missing", page, f"{name} {seq[0]['pic']} {seq[0]['x']},{seq[0]['y']} -> {seq[-1]['x']},{seq[-1]['y']} over {seq[-1]['ms'] - seq[0]['ms']} ms"))
             continue
