@@ -412,6 +412,10 @@ impl Assets for NpaAssets<'_> {
         Some((rel, size.0, size.1))
     }
 
+    fn has_movies(&self) -> bool {
+        self.movie_dir.is_some()
+    }
+
     fn movie_info(&mut self, path: &str) -> Option<MovieInfo> {
         if let Some(r) = self.movies.get(path) {
             return *r;

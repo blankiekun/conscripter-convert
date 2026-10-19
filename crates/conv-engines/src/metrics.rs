@@ -5,7 +5,8 @@
 //! purpose (code the game can't reach, such as a debug menu: counted as
 //! done in the completion figure, apart from the gaps). Each call also
 //! counts its weighted share ([`share`]): the arguments it was given that
-//! the converter read. Every engine
+//! the converter read, and its [`credit`]: how much of it plays as in the
+//! original, approximations counted. Every engine
 //! reports its calls here; the dry run writes them as `metrics.json`, and
 //! `tests/snapshot.sh --update` keeps them in `tests/snapshots/`.
 
@@ -20,6 +21,11 @@ pub struct Kind {
     pub left_out: usize,
     /// The calls' [`share`]s summed (left-out calls not in it).
     pub weighted: f64,
+    /// The calls' [`credit`]s summed (left-out and unmeasured calls not in it).
+    pub credit: f64,
+    /// Calls [`credit`] can't judge in this build (a file this install
+    /// lacks): neither credit nor loss.
+    pub unmeasured: usize,
     /// Each reason with the number of calls it was noted on.
     pub reasons: BTreeMap<String, usize>,
 }
@@ -110,6 +116,10 @@ impl Metrics {
         reasons.sort();
         reasons.dedup();
         k.weighted += share(args, &reasons);
+        match credit(args, &reasons) {
+            Some(c) => k.credit += c,
+            None => k.unmeasured += 1,
+        }
         k.gaps += usize::from(!reasons.is_empty());
         for r in reasons {
             *k.reasons.entry(r).or_default() += 1;
@@ -136,6 +146,8 @@ impl Metrics {
             k.gaps += o.gaps;
             k.left_out += o.left_out;
             k.weighted += o.weighted;
+            k.credit += o.credit;
+            k.unmeasured += o.unmeasured;
             for (r, n) in o.reasons {
                 *k.reasons.entry(r).or_default() += n;
             }
@@ -164,6 +176,16 @@ impl Metrics {
         self.kinds.values().map(|k| k.weighted).sum()
     }
 
+    /// The credits over every kind.
+    pub fn credit_total(&self) -> f64 {
+        self.kinds.values().map(|k| k.credit).sum()
+    }
+
+    /// Unmeasured calls, over every kind.
+    pub fn unmeasured_total(&self) -> usize {
+        self.kinds.values().map(|k| k.unmeasured).sum()
+    }
+
     /// Calls left out on purpose, over every kind.
     pub fn left_out_total(&self) -> usize {
         self.kinds.values().map(|k| k.left_out).sum()
@@ -177,8 +199,9 @@ impl Metrics {
         let left_out = self.left_out_total();
         // "left_out" only when there are some, so other games' files stay as they were.
         let lo = |n: usize| if n > 0 { format!(", \"left_out\": {n}") } else { String::new() };
+        let um = |n: usize| if n > 0 { format!(", \"unmeasured\": {n}") } else { String::new() };
         let mut s = format!(
-            "{{\n\"game\": {},\n\"engine\": {},\n\"engine_doc\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}}},\n\"kinds\": {{",
+            "{{\n\"game\": {},\n\"engine\": {},\n\"engine_doc\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}, \"credit\": {:.1}{}}},\n\"kinds\": {{",
             q(game),
             q(engine),
             q(engine_doc),
@@ -186,20 +209,24 @@ impl Metrics {
             q(commit_date),
             calls - gaps - left_out,
             lo(left_out),
-            self.weighted_total()
+            self.weighted_total(),
+            self.credit_total(),
+            um(self.unmeasured_total())
         );
         let mut kinds: Vec<_> = self.kinds.iter().collect();
         kinds.sort_by(|a, b| b.1.gaps.cmp(&a.1.gaps).then(b.1.calls.cmp(&a.1.calls)).then(a.0.cmp(b.0)));
         for (i, (name, k)) in kinds.iter().enumerate() {
             s += &format!(
-                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}}}",
+                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}, \"credit\": {:.1}{}}}",
                 if i > 0 { "," } else { "" },
                 q(name),
                 k.calls,
                 k.gaps,
                 lo(k.left_out),
                 top(&k.reasons),
-                k.weighted
+                k.weighted,
+                k.credit,
+                um(k.unmeasured)
             );
         }
         s += &format!("\n}},\n\"outside_calls\": {}", top(&self.outside));
@@ -234,6 +261,32 @@ pub fn share(args: usize, reasons: &[String]) -> f64 {
         return if lost > 0 { 0.0 } else { 1.0 };
     }
     args.saturating_sub(lost) as f64 / args as f64
+}
+
+/// A call's credit, from 0 to 1: how much of it plays as in the original.
+/// Unlike [`share`], an approximation counts: "not converted" and the
+/// notes naming a whole call left unconverted (`built-in X`, `Request X`,
+/// `CreateProcess X`, `CreateEffect X`) 0; a pick made when converting
+/// (seeded `Random`) 0.8; each "… ignored" one argument lost, as in
+/// [`share`]; any other note (an approximation) 0.5; the lowest wins.
+/// `None` (unmeasured): a note says a file is missing in this build.
+pub fn credit(args: usize, reasons: &[String]) -> Option<f64> {
+    if reasons.iter().any(|r| r.contains("in this build")) {
+        return None;
+    }
+    let whole_call = |r: &str| {
+        ["built-in ", "Request ", "CreateProcess ", "CreateEffect "].iter().any(|p| r.strip_prefix(p).is_some_and(|rest| !rest.contains(' ')))
+    };
+    let mut c = share(args, reasons);
+    for r in reasons {
+        c = c.min(match r.as_str() {
+            r if whole_call(r) || r.contains("not converted") => 0.0,
+            r if r.ends_with(" ignored") => 1.0,
+            r if r.contains("picked when converting") => 0.8,
+            _ => 0.5,
+        });
+    }
+    Some(c)
 }
 
 /// The `TOP` entries with the highest counts, as `[[reason, n], …]`, and
@@ -285,8 +338,8 @@ mod tests {
         assert_eq!(m.kinds["Move"].reasons["Move argument 4 ignored"], 1);
         assert_eq!(m.kinds["Fade"].gaps, 0);
         assert_eq!(m.outside["text tag <x>"], 1);
-        let json = m.json("g", "e", "d", "abc", "2026-10-16");
-        assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8}"), "{json}");
+        let json = m.json("g", "e", "doc", "abc", "2026-10-16");
+        assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8, \"credit\": 2.8}"), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
         assert!(!json.contains("parity"), "{json}");
     }
@@ -311,7 +364,7 @@ mod tests {
         m.left_out("opcode 0x30", "the debug menu");
         assert_eq!((m.totals(), m.left_out_total()), ((2, 0), 1));
         let json = m.json("g", "e", "doc", "c", "d");
-        assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1, \"weighted\": 1.0}"), "{json}");
+        assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1, \"weighted\": 1.0, \"credit\": 1.0}"), "{json}");
         assert!(json.contains("\"calls\": 2, \"gaps\": 0, \"left_out\": 1, \"reasons\""), "{json}");
     }
 
@@ -322,5 +375,28 @@ mod tests {
         assert_eq!(super::share(4, &r(&["_MPLY argument 1 ignored", "_MPLY option 17 ignored", "approximated"])), 0.5);
         assert_eq!(super::share(2, &r(&["not converted"])), 0.0);
         assert_eq!(super::share(0, &r(&["approximated"])), 1.0);
+    }
+
+    #[test]
+    fn credit_counts_approximations_and_unconverted_calls() {
+        let r = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let c = |args, v: &[&str]| super::credit(args, &r(v));
+        assert_eq!(c(4, &[]), Some(1.0));
+        assert_eq!(c(4, &["Move argument 1 ignored"]), Some(0.75));
+        assert_eq!(c(2, &["built-in SetSurface"]), Some(0.0));
+        assert_eq!(c(2, &["Request stop"]), Some(0.0));
+        assert_eq!(c(2, &["CreateEffect Lens"]), Some(0.0));
+        assert_eq!(c(2, &["not converted: 0x30"]), Some(0.0));
+        // Approximations, though they name a call.
+        assert_eq!(c(2, &["Request Enter for another text than the next"]), Some(0.5));
+        assert_eq!(c(7, &["CreateEffect KitanoBlue on part of the screen"]), Some(0.5));
+        assert_eq!(c(1, &["Random picked when converting"]), Some(0.8));
+        assert_eq!(c(4, &["Rotate about z", "Move argument 1 ignored"]), Some(0.5));
+        assert_eq!(c(7, &["CreateMovie: no movies in this build"]), None);
+        let mut m = super::Metrics::default();
+        m.call("CreateMovie", 7, r(&["CreateMovie: no movies in this build"]));
+        m.call("Rotate", 3, r(&["Rotate about z"]));
+        let json = m.json("g", "e", "doc", "c", "d");
+        assert!(json.contains("\"weighted\": 2.0, \"credit\": 0.5, \"unmeasured\": 1}"), "{json}");
     }
 }
