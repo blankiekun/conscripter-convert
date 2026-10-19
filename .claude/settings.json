@@ -23,6 +23,16 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/context_cap.py\""
+          }
+        ]
+      }
     ]
   },
   "permissions": {
