@@ -12,7 +12,37 @@ impl Compiler<'_, '_> {
         for (n, _) in now {
             self.delete(&n);
         }
+        // A hidden picture's unwaited move goes on: left for the sync that
+        // shows it again, and not drawn as this one's time (FadeFade's
+        // `Fade(…, 0, 0, null, true)` after an unwaited 16 s `Move`,
+        // dja010_01:77; the exe's 0 ms fade is instant, the move runs on).
+        // Only to the next sync: one that comes later would replay it.
+        let last = std::mem::take(&mut self.kept_moves);
+        let hidden: Vec<(String, u32)> = self
+            .pending_by
+            .iter()
+            .filter(|&(n, &t)| t > ms && !last.contains(n) && self.pending_from.contains_key(n) && !self.pending_fade.contains_key(n) && self.objects.get(n).is_some_and(|o| o.opacity == 0 && matches!(o.kind, Kind::Image { .. })))
+            .map(|(n, &t)| (n.clone(), t))
+            .collect();
+        let mut kept = Vec::new();
+        for (n, t) in &hidden {
+            self.pending_by.remove(n);
+            kept.push((n.clone(), *t, self.pending_from.remove(n), self.pending_path.remove(n), self.pending_tempo.remove(n), self.pending_angle_from.remove(n), self.pending_zoom_from.remove(n)));
+        }
+        if !hidden.is_empty() {
+            self.pending_ms = self.pending_by.values().copied().max().unwrap_or(0);
+        }
         self.draw(ms);
+        for (n, t, from, path, tempo, angle, zoom) in kept {
+            self.kept_moves.insert(n.clone());
+            self.pending_ms = self.pending_ms.max(t);
+            self.pending_by.insert(n.clone(), t);
+            from.map(|v| self.pending_from.insert(n.clone(), v));
+            path.map(|v| self.pending_path.insert(n.clone(), v));
+            tempo.map(|v| self.pending_tempo.insert(n.clone(), v));
+            angle.map(|v| self.pending_angle_from.insert(n.clone(), v));
+            zoom.map(|v| self.pending_zoom_from.insert(n.clone(), v));
+        }
         // (Kept while the engine fades it out, then deleted.)
         for (n, seq) in disused {
             if self.objects.get(&n).is_some_and(|o| o.seq == seq) {

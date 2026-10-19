@@ -508,22 +508,10 @@ Open:
 
 ### Next
 
-1. `FadeFade` on a picture just created, after a motion (2026-10-18
-   trace diff, pages 600, 846, 852): ours draws it (`lsp`, `print`),
-   fades it out over the next fade's time (`csp`, `print 11`/`9`) where
-   the original's `Fade(0)` is instant, then draws it again at the
-   motion's end: an unwaited motion before it is lost. Example
-   dja010_01:76-78 (`CreateBGz`, `Move("背景21",16000,@320,@0,…,false)`,
-   `FadeFade(…,1000,…)`): 16 s pan lost, 1 s fade-out added; also
-   dja005_01:262-264. Calls after an unwaited timed motion:
-   dja010_01:78, 125 (16 s); dja055_01:99, 133, 173, 358 (8 s), 255;
-   dja055_04:575 (8 s); dja056_09:59 (32 s); after 0 ms ones: dja003_02:215,
-   dja011_03:488, dja011_03be:49, 80, dja017_01:569, 631, dja049_02be:120,
-   dja050_03:1198, dja056_06:173.
-2. Source map: `spmotion` lines after a mapped line carry no entry of
+1. Source map: `spmotion` lines after a mapped line carry no entry of
    their own (~134 timed story motions show as `missing`, e.g.
    dja001_04:79-83, 525; ours has them). Map each.
-3. The title, left from the scripts (History, "Title on coming back"):
+2. The title, left from the scripts (History, "Title on coming back"):
    on coming back the logo cross-fades in over its 1 s turn (the
    original shows it at once, edge-on); a hovered button still jolts
    (the original pauses its `*Shake` process on MouseOver); from the
@@ -531,9 +519,9 @@ Open:
    cross-fades from the extras); after the settings or load screens
    the motions start again from their start. Not compared with the
    original's frames.
-4. Extras: film the doors and the rifle beside the original once wine
+3. Extras: film the doors and the rifle beside the original once wine
    is next used (ours from the scripts' times only).
-5. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
+4. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
    kinds, 18,947 notes at the 2026-10-16 dry run), most visible first;
    what the original does is from the scripts and
    `research/nitroplus/builtins.md`:
@@ -545,11 +533,11 @@ Open:
       children yet: nothing moves) and `CreateEffect` 2-3 (1, the
       `Sepia` effect at 0,0 over the whole screen; Muramasa's undrawn
       effects pass 0 too). Left noted.
-6. Sounds kept until their end (`convert/sounds.rs`): the sound clock
+5. Sounds kept until their end (`convert/sounds.rs`): the sound clock
    adds up both branches of a runtime `if`/`else`. Fine as is.
-7. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
+6. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
    NSS code; noted, drawn as nothing.
-8. The exe mapping (`docs/games/django.findings.tsv`; the census
+7. The exe mapping (`docs/games/django.findings.tsv`; the census
    `argcensus.py` flags only the script's own values). Open, each from
    the decompile:
    1. `SetVertex` names: the exe compares lower case; ours any case,
@@ -564,6 +552,29 @@ Open:
       the wait; the six such calls take 0 ms.
 
 ## History
+
+### FadeFade after an unwaited motion (2026-10-18)
+
+`FadeFade` (function.nss:887) is `Fade(n, 0, 0, null, true)` then the
+timed fade. After an unwaited `Move` (dja010_01:76-78: `CreateBGz`,
+`Move("背景21",16000,@320,@0,…,false)`, `FadeFade(…,1000,…)`) the 0 ms
+fade's sync hid the picture over the move's time (`csp`, `print 11`)
+and the move ended with it, so the fade-in placed it at the move's
+end. Now a sync leaves a hidden picture's unwaited move (its start,
+path, tempo) for the sync that shows it again, and doesn't draw over
+its time (`Move` keeps a shown picture's start for this); only to the
+next sync, as a later one would replay the move from its start. Dry run:
+hide at once (`print 1`), then `lsp` at the end, `spmotion` from -320
+over 16 s and `print 11`; the same at dja055_01:99 (8 s). Calls after
+an unwaited timed motion: dja010_01:78, 125; dja055_01:99, 133, 173,
+358, 255; dja055_04:575; dja056_09:59 (after 0 ms ones nothing
+changed: dja003_02:215, dja011_03:488, dja011_03be:49, 80,
+dja017_01:569, 631, dja049_02be:120, dja050_03:1198, dja056_06:173).
+Django: 34 more `spmotion`s. 装甲悪鬼村正 (and the English build, same
+lines): ~70 motions kept, children hidden while their parent slides
+(ma02_020vs:1024-1027: `絵立絵` moves its 1.5 s with its window instead
+of appearing at its end; ma03_016:131: the 7 s pan goes on behind the
+white flash), and one more `effect` time (every `print` renumbered).
 
 ### Status as it stood before the 2026-10-18 prune
 

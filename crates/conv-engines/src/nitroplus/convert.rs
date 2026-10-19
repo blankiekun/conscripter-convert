@@ -1040,9 +1040,11 @@ struct Compiler<'a, 'b> {
     /// `BezierMove`s since the last sync: the pictures' places along the
     /// way, as `spmotion` keys from where they start ([`loops`]).
     pending_path: HashMap<String, Vec<MotionKey>>,
-    /// Pictures not shown yet that `Move`s since the last sync: where they
-    /// start, from where they end (shown there and moved, [`Compiler::sync`]).
+    /// Pictures that `Move`s since the last sync: where they start, from
+    /// where they end (a new one shown there and moved, [`Compiler::sync`]).
     pending_from: HashMap<String, (i64, i64)>,
+    /// Hidden pictures whose unwaited move the last sync left for the next.
+    kept_moves: std::collections::HashSet<String>,
     /// Of those, the ones that `Rotate` about z over time: the angle they
     /// had (shown at it and turned as they move).
     pending_angle_from: HashMap<String, i64>,
@@ -1220,6 +1222,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shake_once: HashMap::new(),
             pending_path: HashMap::new(),
             pending_from: HashMap::new(),
+            kept_moves: std::collections::HashSet::new(),
             pending_angle_from: HashMap::new(),
             pending_size_from: HashMap::new(),
             pending_zoom_from: HashMap::new(),
