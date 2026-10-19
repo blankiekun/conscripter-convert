@@ -146,7 +146,7 @@
 0042d6f0	cb_0042d6f0
 0042e120	cb_0042e120
 00435cb0	cb_00435cb0
-00438fb0	cb_00438fb0
+00438fb0	fade_steps	Fade's job callback (queue_fade): alpha from the job's +0x6c string, steps from the time; time 0 sets at once; the frame slot +0x820 = fade_frame
 0043a700	cb_0043a700
 0043a740	cb_0043a740
 0043a780	cb_0043a780
@@ -279,3 +279,11 @@
 0045a040	volume_step_thread	SetVolume/SetFrequency fade: steps (time x a factor, at least 1) from old to new volume along the tempo's curve (00434ea0)
 0045fda0	wait_click_mask	Wait click: mask 0xb (quit, state change, skip); a click does not end it, skip does (with 0040bd80)
 004666c0	set_vertex_names	SetVertex: x, y names lower case, per axis left/center/right, top/middle/bottom; another word atol (0)
+00431610	queue_fade	Fade's work: a job record (+4 time, +0x6c alpha, +0xa0 tempo, +0xc4 name, +0x1d4 callback fade_steps) through job_for_objects under the object mutex, then waits as timed_wait (EBX the wait argument)
+00437040	job_for_objects	runs a job record on every object its name (+0xc4, `/` paths, `*` wildcards) matches, from the owner's object: job_apply per path part
+00437460	job_apply	calls the job's callback (+0x1d4) on each matching object along the sibling chain (+0x8b8), into children (+0x8bc)
+00436040	step_objects	the per-frame step: for every object (list 0x50fb1c, node +0xc, next +0x18) calls its frame slots +0x838, +0x820 (fade), +0x828 (move), +0x824, +0x82c, +0x834, +0x83c, +0x830, +0x898; stores timeGetTime at +0x3ac
+0043eb80	move_frame	Move's frame slot (+0x828): x, y, z from the path table (+0x460, indexed by +0x454[step +0x44a]) until step = steps (+0x458), then the end (+0x43c..) and frees the path
+0043eab0	fade_frame	Fade's frame slot (+0x820): alpha = start (+0x408) +/- curve (+0x410)[step +0x402] while step < steps (+0x414), into the render record's +0x14
+0043e7b0	slot_idle	a frame slot with nothing to run (step_objects puts it back when a slot returns < 1)
+00441550	move_clear	frees an object's path tables (+0x460, +0x454, +0x45c) and clears its move fields (+0x428..+0x474): a Move replaces the one in flight

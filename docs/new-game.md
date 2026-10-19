@@ -392,7 +392,12 @@ rather than by browsing:
     unwaited action does while later commands run (keeps going, snaps
     to its end, restarts), what a wait or sync does to the actions
     still in flight, and what a 0 ms action does to them. Map it from
-    the exe's scheduler as `(scheduler)` rows in the findings table, and
+    the exe's scheduler as `(scheduler)` rows in the findings table
+    (`research/tools/ghidra/callmap.py <export> --names <names.tsv>
+    --tsv` drafts them: per built-in, the queue, job, wait and frame
+    functions it reaches in the call graph, callbacks stored as pointers
+    included; rows marked inferred until the code or a snapshot shows
+    them), and
     list the game's own script helpers that chain timed built-ins
     (Django's `FadeFade`, function.nss:887). For each, give the
     converter a test or a dry-run check of the composed output, not
