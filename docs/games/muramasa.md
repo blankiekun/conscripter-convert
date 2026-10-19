@@ -2177,7 +2177,7 @@ voices are `村正さん`), the compiler grouped them by `name`. It now
 takes `class`, or `name` when there is none.
 
 **`#` flags off the menus' globals (2026-10-15, from the code audit,
-`docs/audit-2026-10.md` §5):** the first 170 `#` flags ran %800-%969,
+in git history, docs/audit-2026-10.md §5):** the first 170 `#` flags ran %800-%969,
 and flags 100-112 shared %900-%912 with the menus' globals: seeing
 `bg006_小光の家_03b` set the text speed (%907) to 1, and opening the save
 screen (its page, %900) unlocked the CG `bg004_鄙びた村b_02`. The first

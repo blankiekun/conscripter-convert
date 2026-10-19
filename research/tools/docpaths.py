@@ -2,7 +2,7 @@
 """Check that the repo paths the docs name in backticks exist.
 
 usage: docpaths.py [FILE.md ...]   default: every tracked .md outside
-                                   engine/ and the dated audits
+                                   engine/
 
 A path counts when it starts with a top-level folder of the repo
 (`crates/…`, `docs/…`, `research/…`); placeholders (`<game>`), globs
@@ -20,7 +20,7 @@ root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=Tr
 os.chdir(root)
 files = sys.argv[1:] or [
     f for f in subprocess.run(["git", "ls-files", "*.md"], capture_output=True, text=True, check=True).stdout.split()
-    if not f.startswith(("engine/", "docs/audit-"))
+    if not f.startswith("engine/")
 ]
 engine = os.path.exists("engine/Makefile") or os.path.exists("engine/src")
 bad = 0

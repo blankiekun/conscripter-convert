@@ -263,7 +263,7 @@ Still worth building, in rough order of payoff:
 
 ## Open items from the October 2026 audit
 
-The audit itself, `docs/audit-2026-10.md`, is history. Still open:
+The audit itself is in git history (docs/audit-2026-10.md, removed). Still open:
 
 - **Colours into the IR (step 17):** skipped while one game has links;
   move them into the IR when a second game needs other ones.
