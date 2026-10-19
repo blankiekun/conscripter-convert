@@ -36,6 +36,7 @@ from unicorn import (Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_ARCH_ARM, UC_MODE_
 from unicorn import x86_const as X, arm_const as A, arm64_const as A64
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "ghidra"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # dumppack
 from nso2elf import lz4_block  # noqa: E402
 
 STUBS = 0xf0000000        # imports point here, unmapped: a fetch is a stub hit
@@ -207,9 +208,9 @@ class Exe:
         are put back as the file has them (a trace DLL's patches, the real
         DLLs' addresses), so imports stay stubs. Returns the regions loaded."""
         n = 0
-        if os.path.exists(prefix + ".bin.zst"):  # packed after the run (ntrace.sh --scene-dumps)
-            from compression import zstd  # Python 3.14
-            b = io.BytesIO(zstd.decompress(open(prefix + ".bin.zst", "rb").read()))
+        if os.path.exists(prefix + ".bin.zst"):  # packed (research/tools/dumppack.py; Python 3.14)
+            from dumppack import unpack
+            b = io.BytesIO(unpack(os.path.dirname(prefix) or ".", os.path.basename(prefix)))
         else:
             b = open(prefix + ".bin", "rb")
         with b:
@@ -217,6 +218,8 @@ class Exe:
                 f = line.split()
                 if f[0] == "base":  # a scene dump: the base first, then its changed pages ("P addr size offset")
                     n += self.load_dump(os.path.join(os.path.dirname(prefix), f[1]))
+                    continue
+                if f[0] == "zstd-from":  # how dumppack packed it
                     continue
                 if f[0] == "P":
                     b.seek(int(f[3], 16))
