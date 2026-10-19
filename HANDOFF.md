@@ -1,0 +1,1 @@
+tsukihime.md condensed 70.5K -> 30K (43%, target <21K): committed as WIP, can be cut further (the "Status as it stood" tail ~7K and long entries: gallery, settings, STEC, title). muramasa-en.md (45K) not started. Delete HANDOFF.md before the lead cherry-picks.
