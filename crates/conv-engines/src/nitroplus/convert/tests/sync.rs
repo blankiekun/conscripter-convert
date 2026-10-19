@@ -148,6 +148,25 @@ fn time_ledger_notes_a_sync_held_by_an_unwaited_action() {
 }
 
 #[test]
+fn an_unwaited_action_under_an_opaque_cover_doesnt_hold() {
+    // The exe goes on; nothing under the cover is seen (function.nss:4596's clouds).
+    let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Wait(10);
+	CreateEffect("cover", 1000, 0, 0, 1024, 576, "Plain");
+	Move("bg", 500, @100, @0, null, false);
+	Wait(20);
+}
+"#;
+    let c = compile(story, LIBRARY);
+    assert!(!c.notes.contains_key(crate::metrics::TIMING[1]), "{:?}", c.notes);
+    let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } | Op::Pause { ms } => Some(*ms), _ => None }).collect();
+    assert!(waits.contains(&20) && !waits.contains(&500), "{:?}", c.ops);
+}
+
+#[test]
 fn time_ledger_notes_a_motion_dropped_by_a_sync() {
     // shortcut: a turned picture cut to the screen (zoomed past 4096 px)
     // that moves unwaited stays cut to the whole screen, so its move ends
