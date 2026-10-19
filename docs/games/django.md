@@ -481,36 +481,36 @@ Open:
   save screen opens over 200 ms and closes over 300 (ours 300 both);
   the settings' pairs fade over 200, their bullets at once (ours at
   once both).
-- Trace diff against the original (`ntrace.sh`, wine section; first 50
-  pages from dja001, `docs/new-game.md` step 23); all pair. 2026-10-18,
-  50 lines left (`missing` 145, `extra` 9, `time` 21), by cause:
-  - Not findings: page 1's boot (the original's trace has a patched
-    boot: no logos, so ours' `boot.nss:128-171` are `extra`, as is
-    `TitleSet`'s opening now; `SetVolume` 0 on created
-    sounds and 0 ms fades give no command of ours); `call_chapter`
-    lines; 0-72 ms gaps; page 18's `WaitFade` (auto mode's reading
-    time differs, so the 3 s fade had or hadn't ended).
-  - The exe's waits poll (the wait helper `00433bf0`: a 100 ms wait on
-    an event set only by requests, then a 32 ms sleep): a waited
-    action returns at the first poll after its end, under wine 100 →
-    225 ms (every `TypeBegin`/`TypeEnd` box fade, 21 of 22), 300 → 431
-    (`Zoom` function.nss:877), 500 → 532-622 (function.nss:911, 948),
-    1000 → 1026-1031; ours ends with the action (109). The same code
-    runs on Windows, but whether its timer gives the same steps is
-    unchecked; not modelled (it would slow every NSS game's text
-    window ~125 ms a fade): the user's call.
-
-```sh
-target/release/conscripter-convert convert-nss <game> -o out/django-dry --dry-run --source-map out/django.map
-research/tools/scratch.sh <a full build> <scratch> out/django-dry/0.txt
-cp out/django-dry/ons_args <scratch>/   # the dry run's encoding, not the build's
-<scratch>/run.sh --trace ours.jsonl --auto-play 60 --real-time --trace-ignore 999
-research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 50 --ms --thread 0
-```
+- Trace diff against the original (SPEED=1, dja001 to dja011, 1,049
+  pages, 2026-10-18; recipe and the 50-page causes: History, "Trace
+  diff, first 50 pages"); all pages pair. `missing` 3437, `extra` 112,
+  `time` 878, known kinds only but for Next 1 and 2: `Request`s and
+  0 ms resets give no command; `MoveZoom`'s `Move` folds into the
+  `Zoom`; 736 of 840 `time` after page 50 are the exe's 100 ms wait
+  polls; the rest is the harness (`WaitKey` waits 1.5 s in the
+  original's auto mode, 0 under `--auto-play`; choices; movies take
+  0 ms headless) or a gap put on the next record. `extra`:
+  `call_chapter`, and `{...}` blocks inside text (their `MusicStart`s
+  not seen on the original's thread 0).
 
 ### Next
 
-1. The title, left from the scripts (History, "Title on coming back"):
+1. `FadeFade` on a picture just created, after a motion (2026-10-18
+   trace diff, pages 600, 846, 852): ours draws it (`lsp`, `print`),
+   fades it out over the next fade's time (`csp`, `print 11`/`9`) where
+   the original's `Fade(0)` is instant, then draws it again at the
+   motion's end: an unwaited motion before it is lost. Example
+   dja010_01:76-78 (`CreateBGz`, `Move("背景21",16000,@320,@0,…,false)`,
+   `FadeFade(…,1000,…)`): 16 s pan lost, 1 s fade-out added; also
+   dja005_01:262-264. Calls after an unwaited timed motion:
+   dja010_01:78, 125 (16 s); dja055_01:99, 133, 173, 358 (8 s), 255;
+   dja055_04:575 (8 s); dja056_09:59 (32 s); after 0 ms ones: dja003_02:215,
+   dja011_03:488, dja011_03be:49, 80, dja017_01:569, 631, dja049_02be:120,
+   dja050_03:1198, dja056_06:173.
+2. Source map: `spmotion` lines after a mapped line carry no entry of
+   their own (~134 timed story motions show as `missing`, e.g.
+   dja001_04:79-83, 525; ours has them). Map each.
+3. The title, left from the scripts (History, "Title on coming back"):
    on coming back the logo cross-fades in over its 1 s turn (the
    original shows it at once, edge-on); a hovered button still jolts
    (the original pauses its `*Shake` process on MouseOver); from the
@@ -518,9 +518,9 @@ research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 
    cross-fades from the extras); after the settings or load screens
    the motions start again from their start. Not compared with the
    original's frames.
-2. Extras: film the doors and the rifle beside the original once wine
+4. Extras: film the doors and the rifle beside the original once wine
    is next used (ours from the scripts' times only).
-3. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
+5. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
    kinds, 18,947 notes at the 2026-10-16 dry run), most visible first;
    what the original does is from the scripts and
    `research/nitroplus/builtins.md`:
@@ -532,11 +532,11 @@ research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 
       children yet: nothing moves) and `CreateEffect` 2-3 (1, the
       `Sepia` effect at 0,0 over the whole screen; Muramasa's undrawn
       effects pass 0 too). Left noted.
-4. Sounds kept until their end (`convert/sounds.rs`): the sound clock
+6. Sounds kept until their end (`convert/sounds.rs`): the sound clock
    adds up both branches of a runtime `if`/`else`. Fine as is.
-5. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
+7. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
    NSS code; noted, drawn as nothing.
-6. The exe mapping (`docs/games/django.findings.tsv`; the census
+8. The exe mapping (`docs/games/django.findings.tsv`; the census
    `argcensus.py` flags only the script's own values). Open, each from
    the decompile:
    1. `SetVertex` names: the exe compares lower case; ours any case,
@@ -1433,6 +1433,37 @@ diff's `boot.nss:153` pairs.
   background stayed over the bad end's title. The branch that returned
   now hands its own state (with the chapter's objects deleted) to the
   caller's `if` on the same test.
+
+### Trace diff, first 50 pages (2026-10-18)
+
+The Status item as it stood before the 1,049-page diff:
+
+Trace diff against the original (`ntrace.sh`, wine section; first 50
+  pages from dja001, `docs/new-game.md` step 23); all pair. 2026-10-18,
+  50 lines left (`missing` 145, `extra` 9, `time` 21), by cause:
+  - Not findings: page 1's boot (the original's trace has a patched
+    boot: no logos, so ours' `boot.nss:128-171` are `extra`, as is
+    `TitleSet`'s opening now; `SetVolume` 0 on created
+    sounds and 0 ms fades give no command of ours); `call_chapter`
+    lines; 0-72 ms gaps; page 18's `WaitFade` (auto mode's reading
+    time differs, so the 3 s fade had or hadn't ended).
+  - The exe's waits poll (the wait helper `00433bf0`: a 100 ms wait on
+    an event set only by requests, then a 32 ms sleep): a waited
+    action returns at the first poll after its end, under wine 100 →
+    225 ms (every `TypeBegin`/`TypeEnd` box fade, 21 of 22), 300 → 431
+    (`Zoom` function.nss:877), 500 → 532-622 (function.nss:911, 948),
+    1000 → 1026-1031; ours ends with the action (109). The same code
+    runs on Windows, but whether its timer gives the same steps is
+    unchecked; not modelled (it would slow every NSS game's text
+    window ~125 ms a fade): the user's call.
+
+```sh
+target/release/conscripter-convert convert-nss <game> -o out/django-dry --dry-run --source-map out/django.map
+research/tools/scratch.sh <a full build> <scratch> out/django-dry/0.txt
+cp out/django-dry/ons_args <scratch>/   # the dry run's encoding, not the build's
+<scratch>/run.sh --trace ours.jsonl --auto-play 60 --real-time --trace-ignore 999
+research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 50 --ms --thread 0
+```
 
 ### One `*conv_boot_end` (2026-10-18)
 
