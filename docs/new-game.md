@@ -534,6 +534,11 @@ rather than by browsing:
     with the function's own line), a text page with its text block, and
     sounds flushed after a statement with that statement; 装甲悪鬼村正:
     docs/games/muramasa.md, "Trace diff".
+    Triage by size: `--top N` prints the N `time` findings with the
+    largest |difference| first (`reftrace.sh summary` shows the top 5);
+    triage anything over 1 s before reading the rest. A lost motion
+    can also show as a `missing` `Move` (Django's 16 s `FadeFade` case,
+    dja010_01:77), so read the `missing` timed ops of those pages too.
 
 **Reference traces** (a full trace of the original, few tokens): `research/tools/reftrace.sh <game>`
 (saihate, muramasa, muramasa-en, django, oretsuba, tsukihime) builds our dry run, `ours.map` and our
@@ -543,7 +548,7 @@ trace on the same route, then starts the original's run in the background under
 inputs (`saihate-route.arg`, `<mura|django>-choose.txt`, the patched `*-patch/` dirs, oretsuba's
 `keys.sh`) from `$CD` (default `out/reftrace`); other variables are listed at the top of the script.
 `reftrace.sh status <game>` prints at most 5 lines (running, pages, last scene, minutes since progress,
-free RAM); `reftrace.sh summary <game>` at most 15 (pages, how far, top `trace_diff.py` kinds). 続・殺戮のジャンゴ runs at
+free RAM); `reftrace.sh summary <game>` at most 20 (pages, how far, top `trace_diff.py` kinds, the 5 largest `time` findings). 続・殺戮のジャンゴ runs at
 `SPEED=1`: at `SPEED=8` its full run stalled on several pages (2026-10-18), and at 1 it ran on, so the speed
 hook is the suspected cause (not yet confirmed). 装甲悪鬼村正's first H-mode screen
 (`sys_hmode.nss`, near page 4884) waits in a `select` for a click the clickless run never gives: `mura-patch/`
