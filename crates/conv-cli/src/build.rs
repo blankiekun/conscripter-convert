@@ -35,6 +35,12 @@ pub struct BuildArgs {
     /// (`-` = no source from that line on); engines that record it only
     #[arg(long, value_name = "FILE")]
     pub source_map: Option<PathBuf>,
+    /// With --dry-run: also write the timing parity per scene, the scenes
+    /// most short first: `<scene>\t<source ms>\t<our ms>\t<short ms>`, the
+    /// motion time the source asks for against the time our 0.txt animates
+    /// there (totals in metrics.json)
+    #[arg(long, value_name = "FILE")]
+    pub parity_report: Option<PathBuf>,
     #[command(flatten)]
     pub webp: WebpArgs,
     #[command(flatten)]
@@ -53,7 +59,7 @@ pub struct BuildArgs {
 const SCREENS: &str = "screens";
 
 pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
-    let BuildArgs { output, font, loose, dry_run, source_map, webp, audio, small } = args;
+    let BuildArgs { output, font, loose, dry_run, source_map, parity_report, webp, audio, small } = args;
     let webp = webp.get(small)?;
     // every engine's folders, the warp maps of its transitions and the screens
     let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS]).collect();
@@ -61,7 +67,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
     let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format(small)?, webp };
-    let Built { mut ir, notes, metrics, engine, engine_doc, picture_dirs, audio_dirs, package, translation } = compile(&opts)?;
+    let Built { mut ir, notes, mut metrics, engine, engine_doc, picture_dirs, audio_dirs, package, translation } = compile(&opts)?;
     ir.version = Some(version::line());
     // the engine fills the text from the table of the script's first `language`
     if ir.language.is_empty() {
@@ -75,6 +81,11 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         let (table, kept) = conv_cons::strtab::translated(&rows, &other.rows);
         println!("  text.{}.txt: {} of {} lines from the {} build, {kept} kept as in text.{}.txt", t.language, rows.len() - kept, rows.len(), t.language, ir.language);
         tables.push((t.language.clone(), table));
+    }
+    if dry_run {
+        // NSS fades each picture on its own: a print counts once per picture
+        let ours = conv_cons::parity::animated_ms(&source, &lines, |f| metrics.source_ms.contains_key(f), engine == "nitroplus");
+        metrics.ours_ms = ours;
     }
     if let Some(path) = source_map {
         let text: String = lines.iter().map(|(n, at)| match at {
@@ -112,6 +123,10 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         let game = output.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let json = metrics.json(&game, engine, engine_doc, env!("CONV_COMMIT"), env!("CONV_COMMIT_DATE"));
         fs::write(output.join("metrics.json"), json)?;
+        if let Some(path) = parity_report {
+            let text: String = metrics.parity().iter().map(|(s, src, ours, short)| format!("{s}\t{src}\t{ours}\t{short}\n")).collect();
+            fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+        }
         let (calls, gaps) = metrics.totals();
         let left_out = metrics.left_out_total();
         let pct = |n: f64| 100.0 * n / (calls - left_out).max(1) as f64;
@@ -122,6 +137,18 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
             pct(full as f64),
             pct(weighted)
         );
+        if !metrics.source_ms.is_empty() {
+            let p = metrics.parity();
+            let s = |f: fn(&(&str, u64, u64, u64)) -> u64| p.iter().map(f).sum::<u64>() as f64 / 1000.0;
+            let worst = p.first().filter(|r| r.3 > 0).map_or(String::new(), |r| format!(", most in {} ({:.1} s)", r.0, r.3 as f64 / 1000.0));
+            println!(
+                "  timing parity: the source asks for {:.1} s of motion, 0.txt animates {:.1} s; short {:.1} s in {} scenes{worst} (metrics.json)",
+                s(|r| r.1),
+                s(|r| r.2),
+                s(|r| r.3),
+                p.iter().filter(|r| r.3 > 0).count()
+            );
+        }
     }
     let files = if dry_run { dry_run_files(picture_dirs, webp.is_some()) } else { dir_files(&output)? };
     summary(&output, &ir, lost, notes, Some(Some(&files)))

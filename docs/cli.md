@@ -66,6 +66,7 @@ All but `convert-script` also take the build options below.
 | `--loose` | Write assets as loose files instead of packing them into `.nsa` archives |
 | `--dry-run` | Compile and write `0.txt` only, no assets (seconds instead of minutes; the same `0.txt` as a full build) |
 | `--source-map <file>` | Also write where each `0.txt` line came from in the game's scripts (`<0.txt line>` tab `<script>:<instruction>`); only engines that record it |
+| `--parity-report <file>` | With `--dry-run`: also write the timing parity per scene, most short first (`<scene>` tab `<source ms>` tab `<our ms>` tab `<short ms>`): the motion time the source's timed moves, fades, zooms, turns and shakes ask for against the time `0.txt` animates there (`spmotion`, `print`/`bg` effects, `screenshake`…). Totals and the 10 worst scenes go in `metrics.json` (`parity`, `parity_worst`), and `tests/snapshot.sh` fails when `short_ms` rises |
 | `--small` | A smaller download: `--webp` and `--audio-codec opus` together (an explicit `--audio-codec` or `--webp-quality` still applies). `version.txt` names the media flags a build used |
 | `--webp` | Store images as near-lossless WebP, about half the size of PNG. CONscripter's web build reads it; native builds need an SDL_image with libwebp. Pictures wider or taller than WebP allows (16,383 pixels) stay PNG |
 | `--webp-quality <N>` | With `--webp` (or `--small`): lossy WebP at quality N (0-100, as `cwebp -q`; transparency stays lossless). 80 makes the pictures about a quarter of the near-lossless size and is hard to tell apart |

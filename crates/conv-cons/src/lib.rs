@@ -39,6 +39,7 @@ mod motion;
 mod movies;
 mod music;
 mod notice;
+pub mod parity;
 pub mod nsa;
 pub mod strtab;
 mod picture_screen;

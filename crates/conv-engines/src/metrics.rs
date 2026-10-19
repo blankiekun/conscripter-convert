@@ -32,12 +32,49 @@ pub struct Metrics {
     pub outside: BTreeMap<String, usize>,
     /// Calls being converted, innermost last: kind, reasons noted so far.
     open: Vec<(String, Vec<String>)>,
+    /// Timing parity: per scene (a script file), the motion time in ms
+    /// its source calls ask for (every timed move, fade, zoom, turn and
+    /// shake: [`motion`](Self::motion)); every scene that made a call is
+    /// here, with 0 when none was timed.
+    pub source_ms: BTreeMap<String, u64>,
+    /// Per scene, the time our `0.txt` animates there (the dry run fills
+    /// it in from the emitted script and its source map).
+    pub ours_ms: BTreeMap<String, u64>,
 }
 
 /// How many reasons and outside notes the JSON keeps per list.
 const TOP: usize = 5;
+/// How many of the scenes most short of motion time the JSON names.
+const PARITY_WORST: usize = 10;
 
 impl Metrics {
+    /// A source call in `scene` that asks for `ms` of motion (0: none, but
+    /// the scene is known: its own `0.txt` lines are told apart from those
+    /// of the files it calls into).
+    pub fn motion(&mut self, scene: &str, ms: u64) {
+        match self.source_ms.get_mut(scene) {
+            Some(t) => *t += ms,
+            None => {
+                self.source_ms.insert(scene.to_string(), ms);
+            }
+        }
+    }
+
+    /// Per scene: (scene, source ms, ours, short: what ours lacks), the
+    /// scenes most short first.
+    pub fn parity(&self) -> Vec<(&str, u64, u64, u64)> {
+        let mut v: Vec<_> = self
+            .source_ms
+            .iter()
+            .map(|(s, &src)| {
+                let ours = self.ours_ms.get(s).copied().unwrap_or(0);
+                (s.as_str(), src, ours, src.saturating_sub(ours))
+            })
+            .collect();
+        v.sort_by(|a, b| b.3.cmp(&a.3).then(a.0.cmp(b.0)));
+        v
+    }
+
     /// A call starts: notes until its [`end`](Self::end) are its gaps.
     pub fn begin(&mut self, kind: &str) {
         self.open.push((kind.to_string(), Vec::new()));
@@ -90,6 +127,9 @@ impl Metrics {
 
     /// Adds `other`'s counts.
     pub fn merge(&mut self, other: Metrics) {
+        for (s, ms) in other.source_ms {
+            *self.source_ms.entry(s).or_default() += ms;
+        }
         for (name, o) in other.kinds {
             let k = self.kinds.entry(name).or_default();
             k.calls += o.calls;
@@ -162,8 +202,22 @@ impl Metrics {
                 k.weighted
             );
         }
-        s += &format!("\n}},\n\"outside_calls\": {}\n}}\n", top(&self.outside));
-        s
+        s += &format!("\n}},\n\"outside_calls\": {}", top(&self.outside));
+        // Timing parity (tests/snapshot.sh ratchets short_ms), when the engine reports it.
+        if !self.source_ms.is_empty() {
+            let p = self.parity();
+            let sum = |f: fn(&(&str, u64, u64, u64)) -> u64| p.iter().map(f).sum::<u64>();
+            let worst: Vec<String> = p.iter().take(PARITY_WORST).filter(|r| r.3 > 0).map(|r| format!("[{}, {}, {}]", q(r.0), r.1, r.2)).collect();
+            s += &format!(
+                ",\n\"parity\": {{\"source_ms\": {}, \"ours_ms\": {}, \"short_ms\": {}, \"scenes_short\": {}}},\n\"parity_worst\": [{}]",
+                sum(|r| r.1),
+                sum(|r| r.2),
+                sum(|r| r.3),
+                p.iter().filter(|r| r.3 > 0).count(),
+                worst.join(", ")
+            );
+        }
+        s + "\n}\n"
     }
 }
 
@@ -234,6 +288,20 @@ mod tests {
         let json = m.json("g", "e", "d", "abc", "2026-10-16");
         assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8}"), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
+        assert!(!json.contains("parity"), "{json}");
+    }
+
+    #[test]
+    fn parity_totals_and_worst_scenes() {
+        let mut m = Metrics::default();
+        m.motion("a.nss", 16000);
+        m.motion("a.nss", 1000);
+        m.motion("b.nss", 0);
+        m.motion("c.nss", 500);
+        m.ours_ms = [("a.nss".to_string(), 1000), ("b.nss".to_string(), 300), ("c.nss".to_string(), 500)].into();
+        assert_eq!(m.parity()[0], ("a.nss", 17000, 1000, 16000));
+        let json = m.json("g", "e", "c", "d");
+        assert!(json.ends_with("\"parity\": {\"source_ms\": 17500, \"ours_ms\": 1800, \"short_ms\": 16000, \"scenes_short\": 1},\n\"parity_worst\": [[\"a.nss\", 17000, 1000]]\n}\n"), "{json}");
     }
 
     #[test]
