@@ -19,6 +19,7 @@ CODE = {
     0x1030: "a100000010 c3",                # glob(): mov eax,[0x10000000]; ret
     0x1040: "6a05 ff1550114000 03442404 c3",  # imp1(a): push 5; call [IAT] (stdcall, 1 arg); add eax,[esp+4]; ret
     0x1050: "64a100000000 c3",              # seh(): mov eax,fs:[0]; ret (an MSVC SEH prologue's read)
+    0x1060: "6a02 6a28 e897ffffff 83c408 c3",  # outer(): push 2; push 40; call add; add esp,8; ret
     0x1100: "40110000 00000000 00000000 60110000 50110000",  # import descriptor, then a zero one
     0x1140: "70110000",                    # lookup table: the hint/name at 0x1170
     0x1150: "70110000",                    # IAT
@@ -59,6 +60,10 @@ def main():
     e.stubs[STUBS] = 100
     assert e.call(BASE + 0x1020, [7])[0] == 107
     assert e.hits[-1][:2] == (STUBS, "k.dll!F")
+    assert e.call(BASE + 0x1060)[0] == 42
+    e.stubs[BASE + 0x1000] = 9  # a function inside the image stubbed: a call to it returns at once
+    assert e.call(BASE + 0x1060)[0] == 9
+    del e.stubs[BASE + 0x1000]
     # a stub as a function of its arguments, popping them as stdcall
     exe_call.STDCALL["F"] = 1
     e.stub_import("K.DLL!f", lambda e, at: 10 * struct.unpack("<I", e.read(at, 4))[0])

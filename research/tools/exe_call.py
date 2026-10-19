@@ -27,6 +27,7 @@ does that from the command line.
 """
 import argparse
 import io
+import re
 import struct
 import sys
 import os
@@ -46,8 +47,8 @@ RET = 0xef000000          # the return address; the call ends when it is reached
 TIB = 0xef100000          # x86: the thread block FS points at
 NSO_BASE = 0x100000       # where Ghidra puts an ET_DYN image
 PAGE = 0x1000
-# argument counts of the stdcall Win32 imports a stub pops (a stub of one not
-# listed leaves its arguments on the stack: add it here)
+# argument counts of the stdcall Win32 imports a stub pops; one not listed is
+# looked up in the mingw-w64 import libraries (stdcall_counts)
 STDCALL = {"timeGetTime": 0, "GetTickCount": 0, "GetProcessHeap": 0, "GetCurrentThreadId": 0, "GetForegroundWindow": 0,
            "QueryPerformanceCounter": 1, "Sleep": 1, "ReleaseMutex": 1, "SetEvent": 1, "ResetEvent": 1, "CloseHandle": 1,
            "EnterCriticalSection": 1, "LeaveCriticalSection": 1, "SuspendThread": 1, "ResumeThread": 1,
@@ -55,7 +56,26 @@ STDCALL = {"timeGetTime": 0, "GetTickCount": 0, "GetProcessHeap": 0, "GetCurrent
            "SendMessageA": 4, "VirtualAlloc": 4, "VirtualFree": 3, "GlobalAlloc": 2, "GlobalFree": 1,
            "TlsGetValue": 1, "TlsSetValue": 2, "FlsGetValue": 1, "FlsSetValue": 2, "GetLastError": 0,
            "SetLastError": 1, "GetCurrentProcess": 0, "InterlockedIncrement": 1, "InterlockedDecrement": 1,
-           "InterlockedExchange": 2, "OutputDebugStringA": 1, "timeBeginPeriod": 1, "timeEndPeriod": 1}
+           "InterlockedExchange": 2, "OutputDebugStringA": 1, "timeBeginPeriod": 1, "timeEndPeriod": 1,
+           "EncodePointer": 1, "DecodePointer": 1, "GetModuleHandleA": 1, "GetProcAddress": 2}
+
+
+def stdcall_counts():
+    """argument counts of every stdcall export in the mingw-w64 import libraries
+    (`_SetCursorPos@8`), when the cross toolchain is there; else {}"""
+    import glob
+    import subprocess
+    out = {}
+    libs = glob.glob("/usr/i686-w64-mingw32/lib/lib*.a")
+    if not libs:
+        return out
+    try:
+        nm = subprocess.run(["i686-w64-mingw32-nm", "-g"] + libs, capture_output=True, text=True).stdout
+    except OSError:
+        return out
+    for m in re.finditer(r" T _(\w+)@(\d+)$", nm, re.M):
+        out.setdefault(m.group(1), int(m.group(2)) // 4)
+    return out
 
 
 def up(n):
@@ -344,13 +364,21 @@ class Exe:
         if getattr(self, "_hooked", None) == set(self.stubs):
             return
         self._hooked = set(self.stubs)
+        done = self.__dict__.setdefault("_hook_at", set())  # a hook stays once added: one per address
         for a in self.stubs:
-            if a in range(*self.range):
-                self.uc.hook_add(UC_HOOK_CODE, self._inner, begin=a & ~1, end=a & ~1)
+            if a in range(*self.range) and a not in done:
+                done.add(a)
+                at = a & ~1 if self.arch == "arm" else a  # (a Thumb address's low bit; x86 code sits at odd ones)
+                self.uc.hook_add(UC_HOOK_CODE, self._inner, begin=at, end=at)
+                self.uc.ctl_remove_cache(at, at + 1)  # a block translated before has no hook
 
     def _inner(self, uc, address, size, data):
-        self._stub_pc = self._pc()
-        uc.emu_stop()
+        # return from the stubbed function right here (an emu_stop takes effect only at the block's end)
+        key = address | 1 if self.arch == "arm" and address | 1 in self.stubs else address
+        if key not in self.stubs:  # a stub taken away since
+            return
+        back = self._stub(address, self.stubs[key], "stubbed")
+        uc.reg_write({"x86": X.UC_X86_REG_EIP, "arm": A.UC_ARM_REG_PC, "arm64": A64.UC_ARM64_REG_PC}[self.arch], back)
 
     def _pc(self):
         return self.uc.reg_read({"x86": X.UC_X86_REG_EIP, "arm": A.UC_ARM_REG_PC, "arm64": A64.UC_ARM64_REG_PC}[self.arch])
@@ -364,7 +392,12 @@ class Exe:
             if callable(value):
                 value = value(self, sp + 4)
             # a Win32 import is stdcall: it pops its arguments (STDCALL); others are taken as cdecl
-            pop = 4 * STDCALL.get(self.imports.get(pc, "").split("!")[-1], 0)
+            fn = self.imports.get(pc, "").split("!")[-1]
+            if fn and fn not in STDCALL:
+                if not hasattr(Exe, "_counts"):
+                    Exe._counts = stdcall_counts()
+                STDCALL[fn] = Exe._counts.get(fn, 0)  # 0: a cdecl import (msvcrt), or one no import library knows
+            pop = 4 * STDCALL.get(fn, 0)
             uc.reg_write(X.UC_X86_REG_ESP, sp + 4 + pop)
             uc.reg_write(X.UC_X86_REG_EAX, value & 0xffffffff)
             return struct.unpack("<I", self.read(sp, 4))[0]
