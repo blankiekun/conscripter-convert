@@ -195,6 +195,13 @@ pub fn check(files: &BTreeMap<String, NssFile>) -> Report {
     report
 }
 
+/// The names called in `stmts`, in order (built-ins and functions alike).
+pub fn calls_in(stmts: &[Stmt]) -> Vec<String> {
+    let mut walk = Walk { strings: Vec::new(), calls: Vec::new(), targets: Vec::new() };
+    walk.stmts(stmts);
+    walk.calls.into_iter().map(|c| c.1).collect()
+}
+
 /// Collects what one file refers to.
 struct Walk {
     /// (line, string literal)

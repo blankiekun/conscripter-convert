@@ -39,7 +39,7 @@ scene a.nss
 "#;
     // The whole story: `$分岐` may hold anything when the file starts.
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_story(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+    let c = compile_story(&files, "a.nss", "a.nss", &Game::PLAIN, &mut fake()).unwrap();
     let texts: Vec<&str> = c.ops.iter().filter_map(|op| if let Op::Text { text, .. } = op { Some(text.as_str()) } else { None }).collect();
     assert!(texts.iter().any(|t| t.contains('甲')) && texts.iter().any(|t| t.contains('乙')), "{texts:?}");
     assert_eq!(texts.len(), 3, "{texts:?}");

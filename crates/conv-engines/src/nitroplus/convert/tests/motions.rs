@@ -85,7 +85,7 @@ scene a.nss
 "#;
     static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     let shown: Vec<Vec<&str>> = c.ops.iter().filter_map(|op| match op {
         Op::Sprites { changes, .. } => Some(changes.iter().filter_map(|c| c.sprite.as_ref().map(|s| s.image.as_str())).collect()),
         _ => None,
@@ -114,7 +114,7 @@ scene a.nss
 "#;
     static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     let motions: Vec<&Vec<MotionKey>> = c.ops.iter().filter_map(|op| match op {
         Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys),
         _ => None,
@@ -147,7 +147,7 @@ scene a.nss
 }
 "#;
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut fake()).unwrap();
     let keys = c.ops.iter().find_map(|op| match op {
         Op::SpriteMotion2 { keys, .. } => Some(keys),
         _ => None,
@@ -175,7 +175,7 @@ scene a.nss
 "#;
     static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
     let lasts: Vec<u32> = c.ops.iter().filter_map(|op| match op {
         Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys.last().unwrap().zoom),
@@ -297,7 +297,7 @@ scene a.nss
 "#;
     static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     let motions = c.ops.iter().filter(|op| matches!(op, Op::SpriteMotion2 { .. })).count();
     assert_eq!(motions, 2, "{:?}", c.ops);
 }

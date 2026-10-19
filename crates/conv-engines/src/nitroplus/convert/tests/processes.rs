@@ -31,7 +31,7 @@ fn a_branch_that_left_the_chapter_early_goes_on_from_where_it_left() {
 }"#;
     files.insert("a.nss".into(), nss::parse(a).unwrap());
     files.insert("b.nss".into(), nss::parse(b).unwrap());
-    let c = compile_story(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+    let c = compile_story(&files, "a.nss", "a.nss", &Game::PLAIN, &mut fake()).unwrap();
     // The bad end is drawn over "one", not under the other answer's
     // "two", which it never saw.
     let bad = c.ops.iter().position(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/bad.png"))));
@@ -151,7 +151,7 @@ function Nothing()
     // the game's exe eases fades.
     assert!(!c.ops.iter().any(|op| matches!(op, Op::TransitionEase { .. })), "{:?}", c.ops);
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let eased = compile_scene(&files, "a.nss", "a.nss", &Game { fade_tempo: Some(tempo), ..Game::PLAIN }, &mut Fake).unwrap();
+    let eased = compile_scene(&files, "a.nss", "a.nss", &Game { fade_tempo: Some(tempo), ..Game::PLAIN }, &mut fake()).unwrap();
     assert!(eased.ops.iter().any(|op| matches!(op, Op::TransitionEase { ease: 1, exponent: 2 })), "{:?}", eased.ops);
     assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
 }

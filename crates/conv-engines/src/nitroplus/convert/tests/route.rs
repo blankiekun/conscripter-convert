@@ -15,7 +15,7 @@ fn route_ranking_runs_as_runtime_comparisons() {
 	$GameCircle = 0;
 }"#;
     let files = nss_files("function RouteChicker(){}", &[("a.nss", story)]);
-    let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut Fake).unwrap();
+    let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut fake()).unwrap();
     let vars = run_ir(&c.ops);
     let flags = story_flags(&files, &MURAMASA);
     let rank = |n: &str| vars.get(&flags[&format!("$RC_N[{n}]")]).copied();
@@ -35,7 +35,7 @@ fn the_heroine_with_the_highest_counter_dies_and_set_hex_clears_her_counter() {
 }"#;
     let files = nss_files("function SatugaiSystem(){}
 function SetHex(){}", &[("a.nss", story)]);
-    let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut Fake).unwrap();
+    let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut fake()).unwrap();
     let vars = run_ir(&c.ops);
     let flags = story_flags(&files, &MURAMASA);
     let get = |k: &str| vars.get(&flags[k]).copied().unwrap_or(0);

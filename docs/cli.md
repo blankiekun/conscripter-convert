@@ -111,6 +111,7 @@ Low-level subcommands for inspecting each engine's files. `conscripter-convert <
 | `conscripter-convert nss check` | Parse `*.nss` scripts and report failures |
 | `conscripter-convert nss refs` | Check scenes, chapters, files and functions exist; list built-ins used |
 | `conscripter-convert nss builtins` | Argument counts and common values of each built-in (`--top`) |
+| `conscripter-convert nss helpers <dir> [--probe <exe>]` | The functions that chain two or more timed built-ins, most called first; `--probe Django.exe` (or `Muramasa.exe`) also compiles each called one after the scheduler's fixed contexts (an unwaited 16 s `Move` of the same picture, of another, of one just made) with the game's own library, and shows the time ledger's notes it adds and whether the move is still drawn. Arguments after the object are all 1000 (a guess). Muramasa takes about 10 min. Holds game names: keep the output in `out/` |
 | `conscripter-convert nss route` | Route map: each story file's next files and conditions |
 | `conscripter-convert mages list` | List a `*.cpk` or `*.AWB` |
 | `conscripter-convert mages extract` | Extract files (`-o <dir>`, `--prefix`) |

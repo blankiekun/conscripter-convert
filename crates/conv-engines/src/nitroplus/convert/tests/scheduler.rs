@@ -96,3 +96,16 @@ fn a_zero_ms_fade_stops_the_one_in_flight_at_its_value() {
     let pause = c.ops.iter().position(|op| matches!(op, Op::Pause { .. })).unwrap();
     assert!(c.ops[pause..].iter().any(|op| matches!(op, Op::SpriteOpacity { opacity: 153, .. })), "{:?}", c.ops);
 }
+
+#[test]
+fn the_helper_census_and_probe_see_fade_fade() {
+    let mut files = nss_files(&format!("{LIBRARY}{HELPERS}"), &[]);
+    let helpers = super::probe::census(&files);
+    let ff = helpers.iter().find(|h| h.name == "FadeFade").unwrap();
+    assert_eq!((ff.timed.as_slice(), ff.takes_name, ff.params), (&["Fade".to_string(), "Fade".to_string()][..], true, 5));
+    assert!(!helpers.iter().any(|h| h.name == "TypeEndFade"), "one timed call only");
+    for (_, context) in super::probe::CONTEXTS {
+        let (notes, kept) = super::probe::probe(&mut files, &Game::PLAIN, context, "FadeFade(\"p\", 1000, 1000, null, true);").unwrap();
+        assert!(kept && notes.is_empty(), "{notes:?}");
+    }
+}

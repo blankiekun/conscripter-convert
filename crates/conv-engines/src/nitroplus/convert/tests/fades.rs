@@ -48,7 +48,7 @@ fn a_waited_fade_of_the_texts_window_fades_the_text_out() {
     let story = "scene a.nss\n{\n\tCreateWindow(\"box00\", 10300, 50, 472, 750, 130, true);\n\tRequest(\"@text001\", \"Enter\");\n<PRE box00>\n[text001]\nあ\n</PRE>\n\tFade(\"@box*\", 100, 0, null, true);\n}\n";
     static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     assert!(c.ops.iter().any(|op| matches!(op, Op::WindowFade { alpha: 0, ms: 100, .. })), "{:?}", c.ops);
     assert!(!c.ops.iter().any(|op| matches!(op, Op::HideTextWindow)), "{:?}", c.ops);
 }

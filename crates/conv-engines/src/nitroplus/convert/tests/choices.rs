@@ -71,7 +71,7 @@ fn a_choice_forks_the_run_to_each_branch_file() {
     files.insert("b.nss".into(), nss::parse(&main("b.nss", r#"$GameName = "d.nss";"#)).unwrap());
     files.insert("c.nss".into(), nss::parse(&main("c.nss", r#"if($flag){$GameName = "b.nss";}else{$GameName = "d.nss";}"#)).unwrap());
     files.insert("d.nss".into(), nss::parse(&main("d.nss", "$GameCircle = 0;")).unwrap());
-    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
+    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut fake()).unwrap();
     assert_eq!(played, ["a.nss", "b.nss", "c.nss", "d.nss"]);
     let Some(Op::Choice { options, style, .. }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
     assert_eq!(options.iter().map(|o| o.0.as_str()).collect::<Vec<_>>(), ["はい", "いいえ"]);
@@ -105,7 +105,7 @@ fn a_choice_option_set_in_a_nested_runtime_if_is_picked_at_run_time() {
 }"#;
     files.insert("a.nss".into(), nss::parse(a).unwrap());
     files.insert("b.nss".into(), nss::parse("scene b.nss_MAIN\n{\n\tif($day == 1 && $friend == 2){$x = 1;}\n\t$GameCircle = 0;\n}").unwrap());
-    let (c, _) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
+    let (c, _) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut fake()).unwrap();
     let ask = story_flags(&files, &Game::PLAIN)["$ask"];
     assert!(CHOICE_FLAGS.contains(&ask.index), "{ask:?}");
     let Some(Op::RuntimeChoice { options, texts, .. }) = c.ops.iter().find(|op| matches!(op, Op::RuntimeChoice { .. })) else { panic!("{:?}", c.ops) };
@@ -128,7 +128,7 @@ fn a_choice_that_names_its_own_file_replays_it() {
 	select { case @選択肢１ { $GameName = "a.nss"; } case @選択肢２ { $GameName = "b.nss"; } }"#;
     files.insert("a.nss".into(), nss::parse(&main("a.nss", a)).unwrap());
     files.insert("b.nss".into(), nss::parse(&main("b.nss", "$GameCircle = 0;")).unwrap());
-    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
+    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut fake()).unwrap();
     assert_eq!(played, ["a.nss", "b.nss"]);
     let var = conv_core::ir::Var { global: false, index: FORK_VARS.start };
     assert!(c.ops.contains(&Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), label: "f_a".into() }), "{:?}", c.ops);
@@ -162,7 +162,7 @@ scene {name}_Y
     files.insert("a.nss".into(), nss::parse(&file("a.nss", 1, "b.nss")).unwrap());
     files.insert("b.nss".into(), nss::parse(&file("b.nss", 3, "d.nss")).unwrap());
     files.insert("d.nss".into(), nss::parse("scene d.nss_MAIN\n{\n\tif($g){$f = 1;}\n\t$GameCircle = 0;\n}").unwrap());
-    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
+    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut fake()).unwrap();
     assert_eq!(played, ["a.nss", "b.nss", "d.nss"]);
     let flags = story_flags(&files, &Game::PLAIN);
     // $f is 0: each file calls its own _Y scene, b.nss's last.
@@ -177,7 +177,7 @@ fn a_replay_compiles_a_file_again_with_its_variables_set() {
         ..Game::PLAIN
     };
     let files = nss_files("function F(){}", &[("a.nss", "scene a.nss_MAIN\n{\n\tif($f){$g = 1;}\n\t$GameCircle = 0;\n}"), ("r.nss", "scene r.nss_MAIN\n{\n\tif($PLACE_reco){$f = 7;}else{$f = 3;}\n\t$GameCircle = 0;\n}")]);
-    let (c, _) = compile_run(&files, "a.nss", 10, &GAME, &mut Fake).unwrap();
+    let (c, _) = compile_run(&files, "a.nss", 10, &GAME, &mut fake()).unwrap();
     let f = story_flags(&files, &GAME)["$f"];
     let at = c.ops.iter().position(|op| *op == Op::Label("conv_r".into())).expect("the replay's label");
     let sets: Vec<_> = c.ops[at..].iter().filter_map(|op| match op {
@@ -202,7 +202,7 @@ fn flags_a_choice_sets_are_tested_at_run_time_after_it() {
     for n in ["b.nss", "c.nss"] {
         files.insert(n.into(), nss::parse(&format!("scene {n}_MAIN\n{{\n\t$GameCircle = 0;\n}}")).unwrap());
     }
-    let (_, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
+    let (_, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut fake()).unwrap();
     assert_eq!(played, ["a.nss", "b.nss", "c.nss"]);
 }
 
@@ -234,7 +234,7 @@ fn a_choice_inside_a_runtime_if_hands_each_option_s_file_to_the_code_after_it() 
     for n in ["b.nss", "c.nss"] {
         files.insert(n.into(), nss::parse(&t_reads.replace("x.nss", n)).unwrap());
     }
-    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
+    let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut fake()).unwrap();
     assert!(played.contains(&"c.nss".to_string()), "{played:?}");
     let flags = story_flags(&files, &Game::PLAIN);
     let next = flags["$Next"];
