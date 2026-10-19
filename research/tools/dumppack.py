@@ -50,6 +50,45 @@ def unpack(d, lab):
     return zstd.decompress(c, options={D.window_log_max: 31})
 
 
+class Memory:
+    """A dump's memory read without an emulator (a few hundred MB less than
+    exe_call's load_dump): read(addr, n), ptr(addr). The exe's own image comes
+    from the dump too (its globals)."""
+
+    def __init__(self, prefix):
+        self.pages = {}  # page number -> 4 KB view; a scene's pages replace the base's
+        self._load(prefix)
+
+    def _load(self, prefix):
+        d, lab = os.path.dirname(prefix) or ".", os.path.basename(prefix)
+        blob = memoryview(unpack(d, lab))
+        for line in open(prefix + ".map"):
+            f = line.split()
+            if f[0] == "base":
+                self._load(os.path.join(d, f[1]))
+            elif f[0] == "P":
+                self._put(int(f[1], 16), blob[int(f[3], 16):int(f[3], 16) + int(f[2], 16)])
+            elif f[0] != "zstd-from" and f[4] not in ("-", "d"):
+                self._put(int(f[0], 16), blob[int(f[4], 16):int(f[4], 16) + int(f[1], 16)])
+
+    def _put(self, addr, data):  # page by page, so a scene's pages replace the base's
+        for i in range(0, len(data), 4096):
+            self.pages[(addr + i) >> 12] = data[i:i + 4096]
+
+    def read(self, addr, n):
+        out = bytearray()
+        while n > 0:
+            pg = self.pages.get(addr >> 12)
+            o = addr & 0xfff
+            k = min(n, 4096 - o)
+            out += pg[o:o + k] if pg is not None else bytes(k)
+            addr, n = addr + k, n - k
+        return bytes(out)
+
+    def ptr(self, addr):
+        return int.from_bytes(self.read(addr, 4), "little")
+
+
 def pack(d, every, final):
     labs = sorted(f[:-4] for f in os.listdir(d) if re.fullmatch(r"s\d{4}\.bin", f)
                   and not os.path.exists(os.path.join(d, f + ".zst")))  # (a keyframe's raw stays)

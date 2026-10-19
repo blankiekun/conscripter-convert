@@ -205,6 +205,42 @@ def retarget(text, scene, page, target):
     return t.encode('cp932')
 
 
+def blank(b):
+    """bytes as spaces, line breaks kept: code gone, every later offset and line the same"""
+    return re.sub(rb'[^\r\n]', b' ', b)
+
+
+def last_page_django(text, cut, page):
+    """True when page is the last text block of Django's cut C: a save there
+    needs no cut (blanking the rest of a cut, as Muramasa's retarget cuts,
+    hangs the load: its compiled records reach past the resume point)"""
+    t = text.decode('cp932')
+    m = re.search(r'\ncut\s+' + re.escape(cut) + r'\s*\{', t)
+    end = block_end(t, m.end() - 1)
+    pg = t.index('[%s]' % page, m.end())
+    return '<PRE' not in t[pg:end]
+
+
+def call_next(text, called, target):
+    """In a saved file that `call_chapter`s `called`: the calls after it in
+    its block become one call of target, blanked to the same length in
+    bytes. None when no call follows it there or the room is too small."""
+    h = text.decode('cp932')
+    me = re.search(r'call_chapter\s+nss/' + re.escape(called) + r'[^\n]*', h)
+    if not me:
+        return None
+    bend = block_end(h, h.rfind('{', 0, me.start()))
+    nxt = re.compile(r'call_chapter\s+nss/').search(h, me.end(), bend)
+    if not nxt:
+        return None
+    a, b = len(h[:nxt.start()].encode('cp932')), len(h[:bend].encode('cp932'))
+    call = ('call_chapter nss/' + target + ';').encode('cp932')
+    room = blank(text[a:b])
+    if len(call) > len(room):
+        return None
+    return text[:a] + call + room[len(call):] + text[b:]
+
+
 def script_files(d):
     """(name, offset, length) of every saved script text: `nss\\x.nss`, 4 x NUL, u32 length, text."""
     out = []
@@ -213,6 +249,35 @@ def script_files(d):
         if m.end() + 4 + n <= len(d):
             out.append((m.group()[:-4].decode('cp932'), m.end() + 4, n))
     return out
+
+
+def script_replace(d, name, new):
+    """d with the saved text of `name` replaced by new (the total size kept right)"""
+    at, size = [(a, n) for f, a, n in script_files(d) if f.lower() == ('nss\\' + name).lower()][-1]
+    d = d[:at - 4] + struct.pack('<I', len(new)) + new + d[at + size:]
+    return d[:8] + struct.pack('<I', struct.unpack_from('<I', d, 8)[0] + len(new) - size) + d[12:]
+
+
+def script_text(d, name):
+    at, size = [(a, n) for f, a, n in script_files(d) if f.lower() == ('nss\\' + name).lower()][-1]
+    return d[at:at + size]
+
+
+def script_retarget_django(d, scene, cut, page, target):
+    """Django: the template stands on the last page of its scene (no cut);
+    from the innermost saved file calling the scene outwards (the chapter
+    file, then dja000's main_root), the first with a later call goes to the
+    target instead"""
+    if not last_page_django(script_text(d, scene + '.nss'), cut, page):
+        sys.exit(f'scene: a Django template must stand on the last page of its scene ({scene} {page} is not)')
+    called = scene + '.nss'
+    for f, a, n in reversed(script_files(d)):
+        new = call_next(d[a:a + n], called, target)
+        if new is not None:
+            return script_replace(d, f[4:], new)
+        if ('call_chapter nss/' + called).encode('cp932') in d[a:a + n]:
+            called = f[4:]  # no room after it here: the file that called this one
+    sys.exit('no saved file goes on after ' + scene)
 
 
 def script_retarget(d, scene, page, target):
@@ -225,6 +290,7 @@ def script_retarget(d, scene, page, target):
 
 # ---- folders ----------------------------------------------------------------
 TEXTS = dict(comment='cmt', chapter='cpt', date='date', time='tm')
+KEYS = dict(cmt=93, cpt=72, date=8, tm=52)  # the fixed key of a text file the template lacks (a 9999 save)
 
 
 def read_dir(tab, path):
@@ -262,10 +328,13 @@ def write(tab, src, edit, dst):
     for n, x in edit.get('vars', {}).items():
         v[n] = val_set(v.get(n), x)
     if 'scene' in edit:
-        cur = v['$GameName'][2]
-        if plain['script'][4:8] != MURAMASA:
-            sys.exit('scene: only 装甲悪鬼村正 so far (docs/games/django.md, "Save format")')
-        if edit['scene'] != cur:
+        cur = v['$GameName'][2] if '$GameName' in v else None
+        if plain['script'][4:8] != MURAMASA:  # 続・殺戮のジャンゴ: the scene file, its cut, the page
+            cur = v['$SYSTEM_spt_name'][2]
+            if edit['scene'] != cur + '.nss':
+                plain['script'] = script_retarget_django(plain['script'], cur, v['$単元名'][2],
+                                                         v['$textdecor'][2].lstrip('@'), edit['scene'])
+        elif edit['scene'] != cur:
             page = v['$SYSTEM_present_text'][2].lstrip('@')
             plain['script'] = script_retarget(plain['script'], cur, page, edit['scene'])
     plain['val'] = vals_write(plain['val'], v)
@@ -274,7 +343,7 @@ def write(tab, src, edit, dst):
         if not f.endswith('.npf') and os.path.isfile(os.path.join(src, f)):
             open(os.path.join(dst, f), 'wb').write(open(os.path.join(src, f), 'rb').read())
     for k, p in plain.items():
-        open(os.path.join(dst, k + '.npf'), 'wb').write(pack(tab, p, files[k][1]))
+        open(os.path.join(dst, k + '.npf'), 'wb').write(pack(tab, p, files[k][1] if k in files else KEYS[k]))
 
 
 def selftest(tab, path):

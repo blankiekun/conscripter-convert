@@ -686,6 +686,46 @@ flags (the template's are kept; `write` can set `vars`). So the oracle's
 cases start at scene starts; a case that needs state in flight starts
 from a played dump (`ntrace.sh --dumps` and a probe).
 
+### Scene-start check
+
+The original's objects at each scene's first text block against our
+engine's sprites on that page (2026-10-19):
+
+```sh
+python3 -I research/nitroplus/scene_saves.py <game>/Muramasa.exe <template slot> <nss> <saves> <patch> --at page > manifest.tsv
+research/tools/headless-run.sh env GAME=<game> research/nitroplus/scene_chain.py manifest.tsv <patch> research/nitroplus/local/<dir> \
+    --stall 40 -- --patch <patch> --saves <saves> --scene-at page --clicks 300
+research/tools/.venv/bin/python -I research/tools/scene_check.py research/nitroplus/scene_objects.py <game>/Muramasa.exe \
+    research/nitroplus/local/<dir>/index.tsv <start dumps> research/nitroplus/muramasa-scene-dumps.tsv <scratch> --jobs 3 --out check.jsonl
+```
+
+`--at page` puts the next `Load` after every text block of a scene, so
+the first one played goes on. `scene_chain.py` starts a new segment from
+the next scene whenever no new scene is dumped for `--stall` seconds.
+Nine scenes never reach a page from the template (`md05_004byoushitsu03*`
+and others, whose text the template's flags skip). `scene_check.py`
+runs `--goto f_<scene> --auto-play 1` in a scratch run of our build
+(`research/tools/scratch.sh`) and matches the objects by picture.
+`scene_objects.py` reads the dump: the object list, each object's
+creating call at +0x180, and its render record (x, y, alpha). Zoom and
+rotation are not located yet.
+
+The run of 2026-10-19 checked 865 scenes in 11 min (3 workers): **640
+clean**. The differences: extra 477, alpha 112, missing 105, position
+74. Not differences: occluded 73, effect 30, no-dump 9, inherited 4. The
+worst are the battle scenes (`*vs*`), mid-animation at their first page.
+The top findings, to triage:
+
+1. Battle HUD (`cg/cp/*`, 17 battle scenes, about 20 sprites each): ours
+   shows it from the first page; the original has no HUD object yet.
+2. `md05_027a`/`b`… (8 scenes): the opening `CreateTextureSP("絵巨大光",
+   …ev253_飢餓虚空の内側.jpg)` doesn't show on our first page (black).
+3. `mc04_014vsa`… (7 scenes): `ev187_銘伏の妖剣_i.jpg` missing likewise.
+4. Rain: ours draws `CreateEffect` Rain as `system/strip` sprites (16
+   scenes, counted extra). The checker should pair them.
+5. Alpha 240 against 255 on standing pictures: the original's block
+   start falls mid-fade. That is the check's timing, not a difference.
+
 ## Milestones
 
 The date each phase was reached, and its PR (`-`: none yet, or made
@@ -828,10 +868,9 @@ Open, by area (each is small; most noticeable first):
   loads under wine. (A `Fade` that leaves the opacity as it was, or
   on no object: History, "Fades that change nothing", "Actions on no
   object".)
-- **Per-scene snapshots** (2026-10-18): all 881 story scenes dumped from
-  saves ("Per-scene snapshots"). Next: compare each scene's objects with
-  our engine's at the same label (the scene-start check), then run the
-  scenes in the interpreter under Unicorn from those dumps.
+- **Scene-start check** (2026-10-19; "Per-scene snapshots"): 640 of 865
+  scenes clean; its five top findings are listed there, to triage. Then
+  run the scenes in the interpreter under Unicorn from the dumps.
 
 ## History
 
