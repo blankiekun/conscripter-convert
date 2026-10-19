@@ -141,7 +141,7 @@ fn time_ledger_notes_a_sync_held_by_an_unwaited_action() {
     // Draw holds the script for the running fade (the exe goes on).
     let held = |wait: &str| {
         let story = format!("scene a.nss\n{{\n\tCreateTexture(\"bg\", 100, 0, 0, \"cg/bg/a.jpg\");\n\tFade(\"bg\", 5000, 500, null, {wait});\n\tDraw();\n}}\n");
-        compile(&story, LIBRARY).notes.contains_key("unwaited action held the script")
+        compile(&story, LIBRARY).notes.contains_key(crate::metrics::TIMING[1])
     };
     assert!(held("false"));
     assert!(!held("true"));
@@ -164,5 +164,5 @@ scene a.nss
 }
 "#;
     let c = compile(story, LIBRARY);
-    assert!(c.notes.contains_key("timed action dropped by a sync"), "{:?} {:?}", c.notes, c.ops);
+    assert!(c.notes.contains_key(crate::metrics::TIMING[0]), "{:?} {:?}", c.notes, c.ops);
 }
