@@ -549,8 +549,6 @@ build tested headless. Output 960×544.
   the particles' real motion; `spgrab` (engine #32, merged) could let
   SpriteBG/SpriteBS with `:FadeWait 0` (890 uses, which still wait for
   their fade) cross-fade without waiting; not used yet.
-- A build from before #227 plays InOut_Act 3 and 1 as cross-fades
-  (the plugins retired, engine #72): rebuild.
 - Script errors the eboot can't read either (we convert or skip): five
   tasks with a missing or misplaced `[TaskN]` header (S01_04L, S03_03J2,
   S03C_03C twice, S04_03D; skipped because the reference trace shows the
