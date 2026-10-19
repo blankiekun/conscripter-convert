@@ -115,3 +115,23 @@ scene a.nss
     let c = compile(&story.replace("Fade(\"bg\", 700", "Fade(\"bg\", 0, 0, null, true);\n\tFade(\"bg\", 700"), LIBRARY);
     assert!(waits(&c), "{:?}", c.ops);
 }
+
+#[test]
+fn a_hidden_pictures_unwaited_move_goes_on() {
+    // FadeFade (dja010_01:76-78): hidden at once, then faded in while it pans.
+    let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, -560, 0, "cg/bg/a.jpg");
+	Wait(0);
+	Move("bg", 16000, @320, @0, null, false);
+	Fade("bg", 0, 0, null, true);
+	Fade("bg", 1000, 1000, null, true);
+}
+"#;
+    let c = compile(story, LIBRARY);
+    let fades: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::BeginTransition { fade_ms, .. } => Some(*fade_ms), _ => None }).collect();
+    // (The hide at once, not over the move's time: one 1 s fade, the last.)
+    assert_eq!((fades.iter().filter(|&&f| f == 1000).count(), fades.last()), (1, Some(&1000)), "{:?}", c.ops);
+    assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteMotion2 { keys, .. } if keys.iter().any(|k| k.ms == 16000))), "{:?}", c.ops);
+}
