@@ -488,8 +488,9 @@ impl Compiler<'_, '_> {
                     from.extend(children.iter().map(|c| (c.clone(), *d)));
                     moved.extend(children);
                 }
-                // (Not shown yet: shown at its start by the next sync, and moved.)
-                for (t, (dx, dy)) in from.into_iter().filter(|(t, _)| ms > 0 && !self.shown.contains_key(t)) {
+                // (Not shown yet: shown at its start by the next sync, and moved;
+                // a shown one's start is kept too, should a sync hide it first.)
+                for (t, (dx, dy)) in from.into_iter().filter(|_| ms > 0) {
                     let d = self.pending_from.entry(t).or_default();
                     *d = (d.0 + dx, d.1 + dy);
                 }
