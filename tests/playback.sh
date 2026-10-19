@@ -21,7 +21,7 @@
 # a renamed copy (other agents `pkill -x conscripter`), SDL dummy video
 # and audio, in 3 GiB (research/tools/capped.sh) and $PLAYBACK_TIMEOUT s
 # (default 400) per game; --pages N text pages (default 3000) or the end
-# (all six games: about 8 minutes, the engine under 100 MB). A game stops
+# (all seven games: about 10 minutes, the engine under 100 MB). A game stops
 # early where it must press a button that has no picture (Django: its
 # first choice plate, page 559).
 # Each run is left in out/playback/<game> (trace.jsonl, check.json).
@@ -59,7 +59,8 @@ while [ $# -gt 0 ]; do
     shift
 done
 ids=("$@")
-[ ${#ids[@]} -gt 0 ] || ids=(saihate-no-ima muramasa muramasa-en django oretsuba tsukihime)
+# every game with a dry run
+[ ${#ids[@]} -gt 0 ] || for d in out/snapshot/*/0.txt; do d=${d%/0.txt}; ids+=("${d##*/}"); done
 
 engine=engine/build/conscripter
 # configured once, then made each run (quick when the engine is unchanged)

@@ -46,7 +46,7 @@ bullet you need.
   and 400 s at most; then `cons_trace_check.py` on the trace, and the
   `jump` and `duration` counts against `tests/snapshots/<game>.playback`
   (ceilings as the `.lint` files: a rise fails, `--update` lowers). All
-  six games take about 8 minutes. A game stops where it must press a
+  seven games take about 10 minutes. A game stops where it must press a
   button with no picture (Django at its first choice plate, page 559).
   Runs are left in `out/playback/<game>`; `--self-test` checks the
   compare.
