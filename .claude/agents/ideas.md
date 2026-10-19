@@ -40,7 +40,7 @@ Write the list to `out/lead-scratch/ideas/<YYYY-MM-DD>-<focus-slug>.md`. For eac
 - Risk: what could break, or the trade-off
 - Dependencies: ideas it relies on or unlocks
 
-End with: Top 3 (one sentence each), Quick wins (under an hour), Open questions for the user.
+End with: Top 3 (one sentence each), Quick wins (under an hour), Decisions for the user (choices only the user can make; a question of fact about the original or the code is for its decompile/scripts: answer it or list it as an idea to research).
 
 ## Rules
 
@@ -48,6 +48,6 @@ End with: Top 3 (one sentence each), Quick wins (under an hour), Open questions 
 - Specific over sweeping ("add X to `fn y` in `crates/.../z.rs`", not "improve error handling").
 - Respect the repo's conventions and CLAUDE.md's Rules unless the focus asks to change them.
 - If something is already handled well, say so in one line and move on.
-- An ambiguous focus or one that conflicts with the repo goes in Open questions, not a guess.
+- An ambiguous focus or one that conflicts with the repo goes in Decisions for the user, not a guess.
 - Your final report to the lead: at most 8 lines (the file path, the top 3, the quick wins).
 Also follow out/lead-scratch/ENGINE-AGENT-RULES.txt for engine work.
