@@ -9,6 +9,15 @@ and every name in that column must be a kind (or in OTHER: names that
 are not kinds). Xuse opcodes are hex: `0x01-0x0e` is a range (one
 member must be a kind), `0x40, 0x41` a list. A game without a table
 is skipped. Exits 1 on any finding.
+
+`(scheduler)` rows (docs/new-game.md step 15) answer the overlap
+questions in QUESTIONS, one row each, the question in the second column.
+Each row's last column names its check: a test (`file.rs::fn`, a path
+under crates/ ending so, holding `fn <fn>`) or a ledger reason
+(`ledger: "<reason>"`, a string the converter's source holds). A name
+that doesn't exist fails. A game missing questions only warns, up to its
+SCHED_MAX ceiling (lowered as rows land, never raised). Every run
+self-tests the check first (`--self-test`: only that).
 """
 import json
 import os
@@ -32,6 +41,12 @@ OTHER = {
 }
 # ceiling per game for rows marked inferred or unknown (status/mark column): lower it as rows become seen, never raise it
 OPEN_MAX = {"django": 6, "muramasa-en": 4, "muramasa": 33, "saihate-no-ima": 1, "oretsuba": 15, "tsukihime": 35}
+# the overlap questions every game with timed actions answers in `(scheduler)` rows
+QUESTIONS = ("unwaited goes on", "0 ms on in-flight", "wait on in-flight", "replace or delete while moving")
+# ceiling per game of questions with no `(scheduler)` row: a warning up to it, a failure over it.
+# shortcut: every game starts at all 4 (no rows yet, 2026-10-18); a game not listed gets all 4 too.
+# Lower each as rows land; at 0 a missing row fails, so set every game to 0 once its rows exist.
+SCHED_MAX = {g: 4 for g in ("django", "muramasa", "muramasa-en", "oretsuba", "saihate-no-ima", "tsukihime")}
 GENERIC = {"handler", "command", "all", "dispatch", "hidden", "state", "sound", "timing", "effects", "effect", "waits", "timed"}
 
 bad = 0
@@ -39,6 +54,53 @@ def fail(msg):
     global bad
     bad += 1
     print(msg)
+
+
+def sched_check(rows, files, source):
+    """rows: the `(scheduler)` rows' columns; files: repo paths; source(path) -> text.
+    Returns (questions with no row, errors)."""
+    errs, have = [], set()
+    for cols in rows:
+        q, check = cols[1].strip() if len(cols) > 1 else "", cols[-1].strip()
+        if q not in QUESTIONS:
+            errs.append(f"`(scheduler)` row `{q}`: not one of {', '.join(QUESTIONS)}")
+            continue
+        have.add(q)
+        m = re.search(r'ledger: "([^"]+)"', check)
+        if m:
+            if not any(f.startswith("crates/") and f.endswith(".rs") and m.group(1) in source(f) for f in files):
+                errs.append(f"`(scheduler)` row `{q}`: no ledger reason \"{m.group(1)}\" in crates/")
+            continue
+        m = re.search(r"([\w/.-]+\.rs)::(\w+)", check)
+        if not m:
+            errs.append(f"`(scheduler)` row `{q}`: last column names no test (`file.rs::fn`) or ledger reason (`ledger: \"...\"`)")
+        elif not any(f.startswith("crates/") and (f == m.group(1) or f.endswith("/" + m.group(1)))
+                     and re.search(rf"\bfn {m.group(2)}\b", source(f)) for f in files):
+            errs.append(f"`(scheduler)` row `{q}`: no `fn {m.group(2)}` in a crates/ file ending {m.group(1)}")
+    return [q for q in QUESTIONS if q not in have], errs
+
+
+def self_test():
+    src = {"crates/a/tests/sync.rs": "fn keeps_the_pan() {}", "crates/a/sync.rs": 'note("timed action dropped")'}
+    rows = [["(scheduler)", "unwaited goes on", "seen", "tests/sync.rs::keeps_the_pan"],
+            ["(scheduler)", "0 ms on in-flight", "seen", 'ledger: "timed action dropped"'],
+            ["(scheduler)", "wait on in-flight", "seen", "sync.rs::gone"],
+            ["(scheduler)", "made up", "seen", "x"]]
+    miss, errs = sched_check(rows, list(src), src.get)
+    assert miss == ["replace or delete while moving"], miss
+    assert len(errs) == 2 and "fn gone" in errs[0] and "made up" in errs[1], errs
+    assert sched_check([], [], src.get)[0] == list(QUESTIONS)
+
+
+self_test()  # cheap: every run (CI's too) checks the checker
+if sys.argv[1:] == ["--self-test"]:
+    sys.exit(print("self-test ok"))
+files = subprocess.run(["git", "ls-files", "crates"], capture_output=True, text=True, check=True).stdout.split()
+_src = {}
+def source(f):
+    if f not in _src:
+        _src[f] = open(f, encoding="utf-8", errors="replace").read()
+    return _src[f]
 
 for mf in sorted(os.listdir("tests/snapshots")):
     if not mf.endswith(".metrics.json"):
@@ -54,6 +116,7 @@ for mf in sorted(os.listdir("tests/snapshots")):
     named, ranges = set(), []
     col, nopen = None, 0
     seen = set()
+    sched = []
     for line in open(tsv, encoding="utf-8"):
         if line.startswith("#") or not line.strip():
             continue
@@ -67,6 +130,9 @@ for mf in sorted(os.listdir("tests/snapshots")):
         if col >= 0 and len(cols) > col and cols[col].strip() in ("inferred", "unknown"):
             nopen += 1
         cell = cols[0]
+        if cell == "(scheduler)":
+            sched.append(cols)
+            continue
         if hexmode:
             for a, b in re.findall(r"(0x[0-9a-f]+)(?:-(0x[0-9a-f]+))?", cell):
                 if b:
@@ -101,6 +167,16 @@ for mf in sorted(os.listdir("tests/snapshots")):
         fail(f"{tsv}: {k} in NO_ROW is not a kind: remove it")
     if len(nr) > NO_ROW_MAX.get(g, 0):
         fail(f"{g}: NO_ROW has {len(nr)} kinds, ceiling {NO_ROW_MAX.get(g, 0)}: add rows, don't grow the list")
+    smiss, serrs = sched_check(sched, files, source)
+    for e in serrs:
+        fail(f"{tsv}: {e}")
+    smax = SCHED_MAX.get(g, len(QUESTIONS))
+    if len(smiss) > smax:
+        fail(f"{g}: {len(smiss)} overlap questions with no `(scheduler)` row, ceiling {smax}: {'; '.join(smiss)}")
+    elif smiss:
+        print(f"{g}: WARN {len(smiss)} overlap questions with no `(scheduler)` row (new-game.md step 15): {'; '.join(smiss)}")
+    if len(smiss) < smax:
+        print(f"{g}: lower SCHED_MAX[{g!r}] to {len(smiss)}")
     if miss:
         fail(f"{tsv}: kinds with no row (add one, or NO_ROW in research/tools/findings_lint.py): {' '.join(miss)}")
 sys.exit(1 if bad else 0)
