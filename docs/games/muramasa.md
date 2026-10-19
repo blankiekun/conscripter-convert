@@ -846,8 +846,8 @@ Open, by area (each is small; most noticeable first):
   over time about x or y mirrored at once (10); 38 moves/zooms with a
   fade or new picture drawn as cross-fades; a window that moves (`絵演窓上`,
   `窓右`, about 56 `Move`s) has its clip jump to the end place.
-- **Time ledger** (`NSS_TRACE=1` prints each hold's place): 1,652 syncs
-  hold up to 1 s. Later: 289 under an opaque cover; ~1,200 zooms, paths,
+- **Time ledger** (`NSS_TRACE=1` prints each hold's place): 1,525 syncs
+  hold up to 1 s (none under a cover: History); ~1,200 zooms, paths,
   moves and fades drawn as cross-fades (until `spmotion` keys, own item).
   9 motions end at once (mc01_009vs:439, mb04_025vs:2987, md05_007vs).
 - **Tempo/arguments**: easing of `SetVolume` (9 fades over time keep a
@@ -888,6 +888,19 @@ Open, by area (each is small; most noticeable first):
   run the scenes in the interpreter under Unicorn from the dumps.
 
 ## History
+
+### No hold under a cover (2026-10-19)
+
+A sync under an opaque `Plain` cover (nothing above it) waited for the
+unwaited actions still running under it, up to 1 s (127 of the 1,652
+holds): the cockpit gauges' processes (`CP_*Auto`/`*Move`, `CPW*`,
+about 100, mc03_020vs*, md05_007vs, ma03_025), the clouds of
+function.nss:4596, backgrounds panned or zoomed under the cover
+(mc01_019vsa:80's 80 s pan, mc02_027:60). Nothing under the cover is
+seen and the exe goes on, so the sync now waits only the script's own
+time. Test `an_unwaited_action_under_an_opaque_cover_doesnt_hold`.
+Left: such an action is still drawn at its end when the cover goes
+(the 80 s pan doesn't run on), for the background-motions item.
 
 ### `csp 49`-`58` once per load, not per `setwindow` (2026-10-18)
 

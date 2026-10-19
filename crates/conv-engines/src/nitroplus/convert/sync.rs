@@ -146,10 +146,12 @@ impl Compiler<'_, '_> {
         let cover_tone = frozen.and_then(|p| self.objects.values().filter(|o| matches!(o.kind, Kind::Cover { .. }) && o.opacity >= 1000 && o.priority == p).map(|o| o.filters((1000, 1000))).find(|f| !f.is_empty()));
         let under = |n: &String| frozen.is_some_and(|p| self.objects.get(n).is_none_or(|o| o.priority <= p));
         let retone = cover_tone.as_ref().is_some_and(|c| self.shown.iter().any(|(n, s)| under(n) && s.tint.as_ref() != Some(&toned(self.objects.get(n), s, c))));
+        // (Only the script's own time: what runs on unwaited under the
+        // cover isn't seen, and the exe goes on; the cockpit gauges'
+        // processes under mc03_020vsad's covers, `絵Cloud*` in function.nss.)
         if frozen.is_some() && nothing_above && !retone {
-            self.held(ms, blocking, &why);
-            if ms > 0 {
-                self.ops.push(Op::Wait { ms });
+            if blocking > 0 {
+                self.ops.push(Op::Wait { ms: blocking });
             }
             return;
         }
