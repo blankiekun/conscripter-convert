@@ -753,13 +753,9 @@ Open, by area (each is small; most noticeable first):
   over time about x or y mirrored at once (10); 38 moves/zooms with a
   fade or new picture drawn as cross-fades; a window that moves (`絵演窓上`,
   `窓右`, about 56 `Move`s) has its clip jump to the end place.
-- **Time ledger** (dry-run notes, `nitroplus/convert/sync.rs`): 2,035
-  syncs wait up to 1 s longer than the script asked, for actions the
-  exe runs on (`unwaited action held the script`; most in the helpers
-  of function_cockpit.nss, function_select.nss, function_stand.nss);
-  9 moves or zooms end at once (`timed action dropped by a sync`:
-  mc01_009vs:439's 20 s zoom of a shaking picture, mb04_025vs:2987's
-  turned picture cut to the screen, md05_007vs's five effects).
+- **Time ledger** (`sync.rs` notes): 2,035 syncs held up to 1 s for an
+  unwaited action (most in function_cockpit/select/stand.nss helpers); 9
+  motions end at once (mc01_009vs:439, mb04_025vs:2987, md05_007vs).
 - **Tempo/arguments**: easing of `SetVolume` (9 fades over time keep a
   straight ramp) and the text window's `windowfade`; a move with a fade
   folded into its keys is straight; story `CreateText` rotated sideways
