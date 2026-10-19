@@ -710,7 +710,7 @@ control flow (10 route runs passed, 2026-10-14). The system screens
 sound room), movies, processes, `Random` and the effects are done; their
 write-ups, the route-run table and the old queue are in "History"
 ("Status as it stood before the 2026-10-18 prune"). Dry-run `score`
-(`metrics.json`, 2026-10-18): 99.90; picture 99.67, movie unmeasured (no
+(`metrics.json`, unread arguments by role): 99.90; picture 99.67, movie unmeasured (no
 movie folder in a dry run).
 
 Japanese and English in one build (in progress, `docs/string-tables.md`):

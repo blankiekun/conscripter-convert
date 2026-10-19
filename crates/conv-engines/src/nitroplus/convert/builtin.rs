@@ -36,6 +36,45 @@ const BUILTINS: [&str; 122] = [
 /// Arguments the compiler doesn't read that change nothing it draws or
 /// plays: (built-in, index, the value covered (`"null"`: NSS's null) or
 /// `None` for any), why.
+/// What a built-in's argument controls (research/nitroplus/builtins.md's
+/// signatures), for the score's credit (`metrics::credit`): an unread one
+/// loses that much of its call, not one argument's part.
+const ROLES: &[(&str, usize, &str)] = &[
+    ("CreateTexture", 1, "order"),
+    ("CreateTexture", 2, "place"),
+    ("CreateTexture", 3, "place"),
+    ("CreateTexture", 4, "picture"),
+    ("CreateWindow", 1, "order"),
+    ("CreateWindow", 2, "place"),
+    ("CreateWindow", 3, "place"),
+    ("CreateWindow", 4, "size"),
+    ("CreateWindow", 5, "size"),
+    ("Fade", 3, "tempo"),
+    ("Fade", 4, "tempo"),
+    ("Move", 2, "place"),
+    ("Move", 3, "place"),
+    ("Move", 4, "tempo"),
+    ("Move", 5, "tempo"),
+    ("Zoom", 2, "size"),
+    ("Zoom", 3, "size"),
+    ("Zoom", 4, "tempo"),
+    ("Zoom", 5, "tempo"),
+    ("Rotate", 5, "tempo"),
+    ("Rotate", 6, "tempo"),
+    ("MoveCamera", 2, "place"),
+    ("MoveCamera", 3, "place"),
+    ("MoveCamera", 4, "size"),
+    ("MoveCamera", 5, "tempo"),
+    ("MoveCamera", 6, "tempo"),
+    ("SetVolume", 3, "tempo"),
+    ("SetBlur", 4, "tempo"),
+    ("WaitAction", 1, "tempo"),
+    ("WaitPlay", 1, "tempo"),
+    ("WaitFade", 1, "tempo"),
+    ("WaitMove", 1, "tempo"),
+    ("WaitZoom", 1, "tempo"),
+];
+
 const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
     ("Fade", 3, Some("null"), "no tempo: linear, as ours"),
     ("Rotate", 5, Some("null"), "no tempo: linear, as ours"),
@@ -95,7 +134,10 @@ impl Compiler<'_, '_> {
         for (i, v) in a.iter().enumerate().take(64) {
             let harmless = UNREAD_HARMLESS.iter().any(|&(b, k, value, _)| b == name && k == i && value.is_none_or(|x| if x == "null" { matches!(v, Value::Null) } else { v.string() == x }));
             if read.get() & (1 << i) == 0 && !harmless {
-                self.note(format!("{name} argument {i} ignored"));
+                match ROLES.iter().find(|&&(b, k, _)| b == name && k == i) {
+                    Some((_, _, role)) => self.note(format!("{name} argument {i} ignored ({role})")),
+                    None => self.note(format!("{name} argument {i} ignored")),
+                }
             }
         }
         value

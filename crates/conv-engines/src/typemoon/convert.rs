@@ -334,6 +334,21 @@ pub fn channel(kind: &str) -> crate::metrics::Channel {
     }
 }
 
+/// What an opcode's argument controls (the findings rows), for the
+/// score's credit (`metrics::credit`): an unread one loses that much of
+/// its call, not one argument's part.
+const ROLES: &[(&str, usize, &str)] = &[
+    // _STGS(layer, from, to, ms, easing): an opacity fade
+    ("_STGS", 1, "picture"),
+    ("_STGS", 2, "picture"),
+    ("_STGS", 3, "tempo"),
+    ("_STGS", 4, "tempo"),
+    // _STMA(layer, m, mode, p): p the motion's start time
+    ("_STMA", 3, "tempo"),
+    // _STRT(layer, to, from, ms, cx, cy): a turn
+    ("_STRT", 3, "tempo"),
+];
+
 /// Why a converted call is only in part: each argument passed and not
 /// read (`<command> argument <i> ignored`, or `option <n>` for a backquote
 /// option).
@@ -345,7 +360,10 @@ fn unread(c: &Command, read: u64) -> Vec<String> {
         .filter(|&(i, a)| !a.trim().is_empty() && (i >= 64 || read & (1 << i) == 0) && !UNREAD_HARMLESS.iter().any(|&(o, k, _)| o == op && k == i))
         .map(|(i, a)| match a.trim().strip_prefix('`').and_then(|o| o.split_once(':')) {
             Some((k, _)) => format!("{op} option {} ignored", k.parse::<u32>().unwrap_or(0)),
-            None => format!("{op} argument {i} ignored"),
+            None => match ROLES.iter().find(|&&(o, k, _)| o == op && k == i) {
+                Some((_, _, role)) => format!("{op} argument {i} ignored ({role})"),
+                None => format!("{op} argument {i} ignored"),
+            },
         })
         .collect()
 }

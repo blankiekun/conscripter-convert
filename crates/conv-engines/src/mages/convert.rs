@@ -2070,6 +2070,19 @@ pub fn channel(kind: &str) -> crate::metrics::Channel {
     }
 }
 
+/// What a key controls, for the score's credit (`metrics::credit`): an
+/// unread one loses that much of its call, not one argument's part.
+fn key_role(key: &str) -> Option<&'static str> {
+    Some(match key {
+        "Position" | "Center" | "Roll" => "place",
+        "Scale" => "size",
+        "Number" | "Color" => "picture",
+        "Priority" => "order",
+        "Time" | "Wait" | "Fade" | "FadeWait" | "EndWait" | "FadeIn" | "FadeOut" => "tempo",
+        _ => return None,
+    })
+}
+
 /// Notes each argument of `b` (and its sub-blocks) the converter never
 /// read: "<Task> :<Key> ignored", or "… argument <i> ignored" for one
 /// value of several.
@@ -2086,6 +2099,10 @@ fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>)
         };
         if !NOT_NEEDED.iter().any(|(row, _)| covered(row)) {
             let what = if USER_DROPPED.iter().any(|row| covered(row)) { format!("{}{what}", crate::metrics::DROPPED) } else { what };
+            let what = match key_role(key) {
+                Some(role) => format!("{what} ({role})"),
+                None => what,
+            };
             *notes.entry(what).or_default() += 1;
         }
     }
@@ -2175,10 +2192,10 @@ mod tests {
         // `:Wait 0`, not read here, is noted; Chara0's Number is never read.
         let want = [
             "SpriteMove :Curve ignored",
-            "SpriteMove :Position argument 2 ignored",
-            "SpriteMove :Roll ignored",
-            "SpriteMove :Wait ignored",
-            "SpriteMove [Chara] :Number ignored",
+            "SpriteMove :Position argument 2 ignored (place)",
+            "SpriteMove :Roll ignored (place)",
+            "SpriteMove :Wait ignored (tempo)",
+            "SpriteMove [Chara] :Number ignored (picture)",
         ];
         assert_eq!(notes.keys().map(String::as_str).collect::<Vec<_>>(), want);
         // `MoviePlay :Loop = 0` is covered.
@@ -2200,7 +2217,7 @@ mod tests {
         blocks[0].task_type();
         let mut notes = BTreeMap::new();
         ignored("SceneJumpDialogEnd", "", &blocks[0], &mut notes);
-        assert_eq!(notes.keys().collect::<Vec<_>>(), ["user dropped: SceneJumpDialogEnd :Fade ignored"]);
+        assert_eq!(notes.keys().collect::<Vec<_>>(), ["user dropped: SceneJumpDialogEnd :Fade ignored (tempo)"]);
     }
 
     #[test]
