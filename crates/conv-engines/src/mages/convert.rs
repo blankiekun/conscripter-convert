@@ -1774,12 +1774,14 @@ impl Lowering<'_> {
     /// answer with a `:Message<N>Flag` changes the flag before going on.
     fn choice(&mut self, scene: &str, t: &Block) {
         // The question is usually the last message again, still on screen
-        // in the original: not shown twice.
+        // in the original: not shown twice. The question often adds `\n`
+        // line breaks the message lacks (S01_02E:2990).
+        let flat = |s: &str| s.replace('\n', "");
         let last = self.out.ops.iter().rev().find_map(|op| match op {
-            Op::Text { text, .. } => Some(text.as_str()),
+            Op::Text { text, .. } => Some(flat(text)),
             _ => None,
         });
-        if let Some(text) = t.str("Text").filter(|q| Some(*q) != last) {
+        if let Some(text) = t.str("Text").filter(|q| Some(flat(q)) != last) {
             self.out.ops.push(Op::Text {
                 speaker: None,
                 text: text.to_string(),
@@ -2096,6 +2098,18 @@ mod tests {
         let labels: Vec<_> = l.out.ops.iter().filter_map(|o| if let Op::Label(s) = o { Some(s.clone()) } else { None }).collect();
         assert_eq!(labels.len(), 2);
         assert_ne!(labels[0], labels[1]);
+    }
+
+    #[test]
+    fn choice_question_with_line_breaks_is_not_shown_twice() {
+        let scene = Scene { title: None, tasks: vec![] };
+        let game = Game { scenes: BTreeMap::from([("s01".to_string(), scene)]), characters: HashMap::new(), flags: vec![], global_flags: vec![], names: HashMap::new(), actions: HashMap::new(), gallery: vec![], start: "s01".into() };
+        let mut assets = DialogOnly;
+        let mut l = Lowering { game: &game, assets: &mut assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+        l.out.ops.push(Op::Text { speaker: None, text: "「あいう」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
+        let q = &parse("[Task1]\n{\n:Tasktype \"MessageSwitch_Tag\"\n:AnswerMax 0\n:Text \"「あ\\nいう」\"\n}\n").unwrap()[0];
+        l.choice("s01", q);
+        assert_eq!(l.out.ops.iter().filter(|o| matches!(o, Op::Text { .. })).count(), 1);
     }
 
     #[test]

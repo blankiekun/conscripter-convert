@@ -319,7 +319,8 @@ impl Scene {
     pub fn parse(src: &str) -> Result<Scene, ParseError> {
         let blocks = parse(src)?;
         let title = blocks.iter().find(|b| b.name == "StartUp").and_then(|b| b.str("SceneName")).map(str::to_string);
-        let tasks = blocks.into_iter().find(|b| b.name == "TaskList").map(|b| b.children).unwrap_or_default();
+        // src: trace S03C_03C 4010, 7700: the eboot skips a block with no `[TaskN]` header.
+        let tasks = blocks.into_iter().find(|b| b.name == "TaskList").map(|b| b.children.into_iter().filter(|t| !t.name.is_empty()).collect()).unwrap_or_default();
         Ok(Scene { title, tasks })
     }
 }
@@ -328,7 +329,7 @@ impl Scene {
 mod tests {
     use super::*;
 
-    const SRC: &str = "[StartUp]\n{\n\t:SceneName \"序文\"\n}\n// comment [x]\n[TaskList]\n{\n\t:TaskMax\t100001\n\t[Task100]\n\t{\n\t\t:Tasktype\t\"Message\"\n\t\t:Message\t\"a\\nb\" // c\n\t\t:Name\t12\t// 鷹志\n\t\t:Text \"open\r\n\t}\n\t[Task110]\n\t{\u{3000}\n\t\t:Tasktype \"CharacterOpen\"\n\t\t[Chara0]\n\t\t{\n\t\t\t:Number 200,0,1,0,0\n\t\t\t:Scale 0.5\n\t\t}\n\t\t:Action \"=\" ,1\n\t}\n}\n";
+    const SRC: &str = "[StartUp]\n{\n\t:SceneName \"序文\"\n}\n// comment [x]\n[TaskList]\n{\n\t:TaskMax\t100001\n\t[Task100]\n\t{\n\t\t:Tasktype\t\"Message\"\n\t\t:Message\t\"a\\nb\" // c\n\t\t:Name\t12\t// 鷹志\n\t\t:Text \"open\r\n\t}\n\t[Task110]\n\t{\u{3000}\n\t\t:Tasktype \"CharacterOpen\"\n\t\t[Chara0]\n\t\t{\n\t\t\t:Number 200,0,1,0,0\n\t\t\t:Scale 0.5\n\t\t}\n\t\t:Action \"=\" ,1\n\t}\n\t{\n\t\t:Tasktype \"SpriteBS\"\n\t}\n}\n";
 
     #[test]
     fn scene() {
