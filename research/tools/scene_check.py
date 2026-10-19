@@ -34,6 +34,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 TOL_XY, TOL_A = 2, 8
@@ -41,10 +42,11 @@ NOT_ERRORS = ("inherited", "effect", "occluded", "no-dump")  # counted, but not 
 
 
 def key(pic):
-    """a picture's name both sides share: no `:c;` prefix, `/`, lower case, no
+    """a picture's name both sides share: no `:c;` prefix, `/`, NFKC, lower case, no
     extension; our CreateColor pictures as `color:rrggbb:WxH`; our pre-zoomed
     copies (`system/zoom/cg_ev_resize/x_625x625.png`) as their source"""
-    pic = re.sub(r"^:[a-z]+(,[^;]*)?;", "", pic).replace("\\", "/").lower()
+    # NFKC: the archives' names and the scripts' differ in width (bu宇宙紳士C against bu宇宙紳士ｃ)
+    pic = unicodedata.normalize("NFKC", re.sub(r"^:[a-z]+(,[^;]*)?;", "", pic).replace("\\", "/")).lower()
     m = re.match(r"(?:.*/)?color_([0-9a-f]{6})_(\d+x\d+)\.png$", pic)
     if m:
         return f"color:{m.group(1)}:{m.group(2)}"
@@ -142,6 +144,7 @@ def self_test():
     kinds = sorted(k for k, _ in got)
     assert kinds == ["alpha", "extra", "inherited", "missing", "position"], got
     assert key("system\\color_ff0000_10x20.png") == "color:ff0000:10x20"
+    assert key("cg/bu/bu紳士C.png") == key("cg\\bu\\bu紳士ｃ.png")
     assert key("system\\zoom\\cg_ev_resize\\ev1_a_625x625.png") == key("cg/ev/resize/ev1_a.jpg")
     blk = [{"name": "k", "pic": "color:000000:1024x576", "x": 0, "y": 0, "alpha": 255}]
     assert compare(blk, [], bg="black") == [] and compare(blk, [])[0][0] == "missing"

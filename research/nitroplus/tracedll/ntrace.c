@@ -56,6 +56,14 @@
  *                 s0000 is whole, the base; each later one holds only the
  *                 4 KB pages whose hash differs from the base's ("P" lines
  *                 of its .map; "base s0000" first). load_dump rebuilds it.
+ *   NTRACE_FRAMES  1: Django writes a "obj" record per frame for each shown
+ *                 object whose state changed: name, x, y, alpha (0-255), zoom
+ *                 zx/zy (per mille) and rotation rx/ry/rz (degrees) as drawn that
+ *                 frame (the texture record at render +0x20: +0xb4/+0xb8,
+ *                 +0xa8..+0xb0, as the Zoom and Rotate frame callbacks 0x43eec0,
+ *                 0x43f190 write them); "call", the call that made it, on its
+ *                 first record; "gone" when it goes.
+ *                 "f" counts the frames.
  *   NTRACE_SCENE_AT  "page": the scene dumps are taken instead as a file's
  *                 first text block starts (装甲悪鬼村正's block hook)
  */
@@ -77,6 +85,8 @@
 #define D_CALL_ENTER1 0x43d3d7
 #define D_CALL_ENTER2 0x43d6d8
 #define D_ENTER 0x43e080
+#define D_CALL_STEP 0x435d4b /* the frame thread (0x435cb0) calls step_objects 0x436040 once a frame */
+#define D_STEP 0x436040
 /* the file records: context + base + index * size; the index at process + idx */
 static int file_base = 0x1130, file_size = 0x158, file_idx = 0x20, file_text = 0x11c;
 #define FILE_REC(ctx, th) ((unsigned char *)(ctx) + file_base + *(int *)((th) + file_idx) * file_size)
@@ -445,6 +455,63 @@ __asm__(".globl _nt_dispatch_stub\n_nt_dispatch_stub:\n"
         "jmp *_nt_block\n");
 void nt_dispatch_stub(void), nt_block_stub(void);
 
+/* NTRACE_FRAMES: the objects' state after each step_objects (Django) */
+static long frame_n;
+static struct ost { void *o; int x, y, a, zx, zy, rx, ry, rz, seen; char name[64]; } ost[4096];
+
+static struct ost *ost_of(void *o) {
+    unsigned h = ((unsigned)o >> 4) & 4095;
+    for (int i = 0; i < 4096; i++, h = (h + 1) & 4095)
+        if (ost[h].o == o || !ost[h].o) return &ost[h];
+    return NULL;
+}
+
+void __cdecl nt_frame(void) {
+    EnterCriticalSection(&lock);
+    frame_n++;
+    unsigned char *node = *(unsigned char **)(0x50fb1c + 4 * 7 * (*(int *)0x529370 == 400));
+    long t = ms();
+    for (int k = 0; node && *(unsigned char **)(node + 0xc) && k < 4000; k++, node = *(unsigned char **)(node + 0x18)) {
+        unsigned char *o = *(unsigned char **)(node + 0xc), *r = *(unsigned char **)(o + 0x804), *v = *(unsigned char **)(o + 0x7f8);
+        if (!r) continue;
+        struct ost *s = ost_of(o), n = {o};
+        if (!s) break;
+        n.x = *(int *)(o + 0x3ec), n.y = *(int *)(o + 0x3f0), n.a = r[0x14];
+        (void)v;
+        unsigned char *tx = *(unsigned char **)(r + 0x20);  /* the texture record the frame callbacks draw from */
+        if (tx) n.zx = *(int *)(tx + 0xb4), n.zy = *(int *)(tx + 0xb8), n.rx = *(int *)(tx + 0xa8), n.ry = *(int *)(tx + 0xac), n.rz = *(int *)(tx + 0xb0);
+        lstrcpynA(n.name, (const char *)o, sizeof n.name);
+        n.seen = frame_n;
+        if (s->o != o || memcmp(&s->x, &n.x, 8 * sizeof(int)) || strcmp(s->name, n.name)) {
+            fprintf(out, "{\"t\":\"obj\",\"f\":%ld,\"ms\":%ld,\"pg\":%ld,\"n\":", frame_n, t, pages);
+            put_str((const unsigned char *)n.name, strlen(n.name), 0);
+            fprintf(out, ",\"x\":%d,\"y\":%d,\"a\":%d,\"zx\":%d,\"zy\":%d,\"rx\":%d,\"ry\":%d,\"rz\":%d",
+                    n.x, n.y, n.a, n.zx, n.zy, n.rx, n.ry, n.rz);
+            if (s->o != o) {  /* a new object: the call that made it (+0x180: `CreateTexture("…",…,"cg/…");`) */
+                int len = 0;
+                while (len < 200 && o[0x180 + len]) len++;
+                fputs(",\"call\":", out);
+                put_str(o + 0x180, len, 0);
+            }
+            fputs("}\n", out);
+        }
+        *s = n;
+    }
+    for (int i = 0; i < 4096; i++)  /* gone: not in the list this frame */
+        if (ost[i].o && ost[i].seen != frame_n) {
+            fprintf(out, "{\"t\":\"obj\",\"f\":%ld,\"ms\":%ld,\"pg\":%ld,\"n\":", frame_n, t, pages);
+            put_str((const unsigned char *)ost[i].name, strlen(ost[i].name), 0);
+            fputs(",\"gone\":1}\n", out);
+            ost[i].o = NULL;  /* shortcut: a freed slot breaks a probe chain; rare (4096 slots, a few hundred objects) */
+        }
+    LeaveCriticalSection(&lock);
+}
+
+void *nt_step = (void *)D_STEP;
+__asm__(".globl _nt_step_stub\n_nt_step_stub:\n"
+        "call *_nt_step\n pushal\n pushfl\n call _nt_frame\n popfl\n popal\n ret\n");
+void nt_step_stub(void);
+
 /* Django: dispatch (ESI = process, EBX = &pos, EDI = context); after the
  * layout call, in place of its `add $0x1c,%esp; test %eax,%eax` (EBP = the
  * text record, EAX = the layout); request_enter (ESI = the object) */
@@ -613,6 +680,7 @@ static void install(void) {
         *(unsigned char *)D_AFTER_LAYOUT = 0xe8; /* call rel32 */
         VirtualProtect((void *)D_AFTER_LAYOUT, 5, old, &old);
         redirect_call(D_AFTER_LAYOUT, (void *)nt_layout_stub);
+        if ((p = getenv("NTRACE_FRAMES")) && atoi(p) && *(unsigned char *)D_CALL_STEP == 0xe8) redirect_call(D_CALL_STEP, (void *)nt_step_stub);
         speed_install(); /* after nt_wait, which is hooked by the real function's address */
         fflush(out);
         return;
