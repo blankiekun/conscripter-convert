@@ -101,6 +101,7 @@ Every change goes in through a pull request ([`CLAUDE.md`](CLAUDE.md),
 - [`docs/design.md`](docs/design.md): architecture, IR, output stage, crate layout
 - [`docs/new-game.md`](docs/new-game.md), [`docs/new-engine.md`](docs/new-engine.md): adding a game or an engine
 - [`docs/games/`](docs/games/): one document per game
+- [`docs/engines/`](docs/engines/README.md): what each original engine command does, and how it converts
 - [`docs/lessons.md`](docs/lessons.md), [`docs/tools.md`](docs/tools.md), [`research/README.md`](research/README.md)
 - [`engine/COMMANDS.md`](engine/COMMANDS.md), [`engine/DEBUG.md`](engine/DEBUG.md): the engine's commands, debug trace and auto-play
 - [`docs/releasing.md`](docs/releasing.md)

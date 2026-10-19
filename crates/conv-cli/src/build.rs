@@ -61,7 +61,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
     let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format(small)?, webp };
-    let Built { mut ir, notes, metrics, engine, picture_dirs, audio_dirs, package } = compile(&opts)?;
+    let Built { mut ir, notes, metrics, engine, engine_doc, picture_dirs, audio_dirs, package } = compile(&opts)?;
     ir.version = Some(version::line());
     // A dry run writes the script but no assets (no WebP, no sound).
     let (source, lines) = conv_cons::emit_mapped(&ir);
@@ -94,7 +94,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     // so they stay out of a game's folder.
     if dry_run {
         let game = output.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let json = metrics.json(&game, engine, env!("CONV_COMMIT"), env!("CONV_COMMIT_DATE"));
+        let json = metrics.json(&game, engine, engine_doc, env!("CONV_COMMIT"), env!("CONV_COMMIT_DATE"));
         fs::write(output.join("metrics.json"), json)?;
         let (calls, gaps) = metrics.totals();
         let left_out = metrics.left_out_total();

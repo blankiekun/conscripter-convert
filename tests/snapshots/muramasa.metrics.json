@@ -1,6 +1,7 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
+"engine_doc": "nitroplus-nss",
 "commit": "96685843",
 "commit_date": "2026-10-18",
 "totals": {"calls": 1162155, "full": 1150992, "gaps": 2569, "left_out": 8594, "weighted": 1153496.2},
