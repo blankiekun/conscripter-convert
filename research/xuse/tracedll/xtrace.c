@@ -31,6 +31,14 @@
  *   XTRACE_COVER    Windows path of a file of hex code addresses, one
  *                   per line, each an instruction start (research/xuse/
  *                   cover.py addrs writes it)
+ *   XTRACE_FRAMES   1: once a frame (at frame_loop's Sleep) an "obj" record
+ *                   for each object of the scene whose state changed: "id"
+ *                   (+0x17c), "pic" (+0x1a4, the picture slot), x, y
+ *                   (+0x184/+0x188), "a" opacity 0-256 (+0x1b2), "sx"/"sy"
+ *                   (+0x1a8/+0x1ac) and "r" (+0x1b0, mod 3600), as the key-frame
+ *                   motion (0x417580) writes them; "gone" when it goes. The
+ *                   objects: the scene's manager (+0x28c), a list from +0x2a4
+ *                   (node +8 the object, +0x10 the next) to the sentinel +0x294.
  */
 #include <windows.h>
 #include <stdio.h>
@@ -278,8 +286,37 @@ static void cover_install(const char *path) {
     fputs("]}\n", out);
 }
 
+static int frames_on;
+static struct xo { unsigned char *o; int id, pic, x, y, a, sx, sy, r, seen; } xo[2048];
+
+static void xt_frame(void) {
+    unsigned char *sc = CUR_SCENE;
+    if (!sc) return;
+    unsigned char *end = sc + 0x294, *node = *(unsigned char **)(sc + 0x2a4);
+    for (int k = 0; node && node != end && k < 2000; k++, node = *(unsigned char **)(node + 0x10)) {
+        unsigned char *o = *(unsigned char **)(node + 8);
+        if (!o) continue;
+        unsigned h = ((unsigned)o >> 4) & 2047;
+        int i = 0;
+        while (i < 2048 && xo[h].o && xo[h].o != o) h = (h + 1) & 2047, i++;
+        if (i == 2048) break;
+        struct xo n = {o, *(int *)(o + 0x17c), *(int *)(o + 0x1a4), *(int *)(o + 0x184), *(int *)(o + 0x188),
+                       *(unsigned short *)(o + 0x1b2), *(int *)(o + 0x1a8), *(int *)(o + 0x1ac), *(short *)(o + 0x1b0), (int)frames};
+        if (xo[h].o != o || memcmp(&xo[h].id, &n.id, 8 * sizeof(int)))
+            fprintf(out, "{\"t\":\"obj\",\"f\":%ld,\"ms\":%ld,\"pg\":%ld,\"id\":%d,\"pic\":%d,\"x\":%d,\"y\":%d,\"a\":%d,\"sx\":%d,\"sy\":%d,\"r\":%d}\n",
+                    frames, ms(), pages, n.id, n.pic, n.x, n.y, n.a, n.sx, n.sy, n.r);
+        xo[h] = n;
+    }
+    for (int i = 0; i < 2048; i++)
+        if (xo[i].o && xo[i].seen != (int)frames) {
+            fprintf(out, "{\"t\":\"obj\",\"f\":%ld,\"ms\":%ld,\"pg\":%ld,\"id\":%d,\"gone\":1}\n", frames, ms(), pages, xo[i].id);
+            xo[i].o = NULL;  /* shortcut: a freed slot breaks a probe chain; rare (2048 slots) */
+        }
+}
+
 static VOID WINAPI xt_sleep(DWORD n) {
     frames++;
+    if (frames_on) xt_frame();
     real_sleep(n);
 }
 
@@ -343,6 +380,7 @@ static void install(void) {
     *(unsigned short *)(POLL + 5) = 0x9090;
     VirtualProtect((void *)POLL, 7, old, &old);
     if ((p = getenv("XTRACE_COVER"))) cover_install(p);
+    frames_on = (p = getenv("XTRACE_FRAMES")) && atoi(p);
     fflush(out);
 }
 

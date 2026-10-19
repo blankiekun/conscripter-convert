@@ -36,7 +36,7 @@ static LONGLONG sp_qpc(void) { /* game time, in QPC ticks since boot */
 }
 /* stop the game clock (on) and start it again (off): a trace DLL's own slow
  * work (ntrace's memory dumps) takes no game time */
-static void speed_hold(int on) {
+static inline void speed_hold(int on) {
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
     if (on && !sp_hold_at) sp_hold_at = t.QuadPart;
