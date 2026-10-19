@@ -130,9 +130,13 @@ pub const TIMING: &[&str] = &[
 #[derive(Debug, Default, Clone)]
 pub struct Metrics {
     pub kinds: BTreeMap<String, Kind>,
-    /// Notes made outside any call (a statement's, a text tag's), with
-    /// counts: not in the totals.
+    /// Notes made outside any call (a statement's), with counts: not in
+    /// the totals.
     pub outside: BTreeMap<String, usize>,
+    /// The pages of story text ([`page`](Self::page)) where they are no
+    /// source call of their own (NSS `<PRE>` blocks, Tsukihime's lines):
+    /// in `score`'s text channel, not in the calls.
+    pub text: Kind,
     /// Calls being converted, innermost last: kind, reasons noted so far,
     /// motion ms asked for.
     open: Vec<(String, Vec<String>, u64)>,
@@ -257,27 +261,15 @@ impl Metrics {
     /// One whole call given `args` arguments (options counted as
     /// arguments of their own), with the reasons noted on it (none: fully
     /// converted).
-    pub fn call(&mut self, kind: &str, args: usize, mut reasons: Vec<String>) {
-        let k = self.kinds.entry(kind.to_string()).or_default();
-        k.calls += 1;
+    pub fn call(&mut self, kind: &str, args: usize, reasons: Vec<String>) {
         let ms = std::mem::take(&mut self.pending_ms);
-        reasons.sort();
-        reasons.dedup();
-        k.weighted += share(args, &reasons);
-        match credit(args, &reasons) {
-            Some(c) => {
-                let chosen: Vec<String> = reasons.iter().filter(|r| !r.starts_with(DROPPED)).cloned().collect();
-                let d = credit(args, &chosen).unwrap_or(c);
-                (k.credit, k.decided) = (k.credit + c, k.decided + d);
-                k.ms += ms;
-                (k.credit_ms, k.decided_ms) = (k.credit_ms + c * ms as f64, k.decided_ms + d * ms as f64);
-            }
-            None => k.unmeasured += 1,
-        }
-        k.gaps += usize::from(!reasons.is_empty());
-        for r in reasons {
-            *k.reasons.entry(r).or_default() += 1;
-        }
+        count(self.kinds.entry(kind.to_string()).or_default(), args, reasons, ms);
+    }
+
+    /// A page of story text shown, with the reasons noted on it (a text
+    /// tag or code dropped): counted in [`text`](Self::text).
+    pub fn page(&mut self, reasons: Vec<String>) {
+        count(&mut self.text, 1, reasons, 0);
     }
 
     /// One whole call left out on purpose (unreachable, such as a debug
@@ -299,8 +291,12 @@ impl Metrics {
         for (s, ms) in other.capped_ms {
             *self.capped_ms.entry(s).or_default() += ms;
         }
-        for (name, o) in other.kinds {
-            let k = self.kinds.entry(name).or_default();
+        let kinds = other.kinds.into_iter().map(|(name, o)| (Some(name), o)).chain([(None, other.text)]);
+        for (name, o) in kinds {
+            let k = match name {
+                Some(name) => self.kinds.entry(name).or_default(),
+                None => &mut self.text,
+            };
             k.calls += o.calls;
             k.gaps += o.gaps;
             k.left_out += o.left_out;
@@ -363,8 +359,7 @@ impl Metrics {
         // per channel: decided, original, calls measured, dropped left-out calls (motion
         // and timing: each call by CALL_MS and its time), unmeasured calls
         let mut sums = [(0.0, 0.0, 0.0, 0.0, 0usize); 7];
-        for (name, k) in &self.kinds {
-            let c = channel(name);
+        for (c, k) in self.kinds.iter().map(|(name, k)| (channel(name), k)).chain([(Channel::Text, &self.text)]) {
             let Some(i) = Channel::SCORED.iter().position(|&x| x == c) else { continue };
             let measured = (k.calls - k.left_out - k.unmeasured) as f64;
             let (d, o, n, dropped) = match c {
@@ -446,6 +441,10 @@ impl Metrics {
             );
         }
         s += &format!("\n}},\n\"outside_calls\": {}", top(&self.outside));
+        let t = &self.text;
+        if t.calls > 0 {
+            s += &format!(",\n\"text\": {{\"pages\": {}, \"gaps\": {}, \"credit\": {:.1}, \"reasons\": {}}}", t.calls, t.gaps, t.credit, top(&t.reasons));
+        }
         // (Calls noted with one, and notes outside calls; only when some, so other games' files stay as they were.)
         let timing: usize = self.kinds.values().flat_map(|k| &k.reasons).chain(&self.outside).filter(|(r, _)| TIMING.contains(&r.as_str())).map(|(_, n)| n).sum();
         if timing > 0 {
@@ -466,6 +465,29 @@ impl Metrics {
             );
         }
         s + "\n}\n"
+    }
+}
+
+/// Counts one call of `k` given `args` arguments, with its reasons and
+/// motion time.
+fn count(k: &mut Kind, args: usize, mut reasons: Vec<String>, ms: u64) {
+    k.calls += 1;
+    reasons.sort();
+    reasons.dedup();
+    k.weighted += share(args, &reasons);
+    match credit(args, &reasons) {
+        Some(c) => {
+            let chosen: Vec<String> = reasons.iter().filter(|r| !r.starts_with(DROPPED)).cloned().collect();
+            let d = credit(args, &chosen).unwrap_or(c);
+            (k.credit, k.decided) = (k.credit + c, k.decided + d);
+            k.ms += ms;
+            (k.credit_ms, k.decided_ms) = (k.credit_ms + c * ms as f64, k.decided_ms + d * ms as f64);
+        }
+        None => k.unmeasured += 1,
+    }
+    k.gaps += usize::from(!reasons.is_empty());
+    for r in reasons {
+        *k.reasons.entry(r).or_default() += 1;
     }
 }
 
@@ -657,6 +679,21 @@ mod tests {
         let s = m.score(crate::nitroplus::convert::channel, false);
         assert_eq!(s.channels, [(Motion, 100.0 * 1500.0 / 2500.0), (Timing, 100.0)]);
         assert!(m.json("g", "nitroplus", "d", "c", "d").contains("\"credit\": 0.5, \"ms\": 1500, \"credit_ms\": 750, \"channel\": \"motion\"}"));
+    }
+
+    #[test]
+    fn pages_are_text_not_calls() {
+        let mut m = Metrics::default();
+        m.call("LoadText", 1, vec![]);
+        m.page(vec!["text tag <x>".into()]);
+        m.page(vec![]);
+        let mut other = Metrics::default();
+        other.page(vec![]);
+        m.merge(other);
+        assert_eq!(m.totals(), (1, 0));
+        // (1 + 0.5 + 1 + 1) / 4
+        assert_eq!(m.score(crate::nitroplus::convert::channel, false).channels, [(super::Channel::Text, 87.5)]);
+        assert!(m.json("g", "nitroplus", "d", "c", "d").contains("\n\"text\": {\"pages\": 3, \"gaps\": 1, \"credit\": 2.5, \"reasons\": [[\"text tag <x>\", 1]]}"));
     }
 
     #[test]

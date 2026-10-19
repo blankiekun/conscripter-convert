@@ -422,6 +422,16 @@ pub fn text(line: &str) -> (String, Vec<Ruby>, Vec<TextStyle>) {
     (out, ruby, styles)
 }
 
+/// What [`text`] drops from a line, as notes: its `@x` codes and its
+/// `[ber00]` inline pictures.
+fn dropped(line: &str) -> Vec<String> {
+    let mut notes: Vec<String> = line.match_indices('@').filter_map(|(i, _)| line[i + 1..].chars().next()).map(|c| format!("text code @{c} dropped")).collect();
+    if line.contains('[') && line.contains(']') {
+        notes.push("text inline picture dropped".into());
+    }
+    notes
+}
+
 /// The fan patch's letters in private-use code points, which its font
 /// (`ja/TT_TsukuMin-D.ttf`, glyphs `uniE000`–`uniE2FE`) draws styled: the
 /// ASCII letter and whether it is italic. U+E0xx italic, U+E1xx mirrored,
@@ -499,6 +509,9 @@ struct Lowering<'g, 'a> {
     voice: Option<Voice>,
     /// A line ended with `@n`: the next one goes on after it, no click.
     held: Option<(String, Vec<Ruby>, Vec<TextStyle>)>,
+    /// The markup [`text`] drops in the lines of the page being built
+    /// (`metrics.json`'s "text").
+    page_notes: Vec<String>,
     /// `_SEPL`'s channels: the sound on each, and whether it loops.
     se_channels: HashMap<i32, (String, bool)>,
     /// `_SELR`'s options so far: (index, text, greyed, under an `_IF__`).
@@ -844,6 +857,7 @@ impl Lowering<'_, '_> {
                 let Some(n) = arg(0).split_once('$').and_then(|(_, s)| s.get(..6)?.parse::<usize>().ok()) else { return false };
                 let Some(line) = self.g.lines.get(n) else { return false };
                 let (mut body, mut ruby, mut styles) = text(line);
+                self.page_notes.extend(dropped(line));
                 if let Some((before, mut r, mut s)) = self.held.take() {
                     let shift = before.chars().count();
                     ruby.iter_mut().for_each(|x| x.start += shift);
@@ -863,6 +877,7 @@ impl Lowering<'_, '_> {
                     self.ops.push(Op::WindowFade { alpha: 256, ms: 150, from: Some(0), delay: 150, show: false });
                 }
                 self.ops.push(Op::Text { speaker: None, text: body, voice: self.voice.take(), links: vec![], ruby, styles, hang: None, continues });
+                self.metrics.page(std::mem::take(&mut self.page_notes));
             }
             // `_WTTM(ms[, 1])`: ms (at least a frame). The decompile seems to take
             // off a frame counter (0x1473cde) with a second argument, but nothing
@@ -1734,6 +1749,7 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         window_faded: false,
         voice: None,
         held: None,
+        page_notes: Vec::new(),
         se_channels: HashMap::new(),
         options: Vec::new(),
         open_ifs: Vec::new(),
