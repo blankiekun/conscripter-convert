@@ -52,6 +52,9 @@ pub struct Built {
     /// The same game compiled in another language (its `language`): its
     /// text fills that language's table by place (conv_cons::strtab).
     pub translation: Option<Script>,
+    /// How many files couldn't be read or written (`Output::errors`, each
+    /// printed): the build then exits with an error.
+    pub asset_errors: usize,
 }
 
 /// Maps a file read-only.

@@ -94,7 +94,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     check_output(&output, output_dirs, loose, dry_run)?;
     let font = read_font(font.as_deref())?;
     let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format(small)?, webp };
-    let Built { mut ir, notes, mut metrics, engine, engine_doc, picture_dirs, audio_dirs, package, translation } = compile(&opts)?;
+    let Built { mut ir, notes, mut metrics, engine, engine_doc, picture_dirs, audio_dirs, package, translation, asset_errors } = compile(&opts)?;
     ir.version = Some(version::line());
     // the engine fills the text from the table of the script's first `language`
     if ir.language.is_empty() {
@@ -214,7 +214,11 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         }
     }
     let files = if dry_run { dry_run_files(picture_dirs, webp.is_some()) } else { dir_files(&output)? };
-    summary(&output, &ir, lost, notes, Some(Some(&files)))
+    summary(&output, &ir, lost, notes, Some(Some(&files)))?;
+    if asset_errors > 0 {
+        bail!("{asset_errors} asset errors (\"asset error:\" above)");
+    }
+    Ok(())
 }
 
 /// `--audio-codec` and `--audio-quality`, for every convert command.

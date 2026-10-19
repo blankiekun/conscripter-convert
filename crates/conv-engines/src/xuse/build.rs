@@ -171,7 +171,7 @@ pub fn build(game: &Path, linear: bool, original_archives: bool, opts: &Opts) ->
     if let Some(ranges) = assets.ranges.take() {
         original_archives_file(game, &ranges, &assets.xor_keys, opts)?;
     }
-    Ok(Built { ir, notes, metrics, engine: "xuse", engine_doc: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None, translation: None })
+    Ok(Built { ir, notes, metrics, engine: "xuse", engine_doc: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None, translation: None, asset_errors: 0 })
 }
 
 pub fn parse_cd<'a>(path: &Path, bytes: &'a [u8]) -> Result<CdScript<'a>> {
