@@ -2,7 +2,7 @@
 "game": "muramasa",
 "engine": "nitroplus",
 "engine_doc": "nitroplus-nss",
-"commit": "96685843",
+"commit": "2b49cc2f",
 "commit_date": "2026-10-18",
 "totals": {"calls": 1162155, "full": 1150992, "gaps": 2569, "left_out": 8594, "weighted": 1153496.2},
 "kinds": {
@@ -86,5 +86,7 @@
 "SL_Rightdownfade": {"calls": 1, "gaps": 0, "left_out": 1, "reasons": [["no function of this name: the exe skips the call too", 1]], "weighted": 0.0},
 "ShakeOne": {"calls": 1, "gaps": 0, "left_out": 1, "reasons": [["no function of this name: the exe skips the call too", 1]], "weighted": 0.0}
 },
-"outside_calls": [["branches of a runtime if end with different helper variables", 78878], ["paths merge with different $テキストデータバックログ１", 4601], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3304 more", 625118]]
+"outside_calls": [["branches of a runtime if end with different helper variables", 78878], ["paths merge with different $テキストデータバックログ１", 4601], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3304 more", 625118]],
+"parity": {"source_ms": 544945159, "ours_ms": 599745492, "short_ms": 5342728, "scenes_short": 458},
+"parity_worst": [["mc03_020vsbb.nss", 1207400, 601500], ["mc01_024vs.nss", 484450, 248550], ["mb02_033vs.nss", 341950, 119380], ["mc03_013.nss", 31729501, 31518572], ["ma04_012.nss", 224580, 90730], ["mc03_026.nss", 469550, 337030], ["mc03_020vsb.nss", 123250, 900], ["mc01_010vscb.nss", 4786401, 4664100], ["mb02_025vs.nss", 155038, 40488], ["md05_022.nss", 197000, 110700]]
 }

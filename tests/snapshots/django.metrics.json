@@ -2,7 +2,7 @@
 "game": "django",
 "engine": "nitroplus",
 "engine_doc": "nitroplus-nss",
-"commit": "343b95f1",
+"commit": "2b49cc2f",
 "commit_date": "2026-10-18",
 "totals": {"calls": 58158, "full": 57776, "gaps": 142, "left_out": 240, "weighted": 57915.4},
 "kinds": {
@@ -54,5 +54,7 @@
 "CreateEffect": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0},
 "SetShade": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0}
 },
-"outside_calls": [["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1]]
+"outside_calls": [["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1]],
+"parity": {"source_ms": 4652205, "ours_ms": 5591748, "short_ms": 301190, "scenes_short": 74},
+"parity_worst": [["dja048_エッガーとイライザ_01_地下酒蔵にて.nss", 66200, 22100], ["dja011_人間狩り_03_残り３人.nss", 54800, 29900], ["dja047_リリィ、名無し捕まる_01_エル・ドミンゴ潜入.nss", 35500, 14100], ["dja043_エル・ドミンゴへ_02_イライザ触手Ｂ.nss", 180800, 162800], ["dja027_新兵教練_01_小銃訓練.nss", 35900, 19800], ["dja025_ジュリアン登場_02_少佐の狙撃.nss", 41300, 26100], ["dja041_脱獄_03_名無し自動車.nss", 54900, 41200], ["dja033_エスパルテロ市街戦_04_包囲突破.nss", 39320, 26420], ["extra_3_dja047_リリィ、名無し捕まる_02_再会.nss", 44800, 36200], ["dja047_リリィ、名無し捕まる_03_胡桃割り人形.nss", 31600, 23900]]
 }

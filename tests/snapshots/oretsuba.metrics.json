@@ -2,7 +2,7 @@
 "game": "oretsuba",
 "engine": "mages",
 "engine_doc": "mages",
-"commit": "5f67aee8",
+"commit": "2b49cc2f",
 "commit_date": "2026-10-18",
 "totals": {"calls": 120318, "full": 114823, "gaps": 5495, "weighted": 119316.9},
 "kinds": {
@@ -59,5 +59,7 @@
 "Achievement": {"calls": 11, "gaps": 0, "reasons": [], "weighted": 11.0},
 "CharacterStop": {"calls": 2, "gaps": 0, "reasons": [], "weighted": 2.0}
 },
-"outside_calls": []
+"outside_calls": [],
+"parity": {"source_ms": 2755280, "ours_ms": 12818013, "short_ms": 0, "scenes_short": 0},
+"parity_worst": []
 }
