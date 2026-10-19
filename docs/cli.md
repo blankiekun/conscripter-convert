@@ -37,6 +37,12 @@ found in a folder; `games --json` prints the list as JSON.
 numbers past 255, half-width characters in vertical text, files that are not
 in the archives.
 
+### `conscripter-convert fill`
+
+`fill <dir>` prints a converted game's `0.txt` with its text filled in from
+the table of its first language (`text.<code>.txt`, docs/string-tables.md),
+as the engine reads it; `fill <dir> --language xx` from `text.xx.txt`.
+
 ### The convert commands
 
 `build` runs one of these; call them directly to choose every option.

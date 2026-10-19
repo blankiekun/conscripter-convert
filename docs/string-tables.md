@@ -4,8 +4,8 @@ Text separate from logic: the script names its text by ID, each language
 is one table, and English (or a fan translation) is a swapped table, not a
 second build. Pictures and other files that differ by edition live in
 layers the engine picks at run time. Phase 1 (2026-10-18): the engine
-side and a converter prototype (`conscripter-convert strtab`); phase 2
-below makes it the default.
+side and a converter prototype; phase 2 below makes it the default
+(step 1, the converter, done: every build writes its text in tables).
 
 ## Why: what differs between the two Muramasa builds
 
@@ -109,16 +109,20 @@ one more row.
 
 ## The converter
 
-`conscripter-convert strtab <0.txt> [--map <source map>] [--english
-<0.txt> <map>] --scene-prefix <prefix> -o <dir>` splits a built 0.txt
-(`crates/conv-cons/src/strtab.rs`).
+Every build writes its text lines as `^ID` and the strings players read
+(choice options, name plates, backlog lines) as `"^ID"`, the text in
+`text.<code>.txt` of the script's language (`crates/conv-cons/src/strtab.rs`,
+from the emitter: no guessing which 0.txt lines are text). A choice
+plate's text line, placed by its width, goes in whole.
+`conscripter-convert fill <dir>` prints the script filled in, as the
+engine reads it; the lint and `tests/snapshot.sh` read that.
 
-- **IDs that stay.** 12 hex digits: a hash of the scene (the last label
-  starting with the prefix), the source instruction the line came from
-  (`--source-map`), the line's kind and its count at that place. Not a
-  counter: a rebuild keeps every ID whose source line keeps its 0.txt
-  lines, whatever moved around it. Without a map the line's own text
-  stands for the source. Clashes (48 bits) are detected and salted.
+- **IDs that stay.** 12 hex digits: a hash of the source instruction the
+  line came from (the IR's source map), the line's kind and its count at
+  that place. Not a counter: a rebuild keeps every ID whose source line
+  keeps its 0.txt lines, whatever moved around it. Without a map (月姫)
+  the last label and the line's own text stand for the source. Clashes
+  (48 bits) are detected and salted.
 - **Not keyed by the Japanese text alone.** deepLuna (the Tsukihimates'
   tool) keys translations by the hash of the Japanese line, with
   per-offset overrides where one line needs two translations. We key by
@@ -129,20 +133,22 @@ one more row.
   by the hash of its Japanese text (the Japanese table holds it), when
   that text is unique in its scene (phase 2, in the kit); and the engine
   finds saves of builds without tables by it.
-- **English by source.** The English build's lines of the same scene and
-  source instruction go to the same IDs (the k-th Japanese line takes
-  the k-th English one; the last takes the rest, the others are left
-  empty). For the whole of Muramasa, 281 of 110,519 text lines find no
+- **The other edition by source.** A build given the other edition
+  (`Built::translation`: Muramasa's `--english` build compiles the
+  Japanese too) emits it the same way and fills its table by place: the
+  k-th line of a kind takes the other's k-th; the last text line takes
+  the rest, the others are left empty; a place the other lacks keeps its
+  own text. The window lines then go in the tables too. For the whole of Muramasa, 281 of 110,519 text lines find no
   English line from the same source and keep the Japanese. The window
   lines of each place go in both tables (76,693).
-- **Choices.** `select` options become `"^ID"`. Muramasa's English
-  choices are drawn on the port's plates, not `select`: they stay
-  Japanese in the prototype (phase 2).
+- **Choices.** `select` options become `"^ID"`; a picture plate's text
+  line is a table line.
 
 ## Prototype result (Muramasa, three scenes)
 
 One build from `convert-nss --chain 3` of both editions with
-`--source-map`, split with `strtab`, the English edition's differing
+`--source-map`, split with the prototype's `strtab` command (since replaced
+by the build itself), the English edition's differing
 files in `layer\en\`:
 
 - Japanese pages from `text.ja.txt`, English after `language "en"`
@@ -176,13 +182,11 @@ which a translator leaves alone).
 
 ## Phase 2
 
-1. Converter: conv-cons emits `^ID` itself for every `Op::Text` and
-   writes `text.ja.txt`, IDs from the source position the IR carries
-   (a new op beside the text, so no line-based heuristics); the English
-   pass (`nitroplus/english.rs`, Tsukihime's `language.rs`) fills
-   `text.en.txt` by the same IDs. Choices on picture plates, names and
-   `logadd` lines through `"^ID"`. Make it the default for every game
-   (snapshot.sh then shows each game's 0.txt change once).
+1. Done: conv-cons writes the IDs and tables for every game (IDs from
+   `Script::source_map`); Muramasa's `--english` build (the English game
+   as before) also gets `text.ja.txt` from the Japanese compile. Every
+   game's filled script is the same as before. 月姫 keeps its two copies,
+   both in its one table, until 3.
 2. Muramasa: one build of both editions: `layer\en\` (English pictures,
    name plates, telops, movies, font) and `layer\uncensored\` (the CGs
    that differ), the two settings rows, the English font for English

@@ -49,6 +49,9 @@ pub struct Built {
     pub audio_dirs: &'static [&'static str],
     /// The source's own version, for `version.txt`.
     pub package: Option<String>,
+    /// The same game compiled in another language (its `language`): its
+    /// text fills that language's table by place (conv_cons::strtab).
+    pub translation: Option<Script>,
 }
 
 /// Maps a file read-only.

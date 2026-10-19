@@ -61,10 +61,21 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
     let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format(small)?, webp };
-    let Built { mut ir, notes, metrics, engine, engine_doc, picture_dirs, audio_dirs, package } = compile(&opts)?;
+    let Built { mut ir, notes, metrics, engine, engine_doc, picture_dirs, audio_dirs, package, translation } = compile(&opts)?;
     ir.version = Some(version::line());
+    // the engine fills the text from the table of the script's first `language`
+    if ir.language.is_empty() {
+        ir.language = "ja".into();
+    }
     // A dry run writes the script but no assets (no WebP, no sound).
-    let (source, lines) = conv_cons::emit_mapped(&ir);
+    let conv_cons::Emitted { script: source, lines, rows } = conv_cons::emit_mapped(&ir, conv_cons::strtab::Strings::tables(translation.is_some()));
+    let mut tables = vec![(ir.language.clone(), conv_cons::strtab::table(&rows))];
+    if let Some(t) = &translation {
+        let other = conv_cons::emit_mapped(t, conv_cons::strtab::Strings::tables(true));
+        let (table, kept) = conv_cons::strtab::translated(&rows, &other.rows);
+        println!("  text.{}.txt: {} of {} lines from the {} build, {kept} kept as in text.{}.txt", t.language, rows.len() - kept, rows.len(), t.language, ir.language);
+        tables.push((t.language.clone(), table));
+    }
     if let Some(path) = source_map {
         let text: String = lines.iter().map(|(n, at)| match at {
             Some(at) => format!("{n}\t{}:{}\n", at.file, at.index),
@@ -72,7 +83,12 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         }).collect();
         fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
     }
-    let source = webp_tree(&output, picture_dirs, webp, dry_run, source)?;
+    // the tables name pictures too (window lines, choice plates): retargeted with the script
+    let joined = std::iter::once(source).chain(tables.iter().map(|t| t.1.clone())).collect::<Vec<_>>().join("\0");
+    let joined = webp_tree(&output, picture_dirs, webp, dry_run, joined)?;
+    let mut parts = joined.split('\0').map(str::to_string);
+    let source = parts.next().unwrap_or_default();
+    tables.iter_mut().zip(parts).for_each(|(t, p)| t.1 = p);
     if !dry_run {
         reencode_audio(&output, audio_dirs, opts.audio)?;
     }
@@ -86,7 +102,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         }
     }
     let media = version::media(webp, opts.audio);
-    let lost = write_game(&output, &ir, &source, (!dry_run).then_some(&*font), package.as_deref(), &media)?;
+    let lost = write_game(&output, &ir, &source, &tables, (!dry_run).then_some(&*font), package.as_deref(), &media)?;
     if !dry_run && !loose {
         pack(&output, output_dirs)?;
     }
@@ -268,20 +284,25 @@ pub fn needs_fallback(font: &[u8]) -> bool {
 }
 
 /// Writes the game into `output`: `0.txt` from `source` (the emitted
-/// script), `system.lua` when the script has Lua, `version.txt` (with
+/// script), `text.<code>.txt` from `tables` (language code, table), `system.lua` when the script has Lua, `version.txt` (with
 /// `package`, the source's own version, when known, and `media`, the
 /// media flags: [`version::media`]), `ons_args` and, when
 /// given, the font as `default.ttf` (with [`DEFAULT_FONT`] as
 /// `fallback.ttf` when it lacks Japanese: [`needs_fallback`]). Returns
 /// the number of characters the engine can't draw. Fails when a game
 /// variable is one conv-cons keeps for itself ([`conv_cons::clashes`]).
-pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>, package: Option<&str>, media: &str) -> Result<usize> {
+pub fn write_game(output: &Path, ir: &Script, source: &str, tables: &[(String, String)], font: Option<&[u8]>, package: Option<&str>, media: &str) -> Result<usize> {
     let clashes = conv_cons::clashes(ir);
     if !clashes.is_empty() {
         anyhow::bail!("the game's variables overlap conv-cons' (conv_core::alloc):\n{}", clashes.join("\n"));
     }
-    let (encoded, lost) = conv_cons::encode(source);
+    let (encoded, mut lost) = conv_cons::encode(source);
     fs::write(output.join("0.txt"), encoded)?;
+    for (code, table) in tables {
+        let (encoded, l) = conv_cons::encode(table);
+        lost += l;
+        fs::write(output.join(format!("text.{code}.txt")), encoded)?;
+    }
     if let Some(lua) = conv_cons::system_lua(ir) {
         record("system.lua");
         fs::write(output.join("system.lua"), conv_cons::encode(&lua).0)?;
@@ -430,13 +451,18 @@ pub fn dir_files(dir: &Path) -> Result<BTreeSet<String>> {
     Ok(have)
 }
 
-/// Lints `dir/0.txt` ([`conv_cons::lint`]). With `files`, also checks that
+/// Lints `dir/0.txt` ([`conv_cons::lint`]), its text filled from the
+/// table of its first language when it has one. With `files`, also checks that
 /// the files it names are among them: [`dir_files`] after a build, or the
 /// names a dry run would have written ([`conv_engines::output::written`]).
 pub fn lint_dir(dir: &Path, files: Option<&BTreeSet<String>>) -> Result<conv_cons::lint::Report> {
     let path = dir.join("0.txt");
     let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
-    let script = conv_cons::decode(&bytes);
+    let mut script = conv_cons::decode(&bytes);
+    let table = conv_cons::strtab::first_language(&script).map(|l| dir.join(format!("text.{l}.txt")));
+    if let Some(Ok(table)) = table.map(fs::read) {
+        script = conv_cons::strtab::fill(&script, &conv_cons::decode(&table));
+    }
     Ok(conv_cons::lint::lint(&script, &|n| files.is_none_or(|f| f.contains(&n.replace('/', "\\").to_lowercase()))))
 }
 

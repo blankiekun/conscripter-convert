@@ -7,7 +7,7 @@
 #              copied in as cons-<scratch name>, since other agents
 #              `pkill -x conscripter`
 # SCRATCH_DIR gets symlinks to the read-only inputs only (*.nsa, *.sar,
-# *.ns2, default.ttf, movie/), a copy of ons_args, the script and the
+# *.ns2, default.ttf, movie/, the text tables text.*.txt), a copy of ons_args, the script and the
 # engine, and run.sh: `SCRATCH_DIR/run.sh [engine options]` runs it
 # headless there with --save-dir SCRATCH_DIR/save (TIMEOUT, default 600 s).
 # Files the engine writes (0.txt, kidoku.dat, envdata, gloval.sav, saves,
@@ -28,7 +28,7 @@ mkdir -p "$scratch"
 # link would write through it.
 find "$scratch" -maxdepth 1 -type l -delete
 shopt -s nullglob
-for f in "$game"/*.nsa "$game"/*.sar "$game"/*.ns2 "$game"/default.ttf "$game"/movie; do
+for f in "$game"/*.nsa "$game"/*.sar "$game"/*.ns2 "$game"/default.ttf "$game"/movie "$game"/text.*.txt; do
     ln -s "$f" "$scratch/"
 done
 [ -f "$game/ons_args" ] && cp "$game/ons_args" "$scratch/"
