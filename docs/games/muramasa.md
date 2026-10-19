@@ -846,9 +846,9 @@ Open, by area (each is small; most noticeable first):
   over time about x or y mirrored at once (10); 38 moves/zooms with a
   fade or new picture drawn as cross-fades; a window that moves (`絵演窓上`,
   `窓右`, about 56 `Move`s) has its clip jump to the end place.
-- **Time ledger** (`NSS_TRACE=1` prints each hold's place): 1,525 syncs
-  hold up to 1 s (none under a cover: History); ~1,200 zooms, paths,
-  moves and fades drawn as cross-fades (until `spmotion` keys, own item).
+- **Time ledger** (`NSS_TRACE=1`: each hold's place): 1,243 syncs hold up
+  to 1 s (not under a cover or for new pictures' motions: History); ~1,200
+  zooms, paths, moves, fades drawn as cross-fades (`spmotion` keys: own item).
   9 motions end at once (mc01_009vs:439, mb04_025vs:2987, md05_007vs).
 - **Tempo/arguments**: easing of `SetVolume` (9 fades over time keep a
   straight ramp) and the text window's `windowfade`; a move with a fade
@@ -888,6 +888,17 @@ Open, by area (each is small; most noticeable first):
   run the scenes in the interpreter under Unicorn from the dumps.
 
 ## History
+
+### New pictures zoomed from a size or on a path (2026-10-19)
+
+A picture shown with an unwaited `Zoom` from a size other than 0
+(ma04_018vs:365, from 1200) or a `BezierMove`/`FadeFR` path (mc04_008:138's
+`Plain` copy) was held at the next sync and drawn as a cross-fade. sync.rs's
+new-picture loop now gives both as an `spmotion` (the zoom faded in from 0
+when the fade takes as long; the path from minus its last key, keys via
+`along`, so FadeFR's `Random` jitter adds 29 runtime `rnd` forks). Holds
+1,525 -> 1,243. Tests `a_new_picture_zoomed_without_waiting_zooms_from_its_size`,
+`a_new_picture_on_a_path_without_waiting_runs_it`.
 
 ### No hold under a cover (2026-10-19)
 
