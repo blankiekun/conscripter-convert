@@ -9,8 +9,7 @@ command a game's dry run counts (the `kinds` of
 
 | File | Engine | Games | Script format |
 |---|---|---|---|
-| [`nitroplus-nss.md`](nitroplus-nss.md) | Nitroplus NSS | 装甲悪鬼村正, 続・殺戮のジャンゴ, and Full Metal Daemon Muramasa's shared commands | NSS text calling built-ins |
-| [`nitroplus-diesel.md`](nitroplus-diesel.md) | Nitroplus Diesel | Full Metal Daemon Muramasa (English) | Squirrel 2.2: the port's own calls |
+| [`nitroplus-nss.md`](nitroplus-nss.md) | Nitroplus NSS | 装甲悪鬼村正, 続・殺戮のジャンゴ, Full Metal Daemon Muramasa (English) | NSS text calling built-ins; the English port's Squirrel calls as `port <name>` |
 | [`xuse.md`](xuse.md) | Xuse | 最果てのイマ COMPLETE | compiled bytecode opcodes |
 | [`typemoon.md`](typemoon.md) | TYPE-MOON | 月姫 -A piece of blue glass moon- (Switch) | `_NAME(args)` commands |
 | [`mages.md`](mages.md) | MAGES TaskList | 俺たちに翼はない (PS Vita) | task lists with key/value parameters |

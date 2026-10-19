@@ -21,8 +21,7 @@ self-tests the check first (`--self-test`: only that).
 
 The command reference: each snapshot's `engine_doc` names
 docs/engines/<engine_doc>.md, whose one table needs a row per kind (the
-Command cell the kind in backticks; a doc in DOC_BASE also takes the
-base's rows), and every row names a kind of a game that uses the doc.
+Command cell the kind in backticks), and every row names a kind of a game that uses the doc.
 """
 import json
 import os
@@ -55,7 +54,6 @@ SCHED_MAX = {g: 4 for g in ("django", "muramasa", "muramasa-en", "oretsuba", "sa
 GENERIC = {"handler", "command", "all", "dispatch", "hidden", "state", "sound", "timing", "effects", "effect", "waits", "timed"}
 
 # an engine doc that holds only its own commands, the rest in the base doc's
-DOC_BASE = {"nitroplus-diesel": "nitroplus-nss"}
 
 bad = 0
 def fail(msg):
@@ -225,19 +223,15 @@ for mf in sorted(os.listdir("tests/snapshots")):
     if not stem:
         fail(f"tests/snapshots/{mf}: no engine_doc")
         continue
-    for st in (stem, DOC_BASE.get(stem)):
-        if st and st not in docs:
-            docs[st] = doc_rows(st)
-            if docs[st] is None:
-                fail(f"tests/snapshots/{mf}: engine_doc {st}: no docs/engines/{st}.md")
-                docs[st] = set()
-    rows = docs[stem] | docs.get(DOC_BASE.get(stem), set())
-    miss = sorted(set(m["kinds"]) - rows)
+    if stem not in docs:
+        docs[stem] = doc_rows(stem)
+        if docs[stem] is None:
+            fail(f"tests/snapshots/{mf}: engine_doc {stem}: no docs/engines/{stem}.md")
+            docs[stem] = set()
+    miss = sorted(set(m["kinds"]) - docs[stem])
     if miss:
         fail(f"docs/engines/{stem}.md: kinds of {mf[:-13]} with no row: {', '.join(miss)}")
-    for st in (stem, DOC_BASE.get(stem)):
-        if st:
-            used.setdefault(st, set()).update(m["kinds"])
+    used.setdefault(stem, set()).update(m["kinds"])
 for st, names in docs.items():
     for n in sorted(names - used.get(st, set())):
         fail(f"docs/engines/{st}.md: row `{n}` is no game's kind (renamed? remove it)")
