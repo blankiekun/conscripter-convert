@@ -706,474 +706,332 @@ exe's rows:
 
 ## 3. Lowering to the IR
 
-- The reader produces the engine-neutral IR (`crates/conv-core/src/ir/`).
-  Only `crates/conv-cons` knows NScripter. If the IR can't express
-  something, add an IR op or a style variant with a doc comment that says
-  what the picture does, not how the source engine does it.
-- Anything not converted yet is emitted as a `;` comment naming the
-  script and instruction. The converter prints a ranked list of what
-  was left out, and that list is the to-do list.
-- Keep converter variables and sprite numbers in documented ranges:
-  write the map down (in the game's document) before the menus
-  claim slots. Lower sprite numbers draw on top. Keep the game's own
-  sprites at fixed numbers, so old saves still load after renumbering
-  the menus.
-- **Claim them against what conv-cons already uses.** The menus write
-  variables of their own (`grep -o '%[0-9]*' 0.txt`, and the constants
-  in `menu/mod.rs` and at the top of `lib.rs`): pick the game's flags clear of
-  them, locals below the global border, globals clear of the menus'.
-  A new settings switch takes the next free index in `def` in
-  `switches.rs`, which a test keeps unique: branches adding switches at
-  the same time both took 9-11 once. Never move a number
-  once a build is out (step 11.9).
-- **Say where every hand-typed value comes from.** A literal that
-  stands for a fact about the original (a position, size, colour,
-  opacity, font size, timing, count, order) gets a one-line comment:
-  `// src: exe 0x4fb808`, `// src: <file> <what>`, `// src: shot <name>`
-  (`research/<engine>/local/shots/`), `// guess: <why this value>`, or
-  `// ours` for the converter's own choice; one comment covers a block
-  from one table. Check a value in that order (the game's data, the
-  exe's tables, an exact capture of the original, a guess) and read it
-  from the files at convert time when that is small. A scaled
-  screenshot is a guess, not a source: Saiima's were off by up to 12 px.
-- **Say why a feature is left out.** In code, `// dropped: <reason>` on
-  the line that skips it; in `docs/games/*.md`, every left-out item
-  states its reason in the same sentence or bullet (the exe does not
-  have it, the user decided, it cannot work in the engine, ...).
-  `python3 -I research/tools/dropped_lint.py [--max N]` lists the
-  sentences that say "left out", "not converted", "dropped" or "skipped"
-  with no reason word (tune its two regexes if it misfires). CI runs it
-  with a ceiling per game (`CEIL` in the script): lower it as reasons
-  are added, never raise it.
+- The reader produces the engine-neutral IR (`crates/conv-core/src/ir/`);
+  only `crates/conv-cons` knows NScripter. If the IR can't express
+  something, add an IR op or style variant with a doc comment saying what
+  the picture does, not how the source engine does it.
+- Anything not converted yet is emitted as a `;` comment naming the script
+  and instruction; the converter's ranked list of them is the to-do list.
+- Keep converter variables and sprite numbers in documented ranges (map in
+  the game's document before the menus claim slots); the game's own
+  sprites keep fixed numbers so old saves load.
+- **Claim them against what conv-cons already uses** (`grep -o '%[0-9]*'
+  0.txt`, the constants in `menu/mod.rs` and the top of `lib.rs`): game
+  flags clear of the menus', locals below the global border. A new
+  settings switch takes the next free index in `def` in `switches.rs` (a
+  test keeps them unique; two branches once both took 9-11). Never move a
+  number once a build is out (step 11.9).
+- **Say where every hand-typed value comes from.** A literal standing for
+  a fact about the original (position, size, colour, timing, count, order)
+  gets a one-line comment: `// src: exe 0x4fb808`, `// src: <file> <what>`,
+  `// src: shot <name>`, `// guess: <why>` or `// ours`; one comment covers
+  a block from one table. Check in that order (game data, exe tables, an
+  exact capture, a guess); a scaled screenshot is a guess (Saiima's were
+  off by up to 12 px).
+- **Say why a feature is left out**: `// dropped: <reason>` in code; in
+  `docs/games/*.md` the reason in the same sentence.
+  `python3 -I research/tools/dropped_lint.py [--max N]` lists sentences
+  with "left out", "not converted", "dropped" or "skipped" and no reason;
+  CI runs it with a ceiling per game (`CEIL`): lower it, never raise it.
 
 ## 4. Control flow: prove it before looking at pictures
 
-- **After every feature, compile the whole game and lint it.** A dry
-  run (`--dry-run`: the script only, no assets; under 20 s for a whole
-  game; `convert-nss` and `mages convert` have it, give a new engine's
-  command one too) then `conscripter-convert lint <dir>`: missing
-  labels, effect numbers past 255, a `?` in text, half-width characters
-  in vertical text, files missing from the archives. Two of 村正's engine-killing bugs only showed on the whole
-  game, and lint's first run found a third.
-- **Then let the engine play it** with the debug trace and check the
-  trace ("Checking a build with the debug trace", below): one run finds
-  script errors, crashes, missing files and labels never reached, and
-  `cons_explore.py` covers every route. This is the default headless
-  check; always under `timeout -k 5` (ONScripter ignores SIGTERM in a
-  script loop).
-- The older tools still help where the engine can't: a static tracer
-  of `0.txt` (`research/xuse/nstrace.py`: displayed pages, hot loops,
-  every route in seconds with "click link N"; pages count as displayed,
-  not in file order) and the patched-`0.txt` recipe in `CLAUDE.md`.
-- A loop isn't automatically a bug: check whether the original loops
-  there too.
+- **After every feature, compile the whole game and lint it**: a dry run
+  (`--dry-run`: script only, under 20 s; give a new engine's command one)
+  then `conscripter-convert lint <dir>` (missing labels, effect numbers
+  past 255, a `?` in text, half-width characters in vertical text, files
+  missing from the archives). 村正's engine-killing bugs showed only on the
+  whole game.
+- **Then let the engine play it** with the debug trace (below);
+  `cons_explore.py` covers every route; always under `timeout -k 5`.
+- A loop isn't automatically a bug: check whether the original loops too.
 - Map the progression variables (step 11.2) as soon as conditions
-  convert, and follow the walkthrough through the converted branches
-  (step 11.3). Build the two-sided route simulation (step 11.4) at
-  the same time and re-run it after every control-flow change.
+  convert, follow the walkthrough through the converted branches (11.3),
+  and build the two-sided route simulation (11.4) at the same time;
+  re-run it after every control-flow change.
 
 ## 5. Text and voices
 
 - The text box and name plate are measured from screenshots of the
   original. Fonts must be fixed-width (`ipag.ttf`).
 - Find the voice rule exactly (最果てのイマ hid it behind a
-  divide-by-constant: look for magic multipliers) and check it plays
-  every voiced line.
-- Backlog names and voice replay: a `[name|voice]` tag per line with a
-  `pretextgosub`, read back with `gettaglog`.
-- Ruby, size and colour tags: `(base/reading)` with `rubyon`, `!zNNN`,
-  `#RRGGBB`.
-- **Check that the longest text fits.** Find the longest message, with
-  its name and its ruby, over the whole corpus and measure it against
-  the window's lines and columns (俺たちに翼はない: 109 characters, four
-  lines of 30). The trace's "text ran past the window" warning only
-  covers the pages a run reached.
+  divide-by-constant: look for magic multipliers) and check it plays every
+  voiced line. Backlog names and voice replay: a `[name|voice]` tag per
+  line with a `pretextgosub`, read back with `gettaglog`. Ruby, size and
+  colour tags: `(base/reading)` with `rubyon`, `!zNNN`, `#RRGGBB`.
+- **Check that the longest text fits**: find the longest message (name and
+  ruby included) over the whole corpus and measure it against the window
+  (俺たちに翼はない: 109 characters, four lines of 30); the trace's "text
+  ran past the window" warning covers only pages a run reached.
 
 ## 6. Pictures and sound in scripts
 
 - Backgrounds, sprites, BGM, sound effects, transitions with their real
   durations. Check sprite references against asset names: name prefixes
-  are a free oracle and find whole classes of bugs in one pass.
-- Find where effect parameters are defined. An opcode may only name a
+  are a free oracle.
+- Find where effect parameters are defined: an opcode may only name a
   preset that another opcode defined in a setup script.
-- An effect ONScripter can't draw: first try existing commands (masks,
-  `effect` numbers, `spfilter`), then add it to CONscripter (step 9).
+- An effect ONScripter can't draw: existing commands first (masks,
+  `effect` numbers, `spfilter`), then the engine (step 10).
 
 ## 7. System screens
 
-Title, save/load (with thumbnails and delete), settings, backlog, the
-button bar, confirmations. Which buttons the original shows or
-enables at each point (no save yet, no choice yet, nothing unlocked)
-is checked in step 11.6. Build them as in-script menus from the
-original's own parts (`menu/mod.rs` explains the ONScripter mechanics). Where
-the original uses a Windows dialog, design one from game parts and say
-so.
+Title, save/load (thumbnails, delete), settings, backlog, button bar,
+confirmations, built as in-script menus from the original's own parts
+(`menu/mod.rs` explains the mechanics); which buttons the original shows
+or enables when is step 11.6. Where it uses a Windows dialog, design one
+from game parts and say so.
 
-- **Start from the screens the IR already has**: `SaveMenu` and
-  `SaveGrid` (save and load), `SettingsMenu` (with `PagedSettings` for
-  pages drawn from the game's own pictures, option words and level bars),
-  `PictureSettings` (one picture with sliders and on/off pairs),
-  `ButtonBar`,
+- **Start from the screens the IR already has**: `SaveMenu`, `SaveGrid`,
+  `SettingsMenu` (`PagedSettings`), `PictureSettings`, `ButtonBar`,
   `CommandMenu`, `Backlog`, `ConfirmDialog`, `PictureScreen`. A game
   changes them through what it puts in the IR, never with game-specific
-  branches in `menu/`. Add a new screen type only for a screen none of
-  them can draw, and make it general enough for the next game.
-- **Two families of screens**: the picture ones (`SaveGrid`, `LineLog`,
-  `PictureSettings`, `PictureExtras`, `CommandMenu`: Nitroplus's) are
-  laid out from the original's own pictures, the classic ones
-  (`SaveMenu`, `Backlog`, `SettingsMenu`, `ExtrasMenu`: Xuse, MAGES)
-  arrange the game's parts in a layout of ours. Start from the picture
-  family when the original draws its screens as pictures (most do);
-  a third family needs the user's yes.
-- **State the engine could keep goes in the engine.** When a screen needs
-  something the engine can track (play time, counters, save details),
-  add a CONscripter command instead of script arithmetic: 村正's save
-  grid first counted play time in script, then got `getplaytime`.
+  branches in `menu/`; a new screen type only for what none can draw.
+- **Two families**: the picture ones (`SaveGrid`, `LineLog`,
+  `PictureSettings`, `PictureExtras`, `CommandMenu`: Nitroplus; use them
+  when the original draws its screens as pictures) are laid out from the
+  original's pictures; the classic ones (`SaveMenu`, `Backlog`,
+  `SettingsMenu`, `ExtrasMenu`: Xuse, MAGES) arrange the game's parts in
+  our layout. A third family needs the user's yes.
+- **State the engine could keep goes in the engine** (play time, counters,
+  save details): a CONscripter command, not script arithmetic (村正's
+  save grid counted play time in script, then got `getplaytime`).
 - Check each screen headless with the trace's `--shot-pages` or
-  `research/xuse/smoke.py` (scripted button presses and screenshots).
-  List the screens' sprites in the game's trace config (below) so the
-  trace leaves them out and auto-play never presses the bar's save, load
-  or skip buttons.
+  `research/xuse/smoke.py`; list the screens' sprites in the trace config
+  so auto-play never presses the bar's buttons.
 
 ## 8. Extras
 
-CG gallery, scene replay, music room. Their tables usually live in the
-exe or in system archives. Get a 100% save (the user points to
-sagaoz.net) and film the original's screens under wine before building
-them, with a fresh system data as well, to see what is locked before
-anything is reached (step 11.6).
+CG gallery, scene replay, music room. Their tables usually live in the exe
+or in system archives. Get a 100% save (the user points to sagaoz.net)
+and film the original's screens under wine before building them, with a
+fresh system data as well, to see what is locked (step 11.6).
 
 ## 9. Matching the original
 
-- **Check the game's manual before asking the user for screenshots or
-  footage.** It shows the title, menu, save/load, config and backlog
-  screens of the real game. Look for it in the dump, then extract it
-  into `research/<engine>/local/manual/` (git-ignored) and note in the
-  game document which screens it covers (`docs/tools.md`, "Manuals").
-  Where there is none, say so in the document so nobody searches again.
-- **Read before you film.** Most questions about what the original does
-  are answered faster from its code than from frames: the script
-  commands' arguments, the decompiled function behind them (curves,
-  times, alpha, coordinates), the format. Check our side with numbers
-  first (the dry run's `0.txt`, a trace, `compare -metric`). Run the
-  original under wine only for what that leaves open, and reuse shots
-  in `research/<engine>/local/shots/` before filming new ones.
-- **Reach the moment by patching, not by clicking.** To see a page,
-  effect or menu in the original, in this order of preference:
-  0. **Write a save with `research/tools/<engine>_save.py`** where the
-     engine has one (最果てのイマ: `xuse_save.py`; 装甲悪鬼村正:
-     `nitroplus_save.py`): it stands at any label (Muramasa: goes to any
-     scene file one click after loading) with the variables you give, and
-     the original loads it from its own load screen (or from a patched
-     boot that calls the game's load). Make one save in the game first,
-     on a page, as the template. Write such a tool once the save format is known
-     (the game document's "Save format"): it beats patching and clicking.
-     Engines that save their scripts' text with the state (Nitroplus NSS)
-     can be sent elsewhere by editing that text after the saved positions.
-  1. **Patch the game's scripts** in a copy: skip the logos and title,
-     start straight at the scene, set the flags its branch needs, and let
-     the pages advance by themselves (auto mode, or a timed wait added
-     after each page). Then take Xvfb screenshots at known times. The
-     install is never touched: the patched archive goes in the symlink
-     farm in its place. Examples: 最果てのイマ's patched `.cd` files
-     (`docs/games/saihate-no-ima.md`); for Muramasa, a repacked
-     `nss.npa` (`docs/games/muramasa.md`, "Running the original under
-     wine").
-  2. **Write or edit a save file** that stands at the moment, when a
-     script patch can't get there (state the scripts can't set). Work out
-     the format from the exe's save and load code first.
-  3. **Click through by hand** only when neither works. It is slow, and
-     a click can miss or land during a fade.
-- **Console games: an emulator instead of wine.** Same rules: last
-  resort, its own Xvfb (`-displayfd`, `WAYLAND_DISPLAY=` empty; never
-  start the emulator bare, even for `--help`: GUI front ends open on
-  the desktop), its own data dir (not the user's), no audio, memory
-  capped. Check the boot first: firmware and keys must match (every
-  firmware NCA's master key revision must be in the keys; a firmware
-  newer than the keys fails). Switch: Ryubing's
-  `--no-gui` front end, recipe in `docs/games/tsukihime.md`, "Testing".
-  Vita: Vita3K's AppImage, recipe in `docs/games/oretsuba.md`,
-  "Testing". SDL apps find the desktop's Wayland socket in
-  `$XDG_RUNTIME_DIR` even with `WAYLAND_DISPLAY` unset: give them an
-  empty `XDG_RUNTIME_DIR` and `SDL_VIDEO_DRIVER=x11`. Qt front ends open
-  web pages (update prompts, welcome links) in the user's browser through
-  D-Bus: run them with `DBUS_SESSION_BUS_ADDRESS=disabled:`,
-  `BROWSER=true` and no-op `xdg-open`/`gio` first in `PATH`
-  (`research/oretsuba/vita-emu.sh`). When an emulator crashes, a source
-  build with symbols under gdb names the function in minutes (Vita3K:
-  a texture upload from memory the game had freed).
-- **Wine gotchas:** run every game with `LANG=ja_JP.UTF-8` and
-  `LC_ALL=ja_JP.UTF-8`, or folder and file names come out garbled and
-  saves can fail (Muramasa's new game went straight back to the title). Wine has no MS fonts, so a
-  substitute font draws the text: compare where text starts, not the
-  step between characters.
-- **Filming the original under wine**, when the code leaves a real
-  doubt (transitions, effects, menus). Set up a scratch `WINEPREFIX` whose Documents, Desktop
-  and other user folders are **real folders, not symlinks to the user's
-  home** (games save there), use a symlink farm so patched scripts never
-  touch the install, no audio, an Xvfb display of its own, a free one
-  picked with `-displayfd`, never a fixed number (`docs/tools.md`; never
-  the user's desktop). Slow a transition down by patching its duration in a
-  copy of the script, and take shots at fixed fractions of it. Film
-  each screen once and keep the shots in `research/<engine>/local/shots/`
-  (git-ignored), named for what they show, so later checks reuse them
-  instead of starting wine again. Compare ours with them by numbers
-  first (`compare -metric AE -fuzz 0`, on a crop; a small fuzz only for frames
-  that legitimately differ, such as video or scaled pictures, and say so
-  in the report: 2 % hid sprites drawn 1 % dark), and look at a
-  picture only when the numbers don't say what differs. Stop
-  wine and Xvfb afterwards. Recipes: "Running the original under
-  wine" in `docs/games/saihate-no-ima.md`, and in
-  `docs/games/muramasa.md` for a game that needs DirectSound.
-- Then read the effect's kernel in the exe for the exact curve, and fit
-  the filmed frames to it. Example: MeltDown, edge = h·((p − d)/(1 − d))².
-  Keep what you read as data where the engine can take it (§10): an
-  easing as an `spcurve` table, an in-place transition as `cons_rule.dll`
-  masks.
+Fallback order: code (scripts, decompile, formats), then the oracle (our
+numbers against dumps and reference traces), wine or an emulator last.
+
+- **Check the game's manual before asking for screenshots**: it shows the
+  title, menu, save/load, config and backlog screens. Extract it into
+  `research/<engine>/local/manual/` (git-ignored), note in the game
+  document which screens it covers (`docs/tools.md`, "Manuals"), or that
+  there is none.
+- **Read before you film.** Script arguments, the decompiled function
+  behind them (curves, times, alpha, coordinates) and the format answer
+  most questions. Check our side by numbers first (dry run's `0.txt`, a
+  trace, `compare -metric`), run the original only for what remains, and
+  reuse `research/<engine>/local/shots/` first.
+- **Reach the moment by patching, not by clicking**, in this order:
+  0. **A save from `research/tools/<engine>_save.py`** where one exists
+     (`xuse_save.py`, `nitroplus_save.py`): it stands at any label with
+     the variables you give, and the original loads it from its own load
+     screen. Make one save in the game first as the template. Write such a
+     tool once the save format is known (the document's "Save format").
+  1. **Patch the game's scripts** in a copy (skip logos and title, set
+     the flags, let pages advance by themselves, Xvfb screenshots at known
+     times). The install is never touched: the patched archive goes in
+     the symlink farm (`docs/games/saihate-no-ima.md`;
+     `docs/games/muramasa.md`).
+  2. **Write or edit a save file** when a script patch can't get there;
+     work out the format from the exe's save and load code first.
+  3. **Click through by hand** only when neither works.
+- **Console games: an emulator instead of wine**, same rules (last
+  resort, own Xvfb, never started bare even for `--help`, own data dir, no
+  audio, memory capped; firmware and keys must match). Recipes:
+  `docs/games/tsukihime.md` and `docs/games/oretsuba.md` ("Testing"),
+  `research/oretsuba/vita-emu.sh`.
+- **Filming under wine**, when the code leaves a real doubt
+  (`LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8` always; wine has no MS fonts, so
+  compare where text starts): a scratch
+  `WINEPREFIX` with **real** (not symlinked) Documents, Desktop and other
+  user folders; a symlink farm so patched scripts never touch the install;
+  no audio; an Xvfb of its own from `-displayfd` (`docs/tools.md`). Slow a
+  transition by patching its duration in a copy, shoot at fixed fractions,
+  film each screen once, keep shots in `research/<engine>/local/shots/`.
+  Compare by numbers first (`compare -metric AE -fuzz 0` on a crop; a
+  fuzz only for video or scaled pictures, and say so: 2 % hid sprites
+  drawn 1 % dark). Stop wine and Xvfb afterwards. Recipes:
+  `docs/games/saihate-no-ima.md`, `docs/games/muramasa.md`.
+- Then read the effect's kernel in the exe for the exact curve and fit the
+  filmed frames (MeltDown: edge = h·((p − d)/(1 − d))²); keep it as data
+  where the engine can take it (step 10).
 - Check our side with the trace: `--shot-effects 25,50,75` films every
-  effect at those points of its own time, under `--auto-play` too, as
-  `<shot-dir>/fx<pg>-<n>-<pct>.png` (with `--shot-pages` only on those
-  pages); compare them with the original's frames at the same fractions.
-  Watching it run is the old way: CONscripter on its own Xvfb display
-  with `WAYLAND_DISPLAY= SDL_VIDEODRIVER=x11 SDL_RENDER_DRIVER=software`
-  (the default renderer grabs black; without `WAYLAND_DISPLAY=` the
-  window opens on the user's desktop), frames grabbed with
-  `import -window root`.
+  effect at those fractions of its own time as
+  `<shot-dir>/fx<pg>-<n>-<pct>.png`, to compare with the original's frames.
 
 ## 10. Engine additions
 
-Before adding a command, see whether the engine's general pieces take
-the feature as data; most of an exe's presentation code is one of these:
-- **Sprite animation** (moves, zooms, turns, fades, flashes, glows over
-  time): `spmotion` keys (offset, zoom x/y, angle, alpha) with a curve
-  per key; the exe's own easing goes in an `spcurve` table as read (or as
-  computed by running its function, `docs/lessons.md`, "Ways to speed up conversion"). `spblend` adds or
-  multiplies.
+Before adding a command, see whether the engine's general pieces take the
+feature as data; most of an exe's presentation code is one of these:
+- **Sprite animation**: `spmotion` keys (offset, zoom, angle, alpha) with
+  a curve per key; the exe's easing goes in an `spcurve` table as read (or
+  computed by running its function, `docs/lessons.md`, "Ways to speed up
+  conversion"). `spblend` adds or multiplies.
 - **Transitions that mix the two pictures in place** (wipes, dissolves,
-  blinds, soft rules): `cons_rule.dll` with a strip of mask frames, made
-  by running the original's kernel on a black old and a white new
-  picture. Transitions that move pixels still get a plugin.
-- **Logic** (rankings, unlock checks, counters, minigame rules) and
-  **parallel processes** (an engine's per-frame threads): Lua, already in
-  every build. `luasub name` makes `NSCOM_name` a command; the script's
-  Lua globals are saved; `cons_process(name, "fn", ...)` resumes a
-  coroutine once a frame. A process restarts from the top after a load,
-  so keep its progress in globals. Port decompiled C almost line by line.
-  The converter doesn't write a `system.lua` yet: the first game that
-  needs one adds that to conv-cons, for every game.
+  blinds): `cons_rule.dll` with a strip of mask frames made by running the
+  original's kernel on a black old and a white new picture. Transitions
+  that move pixels still get a plugin.
+- **Logic** (rankings, unlock checks, minigame rules) and **parallel
+  processes**: Lua, in every build. `luasub name` makes `NSCOM_name` a
+  command; Lua globals are saved; `cons_process(name, "fn", ...)` resumes
+  a coroutine once a frame and restarts from the top after a load, so keep
+  progress in globals. Port decompiled C almost line by line. The
+  converter doesn't write a `system.lua` yet: the first game that needs
+  one adds that to conv-cons.
+
 A new command is for what none of these can do. Then:
-1. Add it in `engine/src/cons/` (`ONScripter_cons.cpp` preferred).
-   It isn't opt-in: a new behaviour, like a bug fix, applies to every
-   script, with no command to turn it on. Effects are `cons_*.dll` effect-99 plugins; screen
-   effects use the `screenfilter`/`screenshake` slot machinery. It must
-   build for the web (emscripten) and keep its state in saves.
+1. Add it in `engine/src/cons/` (`ONScripter_cons.cpp` preferred), not
+   opt-in, building for the web (emscripten) and keeping its state in
+   saves. Effects are `cons_*.dll` effect-99 plugins; screen effects use
+   the `screenfilter`/`screenshake` slots.
 2. Document it in the engine's `COMMANDS.md`.
-3. Open the engine PR first (`CLAUDE.md`, "Rules"); point the
-   submodule at your branch's commit while you work, and at a commit on
-   CONscripter `master` once the engine PR is merged.
+3. Open the engine PR first (`CLAUDE.md`, "Rules"); point the submodule
+   at your branch's commit, then at a commit on `master` once merged.
 4. Release when a batch is ready: `docs/releasing.md`.
 
 ## 11. Route and progression check
 
-A game can't be declared finished until this is done. A converted script
-can run every page and still send the player to the wrong chapter, or
-lose the loop state between sessions.
+A game isn't finished until this is done: a converted script can run every
+page and still send the player to the wrong chapter or lose the loop state
+between sessions.
 
 1. **Find a walkthrough first.** Before converting control flow, save a
-   public walkthrough or flowchart of the routes and the unlock order in
-   the game document's "Walkthrough" section: which choices or links lead
-   to which chapters, the loop or cycle order, the true-ending
-   conditions. Note its source (site and page).
-2. **Map the progression variables.** Find every variable the script
-   uses to gate routes, chapters, loops and endings. For each one,
-   record its meaning, where it is set, reset and read, and whether the
-   original keeps it in save data or in system data. Put the table in
-   the game's document.
-3. **Check the converted branches against the walkthrough.** For each
-   step of the walkthrough, play it in the engine (a `--replay` file of
-   its choices, below) and record the variables with `--trace-vars`; or
-   follow the converted `0.txt` by hand, or with a scripted click path
-   (`research/xuse/smoke.py`) and the `lsp 999,"X:"+…` trick
-   (`CLAUDE.md`).
-   Confirm the expected chapter is reached at every loop: for
-   最果てのイマ, the first loop with no choice, each heroine, the second
-   cycle and the final arc. Write down every place where the code and
-   the walkthrough disagree, and settle each one by reading the
-   original's disassembly or running the original under wine (step 9).
-   Don't just pick one.
-4. **Simulate every route, both sides, and compare.** Reading the
-   output and spot runs miss bugs that only show on some paths: after
-   最初の頃, the other heroine links in 「最初の日」 stayed clickable and
-   switched the route (`fad5f9b`), because the converter put a link on
-   its message even when a jump skipped the link record. So:
+   public walkthrough or flowchart (routes, unlock order, loop order,
+   true-ending conditions) in the game document's "Walkthrough" section,
+   with its source.
+2. **Map the progression variables** that gate routes, chapters, loops
+   and endings: meaning, where set, reset and read, and whether the
+   original keeps each in save data or system data. Table in the game's
+   document.
+3. **Check the converted branches against the walkthrough.** Play each
+   step in the engine (a `--replay` file, below) with `--trace-vars`, or
+   follow `0.txt` by hand or with `research/xuse/smoke.py` and the
+   `lsp 999,"X:"+…` trick (`CLAUDE.md`). Confirm the expected chapter at
+   every loop. Settle every disagreement from the original's disassembly
+   or wine (step 9); don't just pick one.
+4. **Simulate every route, both sides, and compare.** Spot runs miss bugs
+   that show only on some paths (最果てのイマ: other heroine links in
+   「最初の日」 stayed clickable and switched the route, `fad5f9b`).
    - **Simulate the source script** from the decoded bytecode with the
-     original engine's run-time rules (records collect until a message
-     uses them, jumps, conditions, variables). The simulator lives in
-     `research/<engine>/`. For each walkthrough path it prints, per
-     page, the text, the clickable links and their targets, and the
-     progression variables.
-   - **Simulate the converted `0.txt`** on the same click path with
-     `research/xuse/nstrace.py` (or the next engine's equivalent),
-     printing the same things.
-   - **Diff the two page by page.** Every page must show the same links
-     with the same targets and leave the same variables. Also run
-     wrong-order paths the walkthrough warns about, such as clicking a
-     second heroine link in the same loop: the original must refuse them,
-     and so must the conversion.
-   - **Then in the engine.** The simulators check control flow; the
-     engine's trace checks what the player sees on the same routes.
-     Replay each path with `--replay`, or let `cons_explore.py` cover the
-     routes (below), and compare the engine's `--trace-vars` records
-     with the simulator's variables file by file: that tells you why
-     two runs went different ways, not only that they did.
-   - **Lint the output for the same class of bug.** Report every jump
-     target that falls between a per-message record (link, ruby, style)
-     and its message, every link the source only shows under a
-     condition, and every page with two links on the same text.
-   Keep the scripts and the click paths so the check can be re-run after
-   any converter change that touches control flow, text or links.
-   最果てのイマ's is `research/xuse/routesim.py` (paths in its `PATHS`,
-   a few seconds per path). It normalizes what the conversion changes on
-   purpose (full-width `(`, `/`, `!`; inline 【name】; padded chapter
-   names) and detects a link page shown again after its scene by the
-   jump back to its label, not by its text.
-5. **Check that state persists the way it does in the original.**
-   Confirm that system-data flags survive (a) quitting and relaunching
-   natively, (b) closing and reopening the web build, (c) loading an
-   older save and (d) going back to the title and starting again.
-   Compare each case with what the original does.
-6. **Check when every button may be shown or used.** Many buttons
-   appear, light up or open only after something has happened, and a
-   conversion easily shows them all from the start. List every button
-   and item on the title, the menus, the bars and the extras (gallery
-   tabs and thumbnails, replay scenes, music and movie room entries,
-   chapter or route entries, story menus) and for each one write down,
-   in the game's document, what the original needs before it is shown,
-   enabled or opened: an ending seen, a route cleared, a CG or scene
-   reached, a save existing, a choice behind the player, the game's own
-   unlock flag. Find the rule in the exe or the scripts, or see it
+     original engine's run-time rules (in `research/<engine>/`): per page
+     it prints the text, the links with targets, and the progression
+     variables, for each walkthrough path.
+   - **Simulate the converted `0.txt`** on the same click path
+     (`research/xuse/nstrace.py` or the engine's equivalent) and **diff
+     page by page**: same links, targets, variables. Also run the
+     wrong-order paths the walkthrough warns about: the original refuses
+     them, so must the conversion.
+   - **Then in the engine**: `--replay` each path (or `cons_explore.py`)
+     and compare `--trace-vars` with the simulator's variables.
+   - **Lint for the same class of bug**: jump targets between a
+     per-message record (link, ruby, style) and its message, links shown
+     only under a condition, pages with two links on the same text.
+   Keep the scripts and click paths to re-run after any control-flow,
+   text or link change (最果てのイマ: `research/xuse/routesim.py`, paths in
+   `PATHS`).
+5. **Check that state persists as in the original**: system-data flags
+   survive quitting and relaunching natively, closing and reopening the
+   web build, loading an older save, and going back to the title to start
+   again.
+6. **Check when every button may be shown or used.** Conversions easily
+   show everything from the start. List every button and item on the
+   title, menus, bars and extras (gallery, replay scenes, music and movie
+   entries, chapter or route entries) and write down in the game's
+   document what the original needs before it is shown, enabled or opened
+   (an ending seen, a CG reached, a save existing, a choice behind the
+   player, its own unlock flag). Find the rule in the exe or scripts, or
    under wine with a fresh system data and with a 100% save; where it
-   can't be found, choose one, and say in the document that the rule is
-   ours. Then check the conversion in both states: on a fresh start
-   (nothing seen, no saves) every locked button must be hidden or greyed
-   and refuse a click, as in the original; with the unlocks reached
-   (by play, or the variables set with `--vars`) each one must appear.
-   Examples: 俺たちに翼はない's after-stories show once an ending was
-   seen and its music room opens every song (the original's rule is
-   unknown); 村正's 選択肢まで戻る is greyed while there is no choice to
-   go back to; 最果てのイマ's replay leaves out the scenes not unlocked
-   yet. Locked state is usually in system data: check it survives as in
+   can't be found, choose one and say the rule is ours. Check both
+   states: on a fresh start every locked button is hidden or greyed and
+   refuses a click; with the unlocks reached (by play, or `--vars`) each
+   appears. Locked state is usually system data: check it survives as in
    step 5.
-7. **Check that every setting does what the original's does.** For each
-   setting: its default, what it changes, when it takes effect and that
-   it is kept across quitting (system data). Compare in particular:
-   skip (read text only or everything; stops at a choice or goes on),
-   auto mode's speed and whether it waits for the voice, how the volume
-   levels and the mute switches combine, whether a voice stops at the
-   next click, the text speed's slowest and fastest. Write the
-   original's rule next to each row of the game's settings table.
-8. **Check every way of giving input.** Right-click, the mouse wheel and
-   the original's keyboard shortcuts (Enter, Space, Ctrl for skip,
-   Escape, the function keys) do what they do in the original, on the
-   page and on every screen. Every screen can be left by mouse, by
-   keyboard and by touch: the web build on a phone and the Android build
-   have no right-click and no wheel, so no screen may need one to close
-   (a dialog that only a right-click dismisses traps a phone player).
-   Check that clicks during a fade, a movie or a transition don't skip
-   more than the original's do.
-9. **Check that saves survive a rebuild.** Players keep their saves
-   across our builds, so before a build goes to the user, load the
-   previous build's saves (story slots and system data) into it, natively
-   and in the web build. Global variables, the game's sprite numbers,
-   setting switches and save-slot numbers must not move between builds
-   (`--roundtrip-every` only checks one build against itself). Saves
-   and read marks (`kidoku.dat`) follow a rebuilt `0.txt` by label.
-10. **Write it down.** Add a checklist entry to the game's document:
-   "progression verified against walkthrough: yes/no, date,
-   how" (which paths were simulated, and whether both sides matched). Add any new lesson to `docs/lessons.md`.
+7. **Check every setting does what the original's does**: default, effect,
+   when it applies, kept across quitting; especially skip (read only or
+   all; stops at a choice), auto speed and voice wait, volumes against
+   mute, whether a voice stops at the next click, text speed extremes.
+   Write the original's rule next to each row of the settings table.
+8. **Check every way of giving input**: right-click, wheel and the
+   original's keys do what they do in the original, on every screen. Every
+   screen can be left by mouse, keyboard and touch (the web build on a
+   phone and the Android build have no right-click or wheel). Clicks
+   during a fade, movie or transition must not skip more than the
+   original's.
+9. **Check that saves survive a rebuild.** Before a build goes to the
+   user, load the previous build's saves (story slots and system data)
+   into it, natively and in the web build. Global variables, the game's
+   sprite numbers, setting switches and save-slot numbers must not move
+   between builds (`--roundtrip-every` checks only one build). Saves and
+   read marks (`kidoku.dat`) follow a rebuilt `0.txt` by label.
+10. **Write it down**: a checklist entry in the game's document,
+    "progression verified against walkthrough: yes/no, date, how" (paths
+    simulated, whether both sides matched). Add new lessons to
+    `docs/lessons.md`.
 
 ## 12. The web build
 
-The web build is the main platform, so play it in a browser, not only
-natively, at every milestone:
+The web build is the main platform: play it in a browser at every
+milestone.
 
-- Make it as loose files (the page fetches each file when it needs it;
-  one big `arc.nsa` would be fetched whole), with the web engine and an
-  index of the files:
+- Make it as loose files (one big `arc.nsa` would be fetched whole), with
+  the web engine and an index:
 
       conscripter-convert <command> <game> -o out/<game>-web --font <ipag.ttf> --loose
       python3 -I engine/src/cons_web/conscripter_index.py -i out/<game>-web \
           -o out/<game>-web/cons_index.json --title <game> --lazyload
       cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/<game>-web/
-      python3 -m http.server 8000 -d out/<game>-web   # then open /conscripter.html
+      python3 -m http.server 8000 -d out/<game>-web   # open /conscripter.html
 
-  (the web engine: `cd engine/script && EMSDK_HOME=<emsdk> bash
-  ./cross_web.sh`). `docs/games/oretsuba.md` has the whole recipe.
-- Check: the first page's loading time; music and voices once the
-  browser lets sound play (the first click), and movies (muted when the
-  browser blocks sound); saves and system data surviving a page reload
-  and a closed tab (step 11.5); the screens by touch (step 11.8); the
-  picture memory on long routes (the trace's per-page image memory; the
-  web build has less to spare). `?trace` in the URL and F7 give the same
-  trace as natively; `engine/tools/web_run.py` makes one headless (the
-  web build in headless Chromium, `docs/tools.md`): run it with
-  `--query 'auto-play=0'` at each milestone and check it as a native one.
+  (web engine: `cd engine/script && EMSDK_HOME=<emsdk> bash
+  ./cross_web.sh`; whole recipe in `docs/games/oretsuba.md`).
+- Check: loading time; music, voices and movies once the browser lets
+  sound play; saves and system data across a reload and a closed tab
+  (11.5); screens by touch (11.8); picture memory on long routes.
+  `engine/tools/web_run.py` makes a trace headless (`docs/tools.md`): run
+  it with `--query 'auto-play=0'` at each milestone and check it like a
+  native one.
 - Note the package's size and file count in the game's document.
 
 ## 13. Finishing
 
 - The finish line is set by the user: every story instruction converted,
   system screens and extras working, the route and progression check
-  (step 11, unlocks included) done, the remaining differences written down as optional
-  leftovers in the game's document.
-- Update the game's document (status, leftovers), `README.md`'s games
-  table (the state word), `gui/README.md`'s games row, CLAUDE.md's game table, `docs/lessons.md` (new lessons, stated
-  for any engine), and this playbook if the process changed.
+  (step 11, unlocks included) done, remaining differences written down as
+  optional leftovers in the game's document.
+- Update the game's document, `README.md`'s games table, `gui/README.md`,
+  CLAUDE.md's game table, `docs/lessons.md` and this playbook.
 - **The game is in `crates/conv-engines/src/registry.rs`** (id, name,
   engine, marker files, command; `conscripter-convert games` lists it)
-  (which `tests/snapshot.sh` reads) from its first dry run (checklist 3a). On a conflict in `tests/snapshots/` never take one side:
-  rebase, rerun `tests/snapshot.sh --update`, and explain each changed
-  game's 0.txt in the PR body. Its `--update` also keeps
-  `tests/snapshots/<game>.metrics.json`, the dry run's completion counts
-  (each source call converted fully or with a gap, per command kind),
-  which the convert-metrics page on blankiekun.github.io shows: the
-  engine opens and closes each call on `conv_engines::metrics::Metrics`
-  so its notes land on it; a call left out on purpose (unreachable code such
-  as a debug menu) goes to `Metrics::left_out`, which the page counts as
-  done but lists apart (`left_out`), so it isn't a gap.
-- **Add the game to the GUI**: its entry in `gui/games.py` (the same
-  markers as the registry, which a test checks; the marker
-  files that recognise it, the command and font from the game's
-  document, whether it needs ffmpeg, about how much it writes) and a fake
-  layout with the expected command in `gui/tests/test_games.py`. When the
-  document's build command changes, change the entry in the same commit.
-  The converter's releases (a `v*` tag, `.github/workflows/release.yml`)
-  ship the GUI.
-- Rebuild into a fresh output folder. Never touch folders holding the
-  user's saves (`out/saiima-flow`), and list any folder before deleting
-  it.
+  from its first dry run (checklist 3a); `tests/snapshot.sh` reads it. On
+  a conflict in `tests/snapshots/` never take one side: rebase, rerun
+  `tests/snapshot.sh --update`, and explain each changed game's 0.txt in
+  the PR body. `--update` also keeps `<game>.metrics.json` (source calls
+  converted fully or with a gap, shown on the convert-metrics page): the
+  engine opens and closes each call on `conv_engines::metrics::Metrics`;
+  a call left out on purpose (unreachable code) goes to
+  `Metrics::left_out`.
+- **Add the game to the GUI**: its entry in `gui/games.py` (the registry's
+  markers, checked by a test; command and font from the game's document;
+  ffmpeg need; rough write size) and a fake layout with the expected
+  command in `gui/tests/test_games.py`. Change the entry in the same commit
+  as the document's build command.
+- Rebuild into a fresh output folder; never touch folders holding the
+  user's saves (`out/saiima-flow`); list any folder before deleting it.
 
 ## Checking a build with the debug trace
 
-CONscripter can play a converted game by itself and write a **trace**:
-one JSON line per text page (the sprites with their boxes, the
-background, music, sounds, filters and effects), per command that
-changed the screen or sound, per choice, per missing file, script error
-or crash. `engine/DEBUG.md` describes every record and option; this
-section is the workflow for a conversion. Run everything headless and
-under `timeout -k 5`, with the game folder as the working directory.
-The trace needs a CONscripter newer than 0.18.0 (its `master`): move the
-`engine` submodule forward first.
+CONscripter plays a converted game by itself and writes a **trace**: one
+JSON line per text page (sprites with boxes, background, music, sounds,
+filters, effects), per screen- or sound-changing command, choice, missing
+file, script error or crash. `engine/DEBUG.md` describes every record and
+option; this is the workflow. Run headless, under `timeout -k 5`, in the
+game folder. It needs a CONscripter newer than 0.18.0 (move the `engine`
+submodule forward first).
 
-**Checker first, deep dives after.** After every new build, make a trace
-and run `cons_trace_check.py` on it before digging into anything by
-hand (disassembly, filming the original, reading the script). The
-checker's list gives quick things to check and fix: a missing file, a
-sprite left up, a looping sound, text with a leaked tag. Go deeper only
-for what it can't explain.
-
-**A first run.** No window and no Xvfb are needed, so several runs can go
-at once, each with its own `--save-dir` and trace:
+**Checker first.** After every new build, make a trace and run
+`cons_trace_check.py` before digging by hand; go deeper only for what it
+can't explain.
 
 ```sh
 cd out/<game>-cons
@@ -1184,222 +1042,109 @@ echo $?   # 0 end, 1 auto-play stuck, 2 script error, 3 startup failure, 128+n s
 python3 -I ../../engine/tools/cons_trace_check.py /tmp/t.jsonl --script 0.txt
 ```
 
-- To run your own script or engine over someone else's full build,
-  set up a scratch folder with `research/tools/scratch.sh` (links only
-  the read-only archives, font and movies) and run its `run.sh`.
-  `research/tools/scene_ab.py` builds on it: the same scene under two
-  engines or two scripts, picture by picture, and save with one engine,
-  load with another.
-- Always give `--save-dir`: a game that saves as it goes would otherwise
-  write to the player's saves (never `out/saiima-flow`). The engine
-  (CONscripter 0.19.0 and later) makes the folder if it doesn't exist.
-- `--trace-ignore` takes the game's own UI sprites (the ranges in the
-  game document's sprite map). They are left out of the trace and
-  auto-play never presses their buttons.
-- `--auto-choice first|cycle|random` and `--seed n` pick the route;
-  the same options and seed give the same run.
-- The checker ranks what looks wrong (script errors and crashes,
-  missing files, sprites left up across a background change, pictures
-  a few pixels above the bottom edge, filters left over a CG, sounds
-  left looping, the same sound started twice before a click, voices cut
-  off, lines missing their voice, garbled or leaked text, very long
-  waits, slow spots, memory growth, labels never reached), each at the script line
-  `*label:line` to look at and with the command that showed the sprite.
-  Its last line is a `--shot-pages` option: run again the same way with
-  it to get pictures of just those pages.
+No window or Xvfb is needed, so runs can go in parallel, each with its own
+`--save-dir` (always; never `out/saiima-flow`) and trace.
 
-**Per-game checker config.** Put the game's UI sprite ranges, its CG
-name pattern and its known false positives in a JSON file beside the
-trace or the script (`cons_trace_check.json`, or `--config FILE`), so a
-check needs no long command line. Keep each game's file next to its
-document's sprite map, and add a false positive only after looking at
-the page. For 最果てのイマ that is sprite 61 (`bg\frame01.png`, the
-game's frame overlay) for `linger`.
+- `--trace-ignore` takes the game's UI sprites (the document's sprite map):
+  left out of the trace, never pressed by auto-play. `--auto-choice
+  first|cycle|random` and `--seed n` pick the route.
+- The checker ranks what looks wrong (errors, crashes, missing files,
+  sprites left up, filters left over a CG, sounds left looping, voices cut
+  off or missing, leaked text, long waits, memory growth, labels never
+  reached) at the script line `*label:line`; its last line is a
+  `--shot-pages` option for pictures of just those pages. UI ranges, CG
+  name pattern and known false positives go in `cons_trace_check.json`
+  beside the trace (or `--config FILE`); add a false positive only after
+  looking at the page.
+- A `crash` record has the signal, script line, gosub chain and the last
+  50 commands: read those before the core dump; a script error has an
+  `error` record with the same place.
+- Over someone else's full build use `research/tools/scratch.sh` and
+  `research/tools/scene_ab.py` (a scene under two engines or scripts).
 
-**A crash.** A trace that ends in a `crash` record has the signal, the
-script line, the gosub chain and the last 50 commands run: read those
-before the core dump. A script error has an `error` record with the same
-place and chain; with `USE_FILELOG` builds the message also goes to the
-terminal.
+**Every route, not one** (最果てのイマ's first runs missed 1,062 labels).
+`engine/tools/cons_explore.py` reruns with `--auto-choice untaken` until no
+run reaches a new label. `--replay t.jsonl` repeats an earlier run's
+choices and seed (fresh `--save-dir` each: globals stay in the save
+folder); a `replay diverged` warning marks where a new build went another
+way; compare traces with `cons_trace_check.py --diff before after`. A
+route simulator (step 11.4) can write the `--replay` file: the engine reads
+only `choice` records (`{"t":"choice","at":"*label:line","picked":2}`, or
+`"result"` for a `btnwait`), places being `0.txt` line numbers.
 
-**Every route, not one.** One auto-play run follows one route, and a
-hub that is always answered the same way leaves whole routes unreached
-(最果てのイマ's first runs missed 1,062 labels that way).
+**Start anywhere.** `--goto <label> --vars <file>` starts at a label with
+`%`/`$` variables preset (`%312=876`, `$5=text`, one per line) instead of a
+patched `0.txt`; `*start`'s setup runs first. Vars files come from a
+simulator, `--dump-vars file` (F8 and exit), or `engine/tools/
+cons_trace_vars.py t.jsonl --page N|--at '*label:line'`; globals from the
+save folder need an F8 dump.
 
-- `engine/tools/cons_explore.py` runs the engine again and again with
-  `--auto-choice untaken`, each run steered toward the options no
-  earlier trace took, until no run reaches a new label. It reports the
-  labels reached by all runs together against the script's.
-- `--replay t.jsonl` repeats an earlier run's choices exactly (and its
-  seed and `--auto-choice`), so a route the checker complained about
-  can be played again after a fix. Give each run a fresh `--save-dir`:
-  the game's global variables stay in the save folder, and a second run
-  in the same one starts from a different state. A `replay diverged` warning marks the first place the new
-  build went a different way. Compare the before and after traces with
-  `cons_trace_check.py --diff before.jsonl after.jsonl`.
-- A route simulator (step 11.4) can write the `--replay` file itself:
-  the engine reads only its `choice` records, in order, each with the
-  place and the answer (`{"t":"choice","at":"*label:line","picked":2}`,
-  or `"result"` for a `btnwait`), so a walkthrough path plays in the
-  engine without patching `0.txt`. The places are `0.txt` line numbers:
-  write them from the simulator's run over the same `0.txt`.
+**Long runs.** Other agents stop engines with `pkill -x conscripter`: run
+long traces through a renamed symlink (`ln -s conscripter
+out/conscripter-<game>`) and builds and runs under
+`research/tools/capped.sh <GiB> <cmd>`. `--checkpoint-every N` and
+`--load n` restart a deep run (slots 900 up); keep the bar in
+`--trace-ignore`. `--roundtrip-every N` saves, loads and compares every N
+pages: a `save/load mismatch` means state (filters, `pushscreen`,
+`spmotion` keys, variables, Lua) doesn't survive a save.
 
-**Start anywhere.** `--goto <label> --vars <file>` starts at a label
-with `%`/`$` variables preset (`%312=876`, `$5=text`, one per line). It
-replaces patching `0.txt` (a scene deep in a route reproduced in seconds
-instead of an hour's replay). `*start`'s setup (the settings' defaults
-and the text window) runs first, so game time matches a run from the
-start. The vars file can come from:
-- a simulator's or the converter's tracer (write it in that format),
-- another run: `--dump-vars file` writes one at F8 and when the engine
-  exits (F8's `dump` record lists the same variables),
-- a run's `var` records (`--trace-vars`, below) or F8 dumps, turned
-  into a vars file for any page or place by
-  `engine/tools/cons_trace_vars.py t.jsonl --page N` (or `--at
-  '*label:line'`). Global variables loaded from the save folder have no
-  `var` records: take those from an F8 dump or `--dump-vars`.
+**Other options** (`engine/DEBUG.md`): `--trace-perf`, `--dump-frames`;
+`--trace-layers` (what is drawn front to back); `--audio-stats` (needs
+`--real-time`); `--trace-vars 300-899` (compare with the simulator's
+variables via `cons_trace_vars.py --diff a.jsonl b.jsonl`); `--shot-pages
+412,980-990`, `--shot-every n`, `--shot-at '*label:line+ms'`, `--shot-after
+ms` (under `SDL_VIDEODRIVER=dummy` the clock is virtual: same frames every
+run); F8 writes the state; the web build takes `?trace`, trace via F7.
 
-**Long runs.** Other agents stop engines with `pkill -x conscripter`,
-which ends every run on the machine: run long traces through a symlink
-with another name (`ln -s conscripter out/conscripter-<game>`). Run
-builds and engine runs under `research/tools/capped.sh <GiB> <cmd>` so a memory regression can't take the desktop down (村正's
-full build once grew to 7 GB). `--checkpoint-every N` saves a slot every N pages during
-auto-play, and `--load n` starts a run from slot n, so a run that fails
-deep in a route restarts from the last checkpoint. Checkpoints go to
-slots 900 and up unless `--checkpoint-slot` says otherwise: move them if
-the game keeps its own data in those slots. Keep the game's bar in
-`--trace-ignore`, or auto-play presses its load button once a save
-exists. `--roundtrip-every N`
-saves, loads and compares the state every N pages; a `save/load
-mismatch` warning means part of the state (filters, the `pushscreen`
-stack, screen effects, `spmotion` keys, variables, the Lua state)
-doesn't survive a save. A game whose Lua process changes a global every
-frame shows `lua` differences each time: `--save-ignore '^lua$'` in its
-checker config.
-
-**Frames and drawing order.** `--trace-perf` (a `perf` record per page:
-frames presented, wall-clock ms worked for them, the slowest) finds a
-sprite effect that costs too much, and `--dump-frames` gives every
-frame's times. `--trace-layers` lists, on each `print` or effect, what
-is drawn front to back: check a CG or text window over the right sprites
-by reading it instead of looking at pictures.
-
-**Sound.** `sound` records say when a `chvolfade`/`chpan`/`chfreq` ramp
-got there and when a sound ended, `ms_cpu` marks a command that held the
-main thread over a frame, and `--audio-stats` adds an `audio` record per
-100 ms per channel and for the mix (RMS, balance, frequency, largest
-sample step, file position): sound plays in real time, so run it with
-`--real-time` or without `--auto-play` (`engine/DEBUG.md`).
-
-**Story flags.** `--trace-vars 300-899` writes a `var` record each time
-one of those variables changes, with the script line. Compare them with
-the route simulator's variables (step 11.4) to see where and why the
-engine's flags part from the source's, file by file:
-`engine/tools/cons_trace_vars.py --diff a.jsonl b.jsonl` prints the
-first change that differs (`--only 300-899` to narrow it).
-
-**What a player would notice but auto-play hides.** Auto-play shortens
-effects and waits, so the trace also records what each command asked
-for: a `long wait` warning flags any `print`, `delay`, `wait` or effect
-asking for more than 10 s (`print 10,270000` is a 4.5-minute fade). A
-`large image` warning flags a single picture that takes more than 64 MB
-(`--trace-max-image`), and each page records the image memory in use, so
-a leak shows as a curve before it crashes. A picture's width alone is no
-problem: CONscripter draws pictures in software, the web build too, so
-a 37600x600 animation strip works in a browser.
-
-**Seeing a page.** `--shot-pages 412,980-990` or `--shot-every n` saves
-pictures of chosen pages during the same run; F8 while playing with a
-trace on writes the state at that moment (and natively a picture). The
-web build takes `?trace` in its URL and downloads the trace with F7.
-
-**A frame mid-motion.** `--real-time --shot-at '*label:line+ms'` takes a
-picture that many ms of game time after the line has run (a `spmotion`
-line: the sprite part of the way), `--shot-after ms` at a game time.
-Under `SDL_VIDEODRIVER=dummy` the run has a virtual clock that moves
-only as the engine waits, so two runs give the same frames
-(`compare -metric AE` 0) and the waits cost no wall-clock time. A
-`savescreenshot` that writes nothing is a `screenshot not written`
-warning (with `--save-dir` it writes into the save folder).
-
-**When the trace can't do it** (the older recipe): patch a copy of
-`0.txt`: `textbtnwait` in `*conv_wait` → `mov %9,0`; comment out
-`click` in `*conv_click_wait`; put `mov %101,1:goto *label` right after
-`erasetextwindow 0` in `*start`. `research/xuse/smoke.py` does scripted
-clicks and screenshots (its click queue is `%1000+`; keep converter
-variables out of 1000-1099).
+**Older recipe** when the trace can't do it: patch a copy of `0.txt`
+(`textbtnwait` in `*conv_wait` → `mov %9,0`; comment out `click` in
+`*conv_click_wait`; `mov %101,1:goto *label` after `erasetextwindow 0` in
+`*start`); `research/xuse/smoke.py` does scripted clicks and screenshots
+(click queue `%1000+`).
 
 ## Test saves at chosen scenes
 
-To hand the user (or a later check) save files that stand at the
-moments worth testing (battles, movies, minigames, route splits,
-endings), list them in a slots file, one `slot label description` a
-line, and run:
+To hand over saves at moments worth testing (battles, movies, minigames,
+route splits, endings), list them in a slots file, one `slot label
+description` a line, and run:
 
 ```sh
 python3 -I research/tools/test_saves.py out/<game>-cons <slots.txt> -o <game>-test-saves.zip
 ```
 
-For each line the engine starts at the label (`--goto`) and saves there
-before any of the scene runs (`--checkpoint-start --checkpoint-slot
-<slot>`), so loading the save plays the whole scene, its opening
-effects too; it then plays to the first page for the thumbnail's
-picture (`--shot-pages 1`, or `--shot-after 3000` when a run gets stuck
-before it). A checkpoint is a bare save, without what our save
-menu adds when the player saves, so the script adds both: a 160×90
-`savethumbN.bmp` (the menu's thumbnail) and the slot's text, which
-`savegame2` appends to the file as `"<date>|<play time>|<text>"*` (UTF-8)
-and `getsavestr` reads back from the end; the description goes in the
-text. The zip holds the files flat and uncompressed, as the web
-player's Export Saves writes them (`save16.dat`, `savethumb16.bmp`);
-its Import Saves takes that, and so does a native save folder (unzip
-the `.dat` and `.bmp` files into it). Leave `gloval.sav` and
-`kidoku.dat` out: they would replace the player's unlocks and read
-text.
+For each line the engine starts at the label (`--goto`) and saves before
+the scene runs (`--checkpoint-start --checkpoint-slot <slot>`), then plays
+to the first page for the thumbnail (`--shot-pages 1`, or `--shot-after
+3000` when stuck). A checkpoint is a bare save, so the script adds a
+160×90 `savethumbN.bmp` and the slot's text, which `savegame2` appends as
+`"<date>|<play time>|<text>"*` and `getsavestr` reads from the end. The
+zip holds the files flat and uncompressed, as the web player's Export
+Saves writes them (`save16.dat`, `savethumb16.bmp`); Import Saves takes
+that, and so does a native save folder. Leave `gloval.sav` and `kidoku.dat`
+out: they would replace the player's unlocks and read text.
 
-Without `--vars-dir` the saves carry none of the route's earlier
-choices, so a scene that branches on them may go another way. With
-`--vars-dir <dir>`, each label's `<dir>/<label>.txt` (a `--vars` file,
-"Starting anywhere" in `engine/DEBUG.md`) sets the variables first, and
-the save holds them. For Muramasa, `research/nitroplus/route_vars.py`
-writes those files from the route paths, as nstrace has every variable
-when a path first enters the label (a second, no engine run):
-
-```sh
-L=$(grep -v '^#' research/nitroplus/muramasa-test-saves.txt | awk '{print $2}' | paste -sd,)
-python3 -I research/nitroplus/route_vars.py out/muramasa-cons <vars dir> research/nitroplus/paths/*.txt --labels $L
-python3 -I research/tools/test_saves.py out/muramasa-cons research/nitroplus/muramasa-test-saves.txt \
-    --vars-dir <vars dir> -o muramasa-test-saves.zip
-```
-
-Global variables (the `#` flags from finished routes, `%800` up) live in
-`gloval.sav`, not in a save, so they are set for the run but don't come
-with the zip.
+With `--vars-dir <dir>`, each label's `<dir>/<label>.txt` (a `--vars`
+file) sets the variables first and the save holds them; without it the
+saves carry none of the route's earlier choices (Muramasa:
+`research/nitroplus/route_vars.py` writes those files from the route
+paths). Globals (`%800` up) live in `gloval.sav`, not in the zip.
 
 ## Film list and shot index
 
-Running the original is the last resort and costs a session each time,
-so doubts are batched:
+Running the original is the last resort and costs a session each time, so
+doubts are batched:
 
-- Search first: `research/tools/shots.py find <words>` looks through
-  every `research/*/local/shots/INDEX.tsv` (git-ignored; columns: file,
-  game, scene, page, what it shows, date). Add each new shot with
+- Search first: `research/tools/shots.py find <words>` looks through every
+  `research/*/local/shots/INDEX.tsv` (git-ignored; columns: file, game,
+  scene, page, what it shows, date). Add each new shot with
   `shots.py add <file> <game> <scene> <page> <what>`.
 - If only the original can settle a doubt, append a line to
-  `research/<engine>/local/film-list.md` (git-ignored) and carry on; do
-  not start wine/Vita3K/Ryujinx for it. Exception: a quick check that a
-  generated save or patched script reaches directly (a few frames) may
-  run at once through `headless-run.sh`; mind its token cost. Format:
-
-  ```
-  | game | scene / page | question | asked by | date |
-  | saihate-no-ima | s9 l3 | does the save toast fade or cut? | xuse agent | 2026-10-18 |
-  ```
-
-- A filming session takes the whole list at once (one start per game),
-  indexes the shots, and answers each line in the game document.
-- Run the original only through `research/tools/headless-run.sh` or a
-  script that re-runs itself under it (`xtrace.sh`, `ntrace.sh`,
-  `vita-emu.sh`, `switch-emu.sh`); `.claude/hooks/emu_run.py` refuses
-  direct `wine`, `wineserver`, `Vita3K`, `Ryujinx`, `Xvfb` commands
-  (self-test: `python3 .claude/hooks/emu_run.py --test`).
+  `research/<engine>/local/film-list.md` (git-ignored; `| game | scene /
+  page | question | asked by | date |`) and carry on; do not start
+  wine/Vita3K/Ryujinx for it. Exception: a quick check that a generated
+  save or patched script reaches directly (a few frames) may run at once
+  through `headless-run.sh`; mind its token cost.
+- Run the original only through `research/tools/headless-run.sh` or a script that
+  re-runs itself under it (`xtrace.sh`, `ntrace.sh`, `vita-emu.sh`,
+  `switch-emu.sh`); `.claude/hooks/emu_run.py` refuses direct `wine`,
+  `Vita3K`, `Ryujinx`, `Xvfb`.
