@@ -371,6 +371,12 @@ pub enum PairOption {
     ConfirmLoad,
     /// A click during auto mode ends it (off: `consset "clickautostop",0`).
     ClickStopsAuto,
+    /// The text is English (`language "en"`; off: `language "ja"`): a
+    /// build of both editions (docs/string-tables.md).
+    English,
+    /// The pictures the English release has uncensored (`assetlayer
+    /// "uncensored",1`), a setting apart from the language.
+    Uncensored,
 }
 
 /// A line of text on a picture screen.

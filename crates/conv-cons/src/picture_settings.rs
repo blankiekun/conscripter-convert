@@ -83,14 +83,19 @@ fn pair_name(p: PairOption) -> &'static str {
         PairOption::ConfirmSave => "confirm_save",
         PairOption::ConfirmLoad => "confirm_load",
         PairOption::ClickStopsAuto => "click_stops_auto",
+        PairOption::English => "english",
+        PairOption::Uncensored => "uncensored",
     }
 }
 
 /// The define section's names, for the engine's screen.
-pub(crate) fn define(out: &mut String, s: &PictureSettings) {
+pub(crate) fn define(out: &mut String, s: &PictureSettings, language: &str) {
     let names = s.sliders.iter().map(|l| slider_name(l.setting)).chain(s.pairs.iter().map(|p| pair_name(p.option))).chain(["done"]);
     for n in names {
         out.push_str(&format!("defvar {},global\n", named(n)));
+    }
+    if has_language(s) {
+        out.push_str(&format!("defvar {},global\n", named(&format!("seen_{}", language))));
     }
 }
 
@@ -108,12 +113,57 @@ fn done(s: &PictureSettings) -> u8 {
 fn added_in(o: PairOption) -> u8 {
     match o {
         PairOption::ClickStopsAuto => 2,
+        PairOption::English | PairOption::Uncensored => 3,
         _ => 1,
     }
 }
 
+/// The language that runs: a global, set in the define section from the
+/// Language setting and by a load ([`LOAD_LANGUAGE`]); with two editions in
+/// one script only a line both share may switch it (docs/string-tables.md).
+pub(crate) const LANGUAGE_NOW: &str = "%conv_lang_now";
+/// The language a save was made in (1 Japanese, 2 English, 0 a save from
+/// before): not global, so a save keeps it.
+const SAVE_LANGUAGE: &str = "%conv_save_lang";
+/// The `loadgosub` routine with a Language setting: the save's language
+/// first, then [`crate::LOAD_CLEAR`].
+const LOAD_LANGUAGE: &str = "conv_load_lang";
+
+/// Whether there is a Language setting.
+pub(crate) fn has_language(s: &PictureSettings) -> bool {
+    s.pairs.iter().any(|p| p.option == PairOption::English)
+}
+
+/// In the define section, after its `language`: the language the Language
+/// setting holds (from the second start on), and a load going on in the
+/// save's language. Both editions write these same lines, so they stay
+/// shared and the switch moves no code under the engine's feet.
+pub(crate) fn define_language(out: &mut String, load_clear: &str) {
+    let (now, save, l) = (LANGUAGE_NOW, SAVE_LANGUAGE, LOAD_LANGUAGE);
+    let (english, done) = (format!("%{}", named("english")), format!("%{}", named("done")));
+    for line in [
+        format!("defvar {},global", &now[1..]),
+        format!("defvar {}", &save[1..]),
+        format!("if {done} > 0 mov {now},{english}"),
+        format!("if {done} > 0 && {now} == 1 language \"en\""),
+        format!("if {done} > 0 && {now} == 0 language \"ja\""),
+        format!("loadgosub *{l}:goto *{l}_end"),
+        format!("*{l}"),
+        format!("if {save} == 2 && {now} == 0 mov {now},1:mov {english},1:language \"en\""),
+        format!("if {save} == 1 && {now} == 1 mov {now},0:mov {english},0:language \"ja\""),
+        format!("goto *{load_clear}"),
+        format!("*{l}_end"),
+    ] {
+        out.push_str(&line);
+        out.push('\n');
+    }
+}
+
 /// At `*start`: the defaults on the first start, then the values applied.
-pub(crate) fn init(out: &mut String, s: &PictureSettings) {
+/// `language`: the script's; with a Language setting each edition's
+/// `*start` marks the saves with it and sets its defaults on its own first
+/// start (the editions' settings differ: Japanese has a game speed).
+pub(crate) fn init(out: &mut String, s: &PictureSettings, language: &str) {
     let set = format!("%{}", named("done"));
     // shortcut: takes the values from where builds before the names kept them; drop once no such gloval.sav is played
     let copies: String = (0..s.sliders.len()).map(|i| format!(":mov {},%{}", slider_var(s, i), SLIDER_BASE + i as u32)).chain((0..s.pairs.len()).map(|i| format!(":mov {},%{}", pair_var(s, i), PAIR_BASE + i as u32))).collect();
@@ -124,7 +174,12 @@ pub(crate) fn init(out: &mut String, s: &PictureSettings) {
             .map(|(i, p)| format!(":mov {},{}", pair_var(s, i), u8::from(p.default_on))).collect();
         out.push_str(&format!("if {set} == {} mov {set},{v}{fresh}\n", v - 1));
     }
-    out.push_str(&format!("if {set} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
+    if has_language(s) {
+        let seen = named(&format!("seen_{language}"));
+        out.push_str(&format!("mov {SAVE_LANGUAGE},{}\nif %{seen} == 0 mov %{seen},1:gosub *{DEFAULTS}\ngosub *{APPLY}\n", if language == "en" { 2 } else { 1 }));
+    } else {
+        out.push_str(&format!("if {set} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
+    }
     // `reset` comes back here: the title runs at the normal speed.
     if s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })) {
         out.push_str("consset \"gamespeed\",100\n");
@@ -152,6 +207,10 @@ fn values(out: &mut String, s: &PictureSettings) {
     }
     for (i, p) in s.pairs.iter().enumerate() {
         w(format!("mov {},{}", pair_var(s, i), u8::from(p.default_on)));
+        if p.option == PairOption::English {
+            // the default is the edition's own language, the one running
+            w(format!("mov {LANGUAGE_NOW},{}", u8::from(p.default_on)));
+        }
     }
     w(format!("mov %{},{}", named("done"), done(s)));
     w("return".into());
@@ -204,6 +263,9 @@ fn values(out: &mut String, s: &PictureSettings) {
             PairOption::ConfirmSave => w(format!("mov {},1-{v}", menu::switch_off(Switch::ConfirmSave))),
             PairOption::ConfirmLoad => w(format!("mov {},1-{v}", menu::switch_off(Switch::ConfirmLoad))),
             PairOption::ClickStopsAuto => w(format!("consset \"clickautostop\",{v}")),
+            // switched in the define section only (the settings screen restarts for it)
+            PairOption::English => {}
+            PairOption::Uncensored => w(format!("assetlayer \"uncensored\",{v}")),
         }
     }
     if mute.iter().any(Option::is_some) {

@@ -15,7 +15,7 @@
 
 use std::fmt::Write as _;
 
-use conv_core::ir::{ConfirmDialog, PictureSettings, Placed, Script, Switch, VoiceWindow};
+use conv_core::ir::{ConfirmDialog, PairOption, PictureSettings, Placed, Script, Switch, VoiceWindow};
 
 use crate::menu::IN_GAME;
 use crate::picture_settings::{self, pair_var, slider_var, APPLY, DEFAULTS};
@@ -77,7 +77,14 @@ pub(crate) fn question_lua(d: &ConfirmDialog, picture: &Placed, what: &str) -> S
 
 /// `*conv_settings`, and what its buttons run.
 pub(crate) fn labels(out: &mut String, s: &PictureSettings) {
-    writeln!(out, "*{}\nscreen \"settings\"\nreturn", crate::menu::SETTINGS).unwrap();
+    if picture_settings::has_language(s) {
+        // a language picked closes the screen with 1: the game restarts in it
+        let b = crate::BUTTON_VAR;
+        let english = picture_settings::pair_var(s, s.pairs.iter().position(|p| p.option == PairOption::English).unwrap_or(0));
+        writeln!(out, "*{}\nscreen \"settings\",{b}\nif {b} == 1 && {english} != {} definereset\nreturn", crate::menu::SETTINGS, picture_settings::LANGUAGE_NOW).unwrap();
+    } else {
+        writeln!(out, "*{}\nscreen \"settings\"\nreturn", crate::menu::SETTINGS).unwrap();
+    }
     if s.reset.is_some() {
         writeln!(out, "*{RESET}\ngosub *{DEFAULTS}\ngosub *{APPLY}\nreturn").unwrap();
     }
@@ -106,8 +113,9 @@ fn settings_lua(s: &PictureSettings, asks: bool) -> String {
             w.push(image("toggle", &p.off, &format!(", cells=3, pressed=2, on_file={}, var={var}, {apply}", lua(&p.on.image))));
             continue;
         }
+        let act = if p.option == PairOption::English { "action={\"close\", 1}" } else { &apply };
         for (side, chosen, value) in [(&p.on, on, 1), (&p.off, off, 0)] {
-            w.push(image("radio", side, &format!(", cells=3, on_file={}, var={var}, value={value}{pair_fade}, {apply}", lua(&chosen.image))));
+            w.push(image("radio", side, &format!(", cells=3, on_file={}, var={var}, value={value}{pair_fade}, {act}", lua(&chosen.image))));
         }
     }
     w.push(image("button", &s.close, &format!("{button}, action={{\"close\"}}")));
@@ -351,7 +359,7 @@ mod tests {
         picture_settings::emit(&mut out, &s);
         assert!(out.starts_with("*conv_settings\nscreen \"settings\"\nreturn\n"), "{out}");
         let mut define = String::new();
-        picture_settings::define(&mut define, &s);
+        picture_settings::define(&mut define, &s, "ja");
         assert!(define.ends_with("defvar conv_set_done,global\n"), "{define}");
     }
 

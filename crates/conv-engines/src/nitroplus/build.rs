@@ -16,6 +16,8 @@ use super::{english, npk, nss};
 
 /// Where the English edition's own files go in a build of both (CONscripter's asset layers).
 pub const EN_LAYER: &str = "layer/en";
+/// The English release's CGs where they differ from the Japanese (censored) ones: a setting of their own.
+pub const UNCENSORED_LAYER: &str = "layer/uncensored";
 use crate::build::{Built, Opts};
 
 /// The games, by the exe in their folder (which also gives the archives'
@@ -209,7 +211,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     }
     // the IR of a compile, its menus filled
     let script_of = |c: &mut convert::Compiled, g: &Game, files: &BTreeMap<String, nss::NssFile>, english: bool, assets: &mut NpaAssets| -> Script {
-        let story = convert::Story { flags: &c.flags, voice_classes: &c.voice_classes, files };
+        let story = convert::Story { flags: &c.flags, voice_classes: &c.voice_classes, files, both_editions: run.english.is_some() };
         let boot_label = c.ops.iter().any(|op| matches!(op, Op::Label(l) if l == convert::BOOT_LABEL)).then(|| convert::BOOT_LABEL.to_string());
         let boot = boot_label.map(|l| BootStep { gosub: Some(l), ..Default::default() }).into_iter().collect();
         let mut ir = Script {
@@ -237,6 +239,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     }
     if run.original_archives {
         original_archives(game, &key, &mut assets, opts.output)?;
+    }
+    if let Some(a) = en_assets.as_mut().filter(|_| !opts.dry_run) {
+        let n = a.uncensored(&assets, &opts.output.join(UNCENSORED_LAYER));
+        println!("{UNCENSORED_LAYER}: {n} of the English release's CGs that differ from the Japanese");
     }
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
     let mut metrics = base.metrics;

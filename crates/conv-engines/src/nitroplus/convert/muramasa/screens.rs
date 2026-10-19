@@ -120,7 +120,19 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     // The display options as a first start leaves them: aspect not set by
     // itself (切), display dependent, the scaling methods not chosen.
     // src: sys_config.nss ConfigSet ($ConfigAAutoX 251, FAspect 215,51, $ConfigWay 177,255)
-    let fixed = vec![picture(a, "003-切", 251, 213)?, picture(a, "003-ディスプレイ依存", 215, 51)?, picture(a, "002-アスペクト方法OFF", 177, 255)?];
+    let mut fixed = vec![picture(a, "003-切", 251, 213)?, picture(a, "003-ディスプレイ依存", 215, 51)?, picture(a, "002-アスペクト方法OFF", 177, 255)?];
+    if story.both_editions {
+        // the free band under the columns, left of the middle (user 2026-10-18); colours: the text's, 002-入's, 003-入's
+        let look = RowLook { size: 16.0, ink: [30, 25, 20], hover: [156, 101, 0], chosen: [108, 36, 36], label_x: 290, on_x: 340, off_x: 420 };
+        for (y, label, option, on, off) in [(494, "言語", PairOption::English, "English", "日本語"), (516, "画像", PairOption::Uncensored, "無修正", "修正あり")] {
+            let (l, mut pair, picked) = text_row(a, &look, label, option, (on, off), y)?;
+            // the Language default is the edition's own language
+            pair.default_on = option != PairOption::English;
+            fixed.push(l);
+            pairs.push(pair);
+            chosen.push(picked);
+        }
+    }
     // src: sys_config.nss ConfigSet (バージョン情報: SetFont 11 #bb7420, 453/678,548; Exit 26,108, Default 899,197, Test 287,197; Fade 300, 100)
     let version = |text: &str, x: i32| PictureText { text: format!("◆ＧＡＭＥ{text}バージョン情報：1.00"), x, y: 548, font_size: 11, colour: "#bb7420".into() };
     let voice_window = voice_window(a, story);
@@ -140,6 +152,42 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         voice_window,
         screen: SettingsScreen { chosen, voices_checked, steps_chosen: Vec::new() },
     })
+}
+
+/// How [`text_row`] draws: the words' size and colours (at rest, under
+/// the pointer, chosen) and where the label and the two sides start.
+struct RowLook {
+    size: f32,
+    ink: [u8; 3],
+    hover: [u8; 3],
+    chosen: [u8; 3],
+    label_x: i32,
+    on_x: i32,
+    off_x: i32,
+}
+
+/// A settings row neither original has (a build of both editions: the
+/// language, the pictures), as words in the build's font: the label, the
+/// pair (each side at rest, under the pointer, pressed) and its chosen
+/// pictures.
+fn text_row(a: &mut dyn Assets, look: &RowLook, label: &str, option: PairOption, (on, off): (&str, &str), y: i32) -> Option<(Placed, PicturePair, (Placed, Placed))> {
+    use std::hash::{Hash, Hasher};
+    let font = a.font().to_vec();
+    let labels = crate::labels::Labels::new(&font)?;
+    let paper = [235, 225, 205];
+    let mut words = |text: &str, colours: &[[u8; 3]], x: i32| -> Option<Placed> {
+        let drawn: Vec<_> = colours.iter().map(|c| labels.draw(text, look.size, *c, paper, 255)).collect();
+        let (w, h) = (drawn[0].width(), drawn[0].height());
+        let mut hash = crate::nitroplus::NameHasher::default();
+        (text, look.size.to_bits(), colours).hash(&mut hash);
+        let image = a.frames_strip(&format!("row_{:016x}", hash.finish()), w, h, colours.len() as u32, &mut |i, out| image::imageops::overlay(out, &drawn[i as usize], 0, 0))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let l = words(label, &[look.ink], look.label_x)?;
+    let (rest, picked) = ([look.ink, look.hover, look.chosen], [look.chosen; 3]);
+    let (on_side, on_chosen) = (words(on, &rest, look.on_x)?, words(on, &picked, look.on_x)?);
+    let (off_side, off_chosen) = (words(off, &rest, look.off_x)?, words(off, &picked, look.off_x)?);
+    Some((l, PicturePair { option, on: on_side, off: off_side, default_on: true }, (on_chosen, off_chosen)))
 }
 
 /// The English port's settings screen (`sys_config.nut`, its own design):
@@ -261,6 +309,20 @@ fn settings_en(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         ("ConfigButton-box", 838, 472),
     ] {
         fixed.push(picture(a, name, x, y)?);
+    }
+    if story.both_editions {
+        // Language under the toggle list, right of "Text Sample:" (user 2026-10-18); Pictures in the free band
+        // under Display Settings (no room left under the toggles); colours: the text's, the toggles' teal, their check's red
+        let look = |label_x, on_x, off_x| RowLook { size: 16.0, ink: [0, 0, 0], hover: [1, 46, 64], chosen: [204, 0, 0], label_x, on_x, off_x };
+        for (y, look, label, option, on, off) in [
+            (324, look(200, 290, 370), "Language", PairOption::English, "English", "Japanese"),
+            (510, look(540, 630, 740), "Pictures", PairOption::Uncensored, "Uncensored", "Censored"),
+        ] {
+            let (l, pair, picked) = text_row(a, &look, label, option, (on, off), y)?;
+            fixed.push(l);
+            pairs.push(pair);
+            chosen.push(picked);
+        }
     }
     let voice_window = voice_window_en(a, story);
     let voices_checked = voices_checked(a, voice_window.as_ref())?;

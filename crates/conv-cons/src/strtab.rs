@@ -178,10 +178,18 @@ pub struct Merged {
 }
 
 /// A script's runs of lines by source instruction: (place, lines).
+/// The define section's run ([`merge`] joins both editions').
+const DEFINE: &str = "<define>";
+
 fn runs<'a>(e: &Edition<'a>) -> Vec<(String, Vec<&'a str>)> {
     let lines: Vec<&str> = e.script.lines().collect();
     let mut starts: Vec<(usize, String)> = e.lines.iter().map(|(n, at)| (n - 1, at.as_ref().map_or("-".to_string(), |a| format!("{}:{}", a.file, a.index)))).collect();
     starts.insert(0, (0, "<start>".to_string()));
+    // the define section (through `game`) is a run of its own
+    if let Some(game) = lines.iter().position(|l| *l == "game") {
+        starts.insert(1, (game + 1, "<start>".to_string()));
+        starts[0].1 = DEFINE.to_string();
+    }
     let mut out: Vec<(String, Vec<&str>)> = Vec::new();
     for (i, (from, place)) in starts.iter().enumerate() {
         let to = starts.get(i + 1).map_or(lines.len(), |s| s.0).min(lines.len());
@@ -245,6 +253,19 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
         let a = x.map_or(&[][..], |i| &ra[i].1[..]);
         let b = y.map_or(&[][..], |j| &rb[j].1[..]);
         let (ca, ka, kb) = (code(a), refs(a), refs(b));
+        // the define section runs once, at start, whatever the language:
+        // both editions' declarations (their `defvar`s), the base's `language`
+        if x.is_some_and(|i| ra[i].0 == DEFINE) && y.is_some() {
+            let is_language = |l: &&str| l.trim_start().starts_with("language \"");
+            let extra: Vec<&&str> = b.iter().filter(|l| !is_language(l) && **l != "game" && !a.contains(l)).collect();
+            for l in a {
+                if *l == "game" {
+                    extra.iter().for_each(|e| writeln!(m.script, "{e}").unwrap());
+                }
+                writeln!(m.script, "{l}").unwrap();
+            }
+            continue;
+        }
         if x.is_some() && y.is_some() && ca == code(b) {
             for (ia, ib) in ka.iter().zip(&kb) {
                 if let Some(t) = own_other.get(ib.as_str()) {
@@ -387,14 +408,16 @@ mod tests {
         let e1 = en.lines(TEXT, "`One\\");
         en.at = "a.nss:2".into();
         let e2 = en.lines(TEXT, "`Two\\");
-        let en_script = format!("*define\nlanguage \"en\"\ngame\n*start\nbg 1\n{e1}\nlsp 1,\"a.png\",99,0\n*en_only\n{e2}\nquake 1\nend\n");
-        let en_lines = vec![(5, at(1)), (7, at(2)), (10, at(3)), (11, None)];
+        let en_script = format!("*define\nlanguage \"en\"\ndefvar a\ngame\n*start\nbg 1\n{e1}\nlsp 1,\"a.png\",99,0\n*en_only\n{e2}\nquake 1\nend\n");
+        let en_lines = vec![(6, at(1)), (8, at(2)), (11, at(3)), (12, None)];
         let m = merge(Edition { script: &ja_script, lines: &ja_lines, rows: &ja.rows }, Edition { script: &en_script, lines: &en_lines, rows: &en.rows });
         let blank = |s: String| s.lines().filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n") + "\n";
-        assert_eq!(blank(fill(&m.script, &m.tables.0)), fill(&ja_script, &table(&ja.rows)));
+        // the define section holds both editions' declarations
+        let with_both = |s: String| s.replace("game\n", "defvar a\ngame\n");
+        assert_eq!(blank(fill(&m.script, &m.tables.0)), with_both(fill(&ja_script, &table(&ja.rows))));
         assert_eq!(blank(fill(&m.script, &m.tables.1)).replace("language \"ja\"", "language \"en\""), fill(&en_script, &table(&en.rows)));
         assert!(m.script.contains("language \"ja\"") && m.script.contains("bg 1") && m.script.contains(&t1));
-        assert_eq!(m.blocks, 3, "the define (its language line), place 2 and place 3");
+        assert_eq!(m.blocks, 2, "place 2 and place 3");
     }
 
     #[test]
