@@ -1055,6 +1055,8 @@ impl Compiler<'_, '_> {
                 // from): waited for to its end.
                 if !matches!(arg(0), Value::Null) {
                     for t in self.matching(&arg(0)) {
+                        // (Ended: a 0 ms move after it stops nothing.)
+                        self.runs.remove(&t);
                         if self.unwaited_motions.remove(&t) && let Some(s) = self.shown.get(&t) {
                             self.ops.push(Op::MotionWait { layer: s.layer });
                         }
