@@ -146,7 +146,7 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
         ..Default::default()
     };
     println!("{} scripts -> {}", game.scripts.len(), opts.output.join("0.txt").display());
-    Ok(Built { ir, notes: compiled.notes, metrics: compiled.metrics, engine: "typemoon", picture_dirs: &["sys"], audio_dirs: &[], package: None })
+    Ok(Built { ir, notes: compiled.notes, metrics: compiled.metrics, engine: "typemoon", engine_doc: "typemoon", picture_dirs: &["sys"], audio_dirs: &[], package: None })
 }
 
 /// `allpaccg`'s CGs (`typemoon media` writes them to `cg/`), lowercase.

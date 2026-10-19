@@ -40,6 +40,8 @@ pub struct Built {
     pub metrics: crate::metrics::Metrics,
     /// The engine's name in `metrics.json` (`xuse`, `nitroplus`, `mages`).
     pub engine: &'static str,
+    /// Its command reference, `docs/engines/<engine_doc>.md` (`metrics.json`).
+    pub engine_doc: &'static str,
     /// Folders of the output whose PNG pictures `--webp` converts.
     pub picture_dirs: &'static [&'static str],
     /// Folders of the output whose sounds `--audio-codec` re-encodes

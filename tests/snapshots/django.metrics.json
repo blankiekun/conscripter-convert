@@ -1,6 +1,7 @@
 {
 "game": "django",
 "engine": "nitroplus",
+"engine_doc": "nitroplus-nss",
 "commit": "343b95f1",
 "commit_date": "2026-10-18",
 "totals": {"calls": 58158, "full": 57776, "gaps": 142, "left_out": 240, "weighted": 57915.4},

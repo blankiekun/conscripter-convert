@@ -50,4 +50,6 @@ own (`nitroplus/convert/muramasa.rs`).
    format readers' corner cases.
 8. **Docs**: `docs/games/<id>.md` from `docs/games/TEMPLATE.md`, a row
    in CLAUDE.md's table and README's, and lessons for any engine in
-   `docs/lessons.md`.
+   `docs/lessons.md`. The engine's command reference,
+   `docs/engines/<engine>.md` (`docs/engines/README.md`): one row per
+   command the dry run counts, its `engine_doc` stem set in `build.rs`.

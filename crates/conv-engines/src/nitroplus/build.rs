@@ -194,7 +194,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
     let mut metrics = compiled.metrics;
     metrics.merge(port);
-    Ok(Built { ir, notes: compiled.notes, metrics, engine: "nitroplus", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
+    Ok(Built { ir, notes: compiled.notes, metrics, engine: "nitroplus", engine_doc: "nitroplus-nss", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
 }
 
 /// Writes `cons_archives.txt` (each script folder and its archive) and

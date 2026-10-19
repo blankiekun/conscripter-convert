@@ -132,15 +132,16 @@ impl Metrics {
     /// The JSON the dry run writes: `commit` and `commit_date` each on a
     /// line of their own (`tests/snapshot.sh` compares without them), the
     /// kinds by gaps, each with its [`TOP`] reasons.
-    pub fn json(&self, game: &str, engine: &str, commit: &str, commit_date: &str) -> String {
+    pub fn json(&self, game: &str, engine: &str, engine_doc: &str, commit: &str, commit_date: &str) -> String {
         let (calls, gaps) = self.totals();
         let left_out = self.left_out_total();
         // "left_out" only when there are some, so other games' files stay as they were.
         let lo = |n: usize| if n > 0 { format!(", \"left_out\": {n}") } else { String::new() };
         let mut s = format!(
-            "{{\n\"game\": {},\n\"engine\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}}},\n\"kinds\": {{",
+            "{{\n\"game\": {},\n\"engine\": {},\n\"engine_doc\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}}},\n\"kinds\": {{",
             q(game),
             q(engine),
+            q(engine_doc),
             q(commit),
             q(commit_date),
             calls - gaps - left_out,
@@ -230,7 +231,7 @@ mod tests {
         assert_eq!(m.kinds["Move"].reasons["Move argument 4 ignored"], 1);
         assert_eq!(m.kinds["Fade"].gaps, 0);
         assert_eq!(m.outside["text tag <x>"], 1);
-        let json = m.json("g", "e", "abc", "2026-10-16");
+        let json = m.json("g", "e", "d", "abc", "2026-10-16");
         assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8}"), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
     }
@@ -241,7 +242,7 @@ mod tests {
         m.call("opcode 0x30", 2, vec![]);
         m.left_out("opcode 0x30", "the debug menu");
         assert_eq!((m.totals(), m.left_out_total()), ((2, 0), 1));
-        let json = m.json("g", "e", "c", "d");
+        let json = m.json("g", "e", "doc", "c", "d");
         assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1, \"weighted\": 1.0}"), "{json}");
         assert!(json.contains("\"calls\": 2, \"gaps\": 0, \"left_out\": 1, \"reasons\""), "{json}");
     }

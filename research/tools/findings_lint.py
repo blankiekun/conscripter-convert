@@ -18,6 +18,10 @@ under crates/ ending so, holding `fn <fn>`) or a ledger reason
 that doesn't exist fails. A game missing questions only warns, up to its
 SCHED_MAX ceiling (lowered as rows land, never raised). Every run
 self-tests the check first (`--self-test`: only that).
+
+The command reference: each snapshot's `engine_doc` names
+docs/engines/<engine_doc>.md, whose one table needs a row per kind (the
+Command cell the kind in backticks), and every row names a kind of a game that uses the doc.
 """
 import json
 import os
@@ -48,6 +52,8 @@ QUESTIONS = ("unwaited goes on", "0 ms on in-flight", "wait on in-flight", "repl
 # Lower each as rows land; at 0 a missing row fails, so set every game to 0 once its rows exist.
 SCHED_MAX = {g: 4 for g in ("django", "muramasa", "muramasa-en", "oretsuba", "saihate-no-ima", "tsukihime")}
 GENERIC = {"handler", "command", "all", "dispatch", "hidden", "state", "sound", "timing", "effects", "effect", "waits", "timed"}
+
+# an engine doc that holds only its own commands, the rest in the base doc's
 
 bad = 0
 def fail(msg):
@@ -179,4 +185,55 @@ for mf in sorted(os.listdir("tests/snapshots")):
         print(f"{g}: lower SCHED_MAX[{g!r}] to {len(smiss)}")
     if miss:
         fail(f"{tsv}: kinds with no row (add one, or NO_ROW in research/tools/findings_lint.py): {' '.join(miss)}")
+
+
+def doc_rows(stem):
+    """The Command names of docs/engines/<stem>.md's one table (None: no file)."""
+    path = f"docs/engines/{stem}.md"
+    if not os.path.exists(path):
+        return None
+    lines = [l for l in open(path, encoding="utf-8") if l.startswith("|")]
+    heads = [i for i, l in enumerate(lines) if re.match(r"\|\s*-", l)]
+    if len(heads) != 1:
+        fail(f"{path}: {len(heads)} tables, want exactly one")
+        return set()
+    cols = [c.strip() for c in lines[heads[0] - 1].strip().strip("|").split("|")]
+    if "Command" not in cols or "What it does" not in cols:
+        fail(f"{path}: the table's header lacks a Command or a What it does column")
+        return set()
+    names = set()
+    for l in lines[heads[0] + 1:]:
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", l.strip())[1:-1]]
+        m = re.fullmatch(r"`([^`]+)`", cells[cols.index("Command")])
+        if not m:
+            fail(f"{path}: row `{cells[0]}`: the Command cell is not one name in backticks")
+            continue
+        if not cells[cols.index("What it does")]:
+            fail(f"{path}: row `{m.group(1)}`: What it does is empty (write `unknown`)")
+        names.add(m.group(1))
+    return names
+
+
+docs, used = {}, {}
+for mf in sorted(os.listdir("tests/snapshots")):
+    if not mf.endswith(".metrics.json"):
+        continue
+    m = json.load(open(f"tests/snapshots/{mf}"))
+    stem = m.get("engine_doc")
+    if not stem:
+        fail(f"tests/snapshots/{mf}: no engine_doc")
+        continue
+    if stem not in docs:
+        docs[stem] = doc_rows(stem)
+        if docs[stem] is None:
+            fail(f"tests/snapshots/{mf}: engine_doc {stem}: no docs/engines/{stem}.md")
+            docs[stem] = set()
+    miss = sorted(set(m["kinds"]) - docs[stem])
+    if miss:
+        fail(f"docs/engines/{stem}.md: kinds of {mf[:-13]} with no row: {', '.join(miss)}")
+    used.setdefault(stem, set()).update(m["kinds"])
+for st, names in docs.items():
+    for n in sorted(names - used.get(st, set())):
+        fail(f"docs/engines/{st}.md: row `{n}` is no game's kind (renamed? remove it)")
+print(f"engine docs: {len(docs)} files, {sum(map(len, docs.values()))} rows")
 sys.exit(1 if bad else 0)

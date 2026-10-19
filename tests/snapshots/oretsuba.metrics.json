@@ -1,7 +1,8 @@
 {
 "game": "oretsuba",
 "engine": "mages",
-"commit": "88b87e9d",
+"engine_doc": "mages",
+"commit": "5f67aee8",
 "commit_date": "2026-10-18",
 "totals": {"calls": 120318, "full": 114823, "gaps": 5495, "weighted": 119316.9},
 "kinds": {

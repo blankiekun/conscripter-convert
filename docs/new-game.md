@@ -432,7 +432,10 @@ rather than by browsing:
 17. **Write the results back.** Commit `names.tsv` with comments, fold the
    decoded semantics into the engine's built-ins reference
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
-   found in the game document's Status.
+   found in the game document's Status. Every command the dry run
+   counts gets a row in the engine's command reference
+   (`docs/engines/README.md`): what the original does, in one plain
+   sentence, and how it converts; `findings_lint.py` checks it.
     - **names.tsv is the index, a standing rule**: before reading a
       function, `grep research/<engine>/names.tsv` for it; for every
       function you read, add a line (address, name, one-line comment) in

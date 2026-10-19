@@ -1,6 +1,7 @@
 {
 "game": "saihate-no-ima",
 "engine": "xuse",
+"engine_doc": "xuse",
 "commit": "13d2ac95",
 "commit_date": "2026-10-17",
 "totals": {"calls": 84713, "full": 84710, "gaps": 0, "left_out": 3, "weighted": 84710.0},
