@@ -4,7 +4,8 @@
 # cargo test, clippy -D warnings, tests/snapshot.sh --diff REF (txtdiff counts
 # per changed game, missing assets, gaps), findings_lint, dropped_lint,
 # docpaths, doclint; metrics totals before (REF) and after per changed game;
-# flags engine code changed without a docs/games/*.md. Exit 1 on any failure.
+# flags engine code changed without a docs/games/*.md, and an engine's sync
+# code changed with no test change (research/tools/sync_check.py). Exit 1 on any failure.
 # Fill in each "why it changed" line, and the "Found by" block, before
 # opening the PR.
 set -uo pipefail
@@ -26,6 +27,8 @@ run "doclint (template headings, Status length)" python3 -I research/tools/docli
 eng=$(git diff --name-only "$base"...HEAD -- 'crates/conv-engines/src/*' | cut -d/ -f4 | sort -u | tr '\n' ' ')
 if [ -n "$eng" ] && [ -z "$(git diff --name-only "$base"...HEAD -- 'docs/games/*.md')" ]; then
     fail=1; echo "- **engine code changed (${eng% }) but no docs/games/*.md**: update the game's Status"; fi
+# a change to an engine's sync code with no change to its tests (a flag, not a failure)
+python3 -I research/tools/sync_check.py "$base" | sed 's/^\(.*\)$/- **\1**: add a test of the composed output, or say in the body why none/'
 echo; echo "## tests/snapshot.sh --diff $base"
 tests/snapshot.sh --diff "$base" > "$log" 2>&1; rc=$?
 echo '```'; grep -v ': same$\|metrics same$' "$log"; echo '```'

@@ -117,7 +117,10 @@ against ceilings that only go down) and `tests/snapshot.sh --diff`, and
 prints a Markdown block for the PR body: per changed game the txtdiff
 counts, metrics totals before and after, and a `why it changed: <fill in>`
 line. It also fails when a branch changes `crates/conv-engines/src/<engine>/`
-without a `docs/games/*.md`. `docpaths` skips paths that the
+without a `docs/games/*.md`, and flags (without failing) a change to an
+engine's sync code with no change to its tests (`research/tools/sync_check.py`:
+Nitroplus `convert/sync.rs` against `convert/tests/`; Xuse, MAGES and
+TYPE-MOON `convert.rs` against its own `#[cfg(test)]` module). `docpaths` skips paths that the
 engine's own `.gitignore` ignores, so a worktree that has not built the
 engine passes.
 
