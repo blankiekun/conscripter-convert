@@ -220,7 +220,12 @@ game set up needs that state written into memory first (fields of an
 object passed as a buffer); a stdcall import's stub leaves its
 arguments on the stack; the Vita's SCE relocations and import stubs
 are not read (the eboot runs at its own addresses, so only an import
-call is wrong: stub it).
+call is wrong: stub it). For state the game sets up, a trace DLL can dump
+the process's memory at chosen statements (Django's `ntrace.sh --dumps`,
+docs/games/django.md "Running the original under wine"). `load_dump`
+then maps a dump, so the exe's own functions run on real objects. Stub
+the clock with a function (`stub_import("WINMM.dll!timeGetTime", …)`)
+to step frames.
 
 ### Marking what a finding rests on
 
