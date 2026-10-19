@@ -110,9 +110,9 @@ _PGST	the page a load replays to (state +0x8c4)	17202	script_command case P	left
 _RDAS	(n): out of mode 2, with setting 03d8+0x5e on and global read flag n set: a 3.0 indicator (FUN_0013b480), waits while DAT_00bfec90 is set, then DAT 06b0 = 1 (read-skip)	530	script_command, read_flag_global, cmd_RDAS_skip	nothing	inferred	open: low; CONscripter's own read skip covers the lines
 _RDED	(n): n the scene _RTST started (+0xdc) with its per-play bit set -> global read flag n (words 300+); in a scene replay (+0x30) ends it as _RTM_	550	cmd_RDED	533-557 (the lessons): convert::lesson_flag; 1-532 nothing	seen	open: 1-532, with the Flowchart
 _RTST	(n < 0x240): per-play bit n, current scene +0xdc = n (n 0x215-0x22d, or in a replay)	527	cmd_RTST	nothing: every lesson runs it before its _RDED, so the check holds	seen	
-_RTM_	ends the script: stops the 20 sound channels and the music (script_end_reset), state 2 (back to the caller, inferred); nothing in a load's replay	544	script_command, script_end_reset	nothing: the next command runs (_END_ after 516; after a _JUMP in 25, dead)	seen	open: ARCHIVE ends on it, QA_25's is live (with _IFUR)
+_RTM_	ends the script: stops the 20 sound channels and the music (script_end_reset), state 2 (back to the caller, inferred); nothing in a load's replay	544	script_command, script_end_reset	return to title (as _END_, which follows 515 of them; live in QACALL's SEL_NO, STAFFROLL, QA_25)	seen	
 _RTM2	keeps the music on the next _RTM_ (DAT_0156e64d)	1	script_command	nothing	seen	open: with _RTM_
-_RTMN	as _RTM2, then _RTM_	1	script_command	nothing	seen	open: with _RTM_
+_RTMN	as _RTM2, then _RTM_	1	script_command	return to title (the music stops there anyway)	seen	
 _SACL	(layer, on): bit 0x40 of layer byte 0x54; set, the draw leaves out an offset it adds from 1920x1080 shorts	450	script_command, FUN_001884f0	nothing	seen	open: which offset (FUN_001884f0 near the 0x54 test)
 _SBAS	(layer, n = -1): layer short 0x93c = n; copied by _STCH argument 18 and into the draw record (+0x114)	943	script_command, frame_update	nothing	unknown	open: who reads the draw record's +0x114
 _SELA	choice screen mode 3 (two slots, the name _Dnnn its id) when state +0x8bc is 0, drawn by FUN_00184a90; at each arc's start, no _SELR or _GOTS	26	cmd_SELA	nothing	unknown	open: what mode 3 shows (FUN_00184a90)

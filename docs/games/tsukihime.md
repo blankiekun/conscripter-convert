@@ -200,7 +200,7 @@ None of these are vendored or run; their code was read to check the
 formats above. All three licences allow reuse.
 
 | Tool | Licence | Covers | Use to us |
-|---|---|---|---|
+|---|---|---|
 | [mangetsu](https://github.com/rschlaikjer/mangetsu) (C++, 2024) | MIT | Written for this release: MRG (`hed`/`nam`) list/extract/pack, MZP, MZX compress and decompress, NXGX/NXCX inflate, `script_text` to JSON, and the 魔法使いの夜 remake's HFA. Its `doc/script_commands.md` guesses at 17 script commands (`_VPLY` voice, `_STCH` picture, `_SEPL` sound, `_PGST` page, `_ZM` text, …) | The reference for the archive reader and MZX in Rust |
 | [deepLuna](https://github.com/Hakanaou/deepLuna) (Python, 2023) | BSD-2 | Fan translation tool for this release: reads `allscr.mrg` and `script_text.mrg`, splits scripts into commands (`_NAME(arg,…);`, UTF-8), and finds text references (`$NNNNNN` = string index in `script_text`, `@x` modifiers) in `_ZM*`, `_MSAD` and `_SELR` (choices); `_PGST` sets the page number | The reference for the script syntax and how text is looked up |
 | [PS-HuneX_Tools](https://github.com/Hintay/PS-HuneX_Tools) (Python, 2024) | MIT | HuneX's older MRG/MZX engines (PSP/PS2 era): `hed`, MZP, MZX0 specs, MZP picture tiles | Format specs as a cross-check; tile code is for older games |
@@ -627,7 +627,7 @@ until `G003`.
 **Endings.**
 
 | Ending | Last scenes | Sets | Then |
-|---|---|---|---|
+|---|---|---|
 | Arcueid (the only one of her route) | `13_00_ARC13_6` → `14_00_ARC14_1` | `G003` | lesson `QA_12` |
 | Ciel, normal | day 14 `14_01_CIEL14_1C`: 「……アルクェイドには従えない。」 → `14_01A_*` → `15_01A_CIEL15A_1` | `G004` | `QA_23` |
 | Ciel, extra | the same choice: 「……アルクェイドを、嫌いにはなれない。」 → `14_01B_*` → `15_01B_CIEL15B_1` | | `QA_24` |
@@ -649,7 +649,7 @@ shown once the other 24 lessons are read (`_RDED`).
 `QA_n` up to 11 and `QA_(n+1)` from 12.
 
 | Lesson | Day | Scene | Reached by |
-|---|---|---|---|
+|---|---|---|
 | `QA_01` | 4 | `04_00_ARC04_6_1` | 「……酔狂はここまでだ。逃げよう。」, then 「屋敷に戻ろうと思う。」 |
 | `QA_02` | 4 | `04_00_ARC04_9_2` | 「……部屋で外の様子をうかがう。」 |
 | `QA_03` | 5 | `05_00_ARC05_3_1` | 「……今すぐヴローヴを捜すべきだ。」 with `F058` = 0 (Arcueid's route) |
@@ -663,7 +663,7 @@ shown once the other 24 lessons are read (`_RDED`).
 | `QA_11` | 10 | `10_00_ARC10_8_1` | 「ただ、欲しいだけなんだ。」 |
 | `QA_13` | 5 | `05_01_CIEL05_2_1` | 「―――このまま押し切る！」 |
 | `QA_14` | 5 | `05_01_CIEL05_2_2_1` | 「先輩に駆け寄る。」 |
-| `QA_15` | 10 | `10_01_CIEL10_5_2` | 「自分は足手まといだ。ここで待っていよう。」 |
+| `QA_15` | 10 | `10_01_CIEL10_5_2` | 「自分は足手まといだ。ここで待っていよう。」, or before it 「問題はない。話は放課後にすればいいし。」 (`10_01_CIEL10_3B` → `10_01_CIEL10_3_1` → the scene's `LBL_029`) |
 | `QA_16` | 11 | `11_01_CIEL11_2_2` | day 9's 「じゃあ、痛くて効かないものを。」 (`F061`) |
 | `QA_17` | 13 | `13_01_01_CIEL13_3_2` | 「後方に逃げる。」 |
 | `QA_18` | 13 | `13_01_01_CIEL13_4_1` | 「……眼鏡を外す。」; forced when 「……眼鏡は外さない。」 is greyed: `F069` = 1, set on day 12 when day 9's 「……因果応報だ。女を手本にして処理しよう。」 (`F063`) was taken |
@@ -684,7 +684,7 @@ not mapped yet. `G…` are presumably system data and `F…` save data
 (not checked).
 
 | Variable | Meaning | Set | Read |
-|---|---|---|---|
+|---|---|---|
 | `G003` | Arcueid's ending seen | `14_00_ARC14_1` | day 3 Ciel option, day 7 option |
 | `G004` | Ciel's normal ending seen | `15_01A_CIEL15A_1` | day 14 extra option |
 | `F050`, `F075`–`F077` | Ciel's points, days 1–2 | see the walkthrough | `F077` ≥ 4 on day 3 |
@@ -704,6 +704,61 @@ not mapped yet. `G…` are presumably system data and `F…` save data
 Manual: none for the game. The NSP's `Manual` NCA holds only legal and
 support HTML (`legalinfo.xml`), so reference screens must come from the
 emulator trace or footage.
+
+### Route runs in ours (2026-10-19)
+
+The three endings and the 21 dead ends played headless in one save
+folder, so the global flags carry from route to route as in a player's
+game. Recipe (a `--dry-run` build over a full build's media, the
+engine with `--until`/`--max-pages` saving the globals at the stop,
+CONscripter #182):
+
+```
+python3 -I research/typemoon/route_choose.py <out>/0.txt <out>/text.ja.txt \
+  research/typemoon/routes/<route>.txt > <route>.choose
+conscripter --root <out> --save-dir <save> --auto-play 0 --trace <route>.jsonl \
+  --goto tm_START_SCRIPT --until conv_title $(sed 's/^/--choose /' <route>.choose)
+```
+
+in the order `arcueid`, `ciel-normal`, `ciel-extra` (each needs the
+flags of the one before: `G003` ungreys Ciel's day-14 option, `G004`
+the extra ending's), then each dead end alone, `--goto tm_<scene>
+--until conv_title` with the `button tm_QACALL 2` line (yes to the
+lesson question). A run ends at the title when the scene's `_RTM_`
+returns (before, QACALL's "no" fell through into the staff roll and
+the test script).
+
+| Run | Pages | Reached |
+|---|---|---|
+| arcueid | 16346 | `QA_12`, movie `ed01_arc`, the title |
+| ciel-normal | 22043 | `QA_23`, `ed02_ciel`, the title (Ciel's option enabled by `G003`) |
+| ciel-extra | 24034 | day 14's choice with option 2 enabled, `15_01B`, `QA_24`, `ed03_ciel`, the title |
+
+| Dead end | Lesson | Pages |
+|---|---|---|
+| `04_00_ARC04_6_1` | `QA_01` | 118 |
+| `04_00_ARC04_9_2` | `QA_02` | 64 |
+| `05_00_ARC05_3_1` | `QA_03` | 105 |
+| `05_00_ARC05_6_1` | `QA_04` | 65 |
+| `05_00_ARC05_9_1` | `QA_05` | 100 |
+| `05_00_ARC05_9_3` | `QA_06` | 65 |
+| `08_00_ARC08_7_2` | `QA_07` | 76 |
+| `09_00_ARC09_3_2_1` | `QA_08` | 143 |
+| `10_00_ARC10LIVING` | `QA_09` | 243 |
+| `10_00_ARC10_7_3` | `QA_10` | 71 |
+| `10_00_ARC10_8_1` | `QA_11` | 111 |
+| `05_01_CIEL05_2_1` | `QA_13` | 55 |
+| `05_01_CIEL05_2_2_1` | `QA_14` | 47 |
+| `10_01_CIEL10_5_2` | `QA_15` | 126 |
+| `11_01_CIEL11_2_2` | `QA_16` | 82 |
+| `13_01_01_CIEL13_3_2` | `QA_17` | 53 |
+| `13_01_01_CIEL13_4_1` | `QA_18` | 131 |
+| `13_01_02_CIEL13_5_1` | `QA_19` | 242 |
+| `13_01_02_CIEL13_6_1` | `QA_20` | 108 |
+| `14_01B_02_CIEL14B_3_1` | `QA_21` | 104 |
+| `14_01B_03_CIEL14B_4_2` | `QA_22` | 183 |
+
+All 21 reach their lesson and, after it, the title.
 
 ### Memory dumps through Ryubing's GDB stub (2026-10-19)
 
@@ -887,7 +942,7 @@ can be compared with this one.
 | Story plays | 2026-10-16 20:10 (opening) | - |
 | Title, save, settings | 2026-10-17 14:35-14:43; settings 2026-10-18 11:52 | - |
 | Extras | 2026-10-18 03:08 | - |
-| Progression verified | - | - |
+| Progression verified | 2026-10-19 (3 endings, all 21 dead ends, in ours) | PR_N |
 | Finished | - | - |
 
 ## Status
@@ -905,9 +960,9 @@ the title; History, 2026-10-18, "the settings");
 the Gallery's CG gallery (its other modes drawn, not open);
 `--english <game-en>` builds both languages in one `0.txt`, switching
 in game; the original boots under Ryubing and its trace diffs against
-ours over `00_00`'s first 297 pages. How each was done: History
-("Status as it stood before the 2026-10-18 prune" has the full table,
-Languages and Trace diff).
+ours over `00_00`'s first 297 pages; route runs reach the 3 endings and
+21 lessons (Testing). How each was done: History ("Status as it stood
+before the 2026-10-18 prune": the full table, Languages, Trace diff).
 
 Not yet: the other layer commands, FlowChart, the backlog, the Gallery's Music Player,
 Flowchart and Movie. The Ending List replays the lessons (History,
