@@ -4,13 +4,16 @@ protocol over TCP), in the dump format exe_call's load_dump and dumppack's
 Memory read (ntrace.c NTRACE_DUMPS: <prefix>.map lines `base size protect type
 offset`, all hex, and <prefix>.bin).
 
-    python3 -I research/tools/gdbdump.py HOST:PORT PREFIX [--range START:LEN ...] [--chunk N]
+    python3 -I research/tools/gdbdump.py HOST:PORT PREFIX [--range START:LEN ...] [--scan LO:HI:STEP ...]
+        [--get-info] [--chunk N]
     python3 -I research/tools/gdbdump.py --self-test
 
 The regions come from the stub's memory map (qXfer:memory-map) when it gives
 one, else from --range (hex start:length; for an emulator whose stub has no
-map). Each region is read with `m` packets of --chunk bytes (default: what the
-stub's PacketSize allows, at most 0x1000); a chunk the stub refuses (`E..`) is
+map), or --scan (hex lo:hi:step: one byte read every step, the readable
+stretches kept; Vita3K's stub, which has no map), or with --get-info from Ryujinx's `monitor get info` (the modules, and
+the heap from its start as far as it reads; the text goes to <prefix>.info). Each region is read with `m` packets of --chunk bytes (default: what the
+stub's PacketSize allows, at most 0x7000); a chunk the stub refuses (`E..`) is
 left out, so a region may split. The registers of the stopped thread (`g`) go
 to <prefix>.regs as hex. The target stops while it is read (as gdb's attach
 does); the dump ends with a detach (`D`), which lets it run on.
@@ -23,6 +26,8 @@ import sys
 class Gdb:
     def __init__(self, host, port, timeout=30):
         self.s = socket.create_connection((host, port), timeout=timeout)
+        # no Nagle: an ack and the next request are small writes, and waiting on the delayed ACK between them made each packet ~130 ms
+        self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.buf = b""
         self.ack = True
 
@@ -98,6 +103,51 @@ def memory_map(g):
     return [(int(a, 16), int(n, 16)) for a, n in re.findall(rb'<memory[^>]*start="0x([0-9a-fA-F]+)"[^>]*length="0x([0-9a-fA-F]+)"', xml)]
 
 
+def monitor(g, cmd):
+    r = g.send(b"qRcmd," + cmd.encode().hex().encode())
+    try:
+        return bytes.fromhex(r.decode()).decode(errors="replace")
+    except ValueError:
+        return ""
+
+
+def info_ranges(g, step=0x100000, cap=0x60000000):
+    """Ryujinx's stub has no memory map, but `monitor get info` lists the
+    modules and the address space's layout: the modules whole, and the heap
+    from its start as far as it reads (probed a MB at a time, up to `cap`)"""
+    info = monitor(g, "get info")
+    out = [(int(a, 16), int(b, 16) + 1 - int(a, 16)) for a, b in re.findall(r"^\s+0x([0-9a-f]+) - 0x([0-9a-f]+) \S", info, re.M)]
+    h = re.search(r"Heap:\s+0x([0-9a-f]+) - 0x([0-9a-f]+)", info)
+    if h:
+        lo, hi = int(h.group(1), 16), int(h.group(2), 16)
+        end = lo
+        while end < min(hi, lo + cap):
+            r = g.send(b"m%x,10" % end)
+            if not r or r[:1] == b"E":
+                break
+            end += step
+        if end > lo:
+            out.append((lo, end - lo))
+    return out, info
+
+
+def scan(g, lo, hi, step):
+    """the readable stretches of [lo, hi), probed a byte every `step` (a stub
+    with no memory map, Vita3K's: it refuses a read outside allocated memory)"""
+    out, start = [], None
+    for a in range(lo, hi, step):
+        r = g.send(b"m%x,1" % a)
+        ok = len(r) == 2 and r[:1] != b"E"
+        if ok and start is None:
+            start = a
+        elif not ok and start is not None:
+            out.append((start, a - start))
+            start = None
+    if start is not None:
+        out.append((start, hi - start))
+    return out
+
+
 def dump(g, prefix, ranges, chunk):
     total, lines = 0, []
     with open(prefix + ".bin", "wb") as b:
@@ -133,16 +183,25 @@ def main(argv):
     if b"QStartNoAckMode+" in sup and g.send(b"QStartNoAckMode") == b"OK":
         g.ack = False
     m = re.search(rb"PacketSize=([0-9a-fA-F]+)", sup)
-    chunk = int(argv[argv.index("--chunk") + 1], 0) if "--chunk" in argv else min(0x1000, (int(m.group(1), 16) - 16) // 2 if m else 0x400)
+    chunk = int(argv[argv.index("--chunk") + 1], 0) if "--chunk" in argv else min(0x7000, (int(m.group(1), 16) - 16) // 2 if m else 0x400)
     stop = g.send(b"?")
+    info = ""
+    if not ranges and "--get-info" in argv:
+        ranges, info = info_ranges(g)
+        open(prefix + ".info", "w").write(info)
+    for k, v in zip(argv, argv[1:]):
+        if k == "--scan" and not ranges:
+            lo, hi, step = (int(x, 16) for x in v.split(":"))
+            ranges += scan(g, lo, hi, step)
     ranges = ranges or memory_map(g)
     if not ranges:
         sys.exit("the stub gives no memory map: name the regions with --range START:LEN")
     total, n = dump(g, prefix, ranges, chunk)
     open(prefix + ".regs", "w").write(g.send(b"g").decode(errors="replace") + "\n")
     print(f"{prefix}: {n} regions, {total} bytes (stop reply {stop[:20]!r}, chunk {chunk:#x})")
-    try:
-        g.s.sendall(b"$D#44")  # detach: the target runs on
+    try:  # detach: the target runs on (Ryujinx's stub doesn't answer it: don't wait)
+        g.s.sendall(b"$D#44")
+        g.s.close()
     except OSError:
         pass
 
@@ -177,7 +236,7 @@ def self_test():
                 reply(b'l<memory-map><memory type="ram" start="0x1000" length="0x3000"/></memory-map>')
             elif p.startswith(b"m"):
                 a, n = (int(x, 16) for x in p[1:].split(b","))
-                if 0x2000 <= a < 0x2800:
+                if 0x2000 <= a < 0x2800 or not 0x1000 <= a < 0x4000:
                     reply(b"E14")  # a page the stub can't read
                 else:
                     reply(bytes(mem[a + i] for i in range(n)).hex().encode())
@@ -188,7 +247,10 @@ def self_test():
                     reply(b"")
                 except OSError:
                     return
-    threading.Thread(target=serve, daemon=True).start()
+    def serve_all():
+        while True:
+            serve()
+    threading.Thread(target=serve_all, daemon=True).start()
     with tempfile.TemporaryDirectory() as d:
         pre = os.path.join(d, "x")
         main([f"127.0.0.1:{srv.getsockname()[1]}", pre, "--chunk", "0x400"])
@@ -199,6 +261,9 @@ def self_test():
         assert m.read(0x3ffc, 4) == bytes(mem[0x3ffc + i] for i in range(4))
         assert m.read(0x2000, 2) == b"\0\0"  # left out
         assert len(open(pre + ".map").read().splitlines()) == 2
+        main([f"127.0.0.1:{srv.getsockname()[1]}", pre + "s", "--scan", "0:8000:400", "--chunk", "0x400"])
+        lines = open(pre + "s.map").read().split()
+        assert lines[0] == "00001000" and int(lines[1], 16) == 0x1000, lines
     print("gdbdump self-test: ok")
 
 
