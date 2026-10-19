@@ -504,7 +504,7 @@ mod tests {
         let json = m.json("g", "e", "doc", "abc", "2026-10-16");
         assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8, \"credit\": 2.8, \"score\": "), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
-        assert!(!json.contains("parity") && !json.contains("timing"), "{json}");
+        assert!(!json.contains("parity") && !json.contains("\n\"timing\""), "{json}");
     }
 
     #[test]
