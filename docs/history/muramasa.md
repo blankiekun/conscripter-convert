@@ -228,691 +228,73 @@ Finished work, moved out of "Status".
 
 **Story `CreateText` (2026-10-16):** the 27 calls the story reaches (殺害, 〝我は力〟, `mb03_022`'s screamed lines, date captions) are drawn by the converter into a picture (`system/strip/text_<hash>.png`, `convert/text_object.rs`) in the last `SetFont`'s style with `--font`. An `@` face is Windows' sideways font: upright letters turned a quarter counterclockwise along a line the script turns with `Rotate(…, 90)`; brackets, dashes and ASCII lie along the line. `HEAVY` thickens the letters; `RIGHTDOWN` is a shadow 2 px right and down after the turn; `inherit` for y is the screen's middle; a turn goes about their `SetVertex`. Under wine: same places within ~15 px (wine substitutes ＭＳ 明朝, so sizes can't be compared). The box's height (argument 5) clips (the exe draws into a surface of that size); no story text reaches its 500. Not drawn: the choices' texts (the engine's choice draws them), texts with markup (Django's song in `dja026`), the English build's.
 
-**Auto-play stuck in `mc04_041vs` (2026-10-15, reported by the user):**
-the trace's auto-play ended as stuck (20000 waits) in a blocking sprite
-move (`conv_move`: `gettimer` and `wait 10` steps): it shortened the
-waits but `gettimer` ran in real time. CONscripter `38e45a0`: a wait
-auto-play shortens advances the timer by the time skipped; the scene now
-plays to its end under auto-play.
+**Auto-play stuck in `mc04_041vs` (2026-10-15):** `gettimer` ran in real time under auto-play's shortened waits; engine `38e45a0`: a shortened wait advances the timer by the time skipped.
 
-**Loop points (2026-10-15, script coverage):** `SetLoopPoint(snd, start,
-end)` (ms; `CreateBGMEX`'s `msong04_arrange`, `CreateSEEX`'s four
-battle loops) plays, when looped, a copy of the file tagged
-`LOOPSTART`/`LOOPEND` (`<name>_loop<start>-<end>.ogg`). SDL_mixer loops
-`bgm` by those tags; for `dwaveloop` CONscripter now loops inside the
-sound itself (`dc48c0e`, also from a WAV `smpl` loop, so Opus builds
-keep it), checked by recording the output (`SDL_AUDIODRIVER=disk`): the
-intro once, then the loop. `CreateSEEX`'s sounds were all missing:
-`"sound/se/" + "$音楽データ"` names the variable in quotes, now its
-value (`Game::string_vars`, Muramasa only); 22 sounds back. Left: a
-loop isn't kept through `dwaveload`/`dwaveplay` or a load; 25 sounds
-named by variables never set (`$SE矢飛翔_ma04_014vs`, …) are still
-missing.
+**Loop points (2026-10-15):** `SetLoopPoint(snd, start, end)` (ms) plays a copy tagged `LOOPSTART`/`LOOPEND` (`<name>_loop<start>-<end>.ogg`); `dwaveloop` loops inside the sound (`dc48c0e`, also from a WAV `smpl` loop). `CreateSEEX`'s `"sound/se/" + "$音楽データ"` names the variable in quotes (now its value, `Game::string_vars`, Muramasa only). Left: a loop is not kept through `dwaveload`/`dwaveplay` or a load; 25 sounds named by never-set variables (`$SE矢飛翔_ma04_014vs`, ...) still missing.
 
-**超速スキップ (2026-10-15, script coverage):** each file's `SkipOut`
-test (`$SYSTEM_skip && #SYSTEM_skip_express && $AllRead`, 835 tests) is
-a runtime test: the file's read flag (`#conv_read:<file>`, a global set
-once the scene has run or been jumped over) and `Op::IfFastSkip` (the
-bar's 超速スキップ button sets `%2905` and starts skip; スキップ clears it,
-and a test that finds skip off clears it). Read and on, the scene is
-jumped over as in the original (`SkipOut`: everything faded out, the
-flags after the scene set). Approximations: "read" is "played through
-once", not the exe's every line read; `#SYSTEM_skip_absolute` (skip
-unread too) isn't offered; skip started with the `s` key or Ctrl right
-after a 超速 skip stopped counts as 超速 until the next scene's test.
-Not yet tried in a real skip run. Also fixed with it: `PassageTime` of
-a sound is its length (`mc01_017vs`'s loop waiting for its song ran
-10,000 rounds since `RemainTime` gave the length).
+**超速スキップ (2026-10-15):** `SkipOut` tests (835) are runtime: a per-file read flag (`#conv_read:<file>`, global, set once the scene ran or was jumped over) and `Op::IfFastSkip` (the bar's 超速スキップ sets `%2905` and starts skip; スキップ clears it). Approximations: "read" = played through once; `#SYSTEM_skip_absolute` not offered; `s`/Ctrl skip right after a 超速 stop counts as 超速 until the next test. `PassageTime` of a sound is its length (`RemainTime` gave it; `mc01_017vs` looped 10,000 rounds).
 
-**`SetBacklog` (2026-10-15, script coverage):** the lines the scripts
-put in the backlog by hand (83 story calls: lines shown as pictures, the
-ASCII art, the crowd's 殺した！/悪鬼！ with each voice; and the choices'
-`function_select` entries, the option taken between blank rows) are
-`Op::BacklogLine`, CONscripter's `logadd "text"[,"voice"]` (after
-0.25.3, `1ddd722`): a page added to the history before the page being
-written, its voice played from the backlog's voice button. 1,958 in the
-whole game; 続・殺戮のジャンゴ's 75 too.
+**`SetBacklog` (2026-10-15):** 83 story calls (picture lines, ASCII art, the crowd's lines, `function_select` choices) are `Op::BacklogLine` = engine `logadd "text"[,"voice"]` (`1ddd722`); 1,958 in the game, the Django's 75 too.
 
-**Staff roll (2026-10-15, exe review):** each ending (`TheEND`) now
-plays its roll. The compiler evaluates `Array`/`AssocArray`/`Count`
-(`$EndName[$ENDNumber][0]`: an element is the variable `v[i]`, a key
-given to `AssocArray` means its place), `String` (printf) and
-`VariableValue` (`#ClearRoll%02d`, a global flag: the first time the
-roll can't be skipped, as in the original), and `RemainTime`/
-`DurationTime` of a sound give its length. The roll's process
-(`ProcessRoll01`) runs in line when it starts (the script waits for it
-anyway): the staff pictures (`cg/sys/ed/staff01-02`, 4950 and 6650 px
-wide) move across the screen by the engine (`spmotion2`) over the song,
-悪鬼編's event thumbnails fade in turn in their frame, and the logo comes
-up at the end. Checked headless from `mb04_025vs` (the credits scroll
-across in step with the song). Left: the original's 5 s wait runs
-beside the roll, ours after it.
+**Staff roll (2026-10-15):** each `TheEND` plays its roll. Compiler evaluates `Array`/`AssocArray`/`Count`, `String` (printf), `VariableValue` (`#ClearRoll%02d`: first time not skippable, as in the original), `RemainTime`/`DurationTime` of a sound (its length). `ProcessRoll01` runs in line; staff pictures (`cg/sys/ed/staff01-02`, 4950 and 6650 px) move by `spmotion2` over the song. Left: the original's 5 s wait runs beside the roll, ours after it.
 
-**`<VALUE>` in text (2026-10-15, exe review):** `<VALUE name=$var>`
-prints the variable; it is now filled in where the value is known when
-converting (the airship kitchen's `$材料名前`, `$料理名前`; their `Random`
-reaches text, so it is picked when converting: one ingredient always).
+**`<VALUE>`, `<FONT>`, shakes (2026-10-15):** `<VALUE name=$var>` filled in at conversion where known (airship kitchen `$材料名前`/`$料理名前`, `Random` picked once). `<FONT incolor/size>` become text styles (colour, `!z` percent; shouted lines 24-50 against 20). `Shake(obj, time, x0, y0, x1, y1)` goes (x0,y0) to (x1,y1) (exe `shake_frame`), linear in `screenshake`, tempo not read.
 
-**`<FONT>` in story text (2026-10-15, exe review):** `incolor` (the red
-違う。 in `mb03_006`, the yellow puzzle rules in `md05_025`) and `size`
-(the shouted lines, 24-50 against the window's 20) were dropped; they
-become text styles (colour, `!z` percent).
+**Voice switches by class (2026-10-15):** the setting goes by the `<voice>` tag's `class` (村正's voices are `村正さん`), else `name`; the switches 村正, その他男声, その他女声, 首領姉, コヒカリ muted nothing before (~6,300 lines).
 
-**Shakes die down (2026-10-15, exe review):** `Shake(obj, time, x0, y0,
-x1, y1, …)` goes from (x0, y0) to (x1, y1) over its time (the exe's
-`shake_frame`); nearly every call ends at 0, a jolt that eases out. The
-converter kept the first strength throughout; it now passes both to
-`screenshake` (linear: the tempo isn't read).
+**`#` flags (2026-10-15):** the first 100 flags take %800-%899, the rest %5200 up (`GLOBAL_ROOM` 100); before, flags 100-112 shared %900-%912 with the menus' globals (text speed, save page unlocked CGs). An older `gloval.sav` has some unlocks misplaced (the user's choice). Every `#` name the story both sets and tests is a global (`;$S1024,576,value800,V8192` + `globalon`); every way out is `end`, which writes `gloval.sav`. Web: the engine now writes globals at any wait (was click waits only), checked in headless Chromium.
 
-**Voice switches by class (2026-10-15, exe review):** the switches 村正,
-その他男声, その他女声, 首領姉 and コヒカリ muted nothing (about 6,300
-lines): the game's setting goes by the `<voice>` tag's `class` (村正's
-voices are `村正さん`), the compiler grouped them by `name`. It now
-takes `class`, or `name` when there is none.
-
-**`#` flags off the menus' globals (2026-10-15, from the code audit,
-in git history, docs/audit-2026-10.md §5):** the first 170 `#` flags ran %800-%969,
-and flags 100-112 shared %900-%912 with the menus' globals: seeing
-`bg006_小光の家_03b` set the text speed (%907) to 1, and opening the save
-screen (its page, %900) unlocked the CG `bg004_鄙びた村b_02`. The first
-100 now take %800-%899 and the rest %5200 up (`GLOBAL_ROOM` 100), so a
-`gloval.sav` from an older build has some CG and replay unlocks in the
-wrong place (the user's choice; local saves are unaffected).
-
-**`#` flags across quit and relaunch (step 11.5, 2026-10-15):** every
-`#` name the story both sets and tests is a global (%800-%899, then
-%5200 up; `;$S1024,576,value800,V8192` + `globalon`), e.g.
-`#悪鬼編終了 = true` in `md06_036.nss` is a `mov %54xx,1` there. Every
-way out (the title's 終了する, Esc → ゲームを終了, the quick bar, the
-story's end) is `end`, which writes `gloval.sav`, as closing the window
-does; a save writes it too. Checked headless with a small script
-(`;$S1024,576,value800,V8192`, `globalon`, %800/%969/%5200/%8191 set,
-then `end` or SIGTERM in a click wait, relaunched with the same
-`--save-dir`: all read back). Web: the engine writes the globals at a
-wait when they changed and syncs IndexedDB; that was only at click
-waits, so auto mode lost them when the tab closed. CONscripter now does
-it at any wait (`COMMANDS.md`). Checked in headless Chromium
-(Playwright): a value added in a loop of timed waits is read back after
-a reload.
-
-**The route runs, round 3 (2026-10-14):**
-
-(Round 3, 2026-10-14: the build with every fix below up to the `[text0081]`
-marker, engine 0.19.1, all ten paths side by side with `--all`; the
-times are with ten at once. Rounds 1 and 2, the five endings on the
-builds before, passed too. Round 3's checker report matches round 2's,
-with no `error` or `missing`; the only new findings are `slow` waits in
-`ma05_019` (7.8 s where the original takes about 4 s): since the alias
-fix its non-blocking 2 s `Shake` really shakes, and we play it blocking
-before the next fade.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
-0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
-chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
-`loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
-CONscripter's `DirectReader` copied a file name's extension over its
-own buffer with an overlapping `strcpy` (engine `1d51abc`; undefined
-behaviour on file reads). An AddressSanitizer build of 0.19.0 played
-the whole of run 9 (510 files, 34 min, `ASAN_OPTIONS=detect_leaks=0`)
-with no error, so no bad memory access is left on that route.
-
-Fixed on the way (each found by the runs, all in the current build):
-- A `?` in horizontal text: NScripter reads it as an array reference
-  and exits with 255 (the message goes to `stderr.txt`). Every route
-  passed one, in `ma03_027vs`: the NSS `<?>` tag (93 uses), passed
-  through as text. Text lines now write `?` full-width, `<?>` is
-  dropped, and lint reports a `?` in text.
-- `<?>` at the end of a line joins the next text line to it, after the
-  code between them (a face change, a typewriter's key sound). It was
-  taken as a line break, so the typewriter captions of `ma01_026`
-  (《興隆四一年一〇月一二日》) came out one character per column, and 30
-  lines of dialogue were split in two. Found by the trace checker's
-  `text` rule ("the text runs past the window") on the first route run.
-- A `/* … */` block inside a text block was printed as text (`／＊`,
-  three copies of 「暗闇星人……」, `＊／`, in 3 files). The NSS parser now
-  leaves it out like a `//` line.
-- Lines spoken in unison (66 `CreateVOICE` calls in 32 files) had no
-  voice: the helper plays them only when the setting "other voices"
-  (`#SYSTEM_voice_enable_another`) is on, which the compiler didn't
-  know. It now starts with the value a first start gives it (on), and
-  the voices play together on their own channels. Both found by the
-  checker's `voice` rule.
-- `Play` on a looping sound that was still playing started a second
-  copy: `md04_048vs` calls `MusicStart` on its loop eight times to change
-  its volume and speed, and `茶々丸の世界_L` ended up on eight channels at
-  once (28 loop starts in the game). Found by the checker's `sound` rule.
-- `WaitAction(obj)` waited for every action still running, not only
-  `obj`'s: in `mb02_030vs`, `CP_EHPChange` waits on its own process
-  after a non-blocking 15 s zoom, and the player sat through a 15 s
-  fade (five such waits of 5 s or more). Found by the checker's
-  `duration` rule.
-- Branches of a runtime `if` that ended with different pictures left
-  sprites up: the code after them follows the first branch's sprite
-  layers, so a sprite another branch put elsewhere was never cleared.
-  After the favour screen (`judgment_of_count`, 村正's icon hidden only
-  while `$Muramasa_Flag` is 0) its full-screen background stayed in
-  front of the story for 150 pages. The next sync now removes what any
-  branch left and draws the merged pictures anew. Cost: after the merge
-  every branch shows the first branch's pictures (the black box over
-  村正's icon also shows when she is known, until the screen closes).
-  Found by the checker's `linger` rule.
-- A wildcard (`@StMR*`) only matched object names, not aliases: the
-  character helpers create `遠４/StMR01` with the alias `StMR01`, so
-  `Move("@StMR*", …)`, fades, shakes and deletes on them did nothing
-  (`ma02_012`: ふき stayed 600 px off screen instead of sliding in).
-  About 11,700 lines of the output changed (44 more screen shakes, real
-  moves in place of 177 waits, characters deleted when the script
-  deletes them). Found by the checker's `offscreen` rule.
-- Non-blocking actions were cross-faded over their whole time at the
-  next sync: a 270 s background scroll (`ma04_013vs`) blocked the
-  player for 270 s, 51 cross-fades were over a minute. Now at most a
-  `Wait`'s time, or 1 s where the script doesn't wait.
-- The full build ran out of memory (7 GB) on 60x zooms; now 1.2 GB.
-
-Fixed after the route runs (2026-10-14), from screenshots of the first
-page each punctuation mark or symbol shows on (`--shot-pages`):
-- Vertical text drew the marks CONscripter turns for it (《》「」『』（）
-  ― ～ …) high and to one side of the column: 《 stuck out to the
-  left. The engine now turns them about the centre of their cell
-  (CONscripter 3c7c957), so ︽ sits on the text it opens.
-- Vertical text sat 8 px left of the original's columns (page 5 of the
-  prologue, filmed under wine): `rubyon` moves vertical lines left by
-  the line gap, which the converter undid for choice windows only. Every
-  vertical window now starts a line gap further right, and the columns
-  match the original to the pixel.
-- `[text0081]〝卵〟を…` (`md05_003`, the only marker with text after it
-  on its line) printed the marker as text, ［ｔｅｘｔ００８１］. The NSS
-  parser now reads it as a marker. Needs a full build to show.
-- English lost most of its spaces: ONScripter skipped the space before
-  each pair of half-width characters, so “Tell me the tales that to me
-  were so dear” (`mb04_008vs`, 33 such lines) showed as “Tellmethe tales
-  thattomeweresodear”. CONscripter now keeps a space after other text,
-  in sprite text too (2179dbd).
-- Built-in and NSS function names matched ignoring case; the exe
-  matches them exactly (`dispatch_builtin`, `call_nss_function`,
-  `research/nitroplus/builtins.md`, "In the exe") and skips a call to a
-  name it doesn't know. So `Waitkey(500)` (`md04_004`, `md06_035`) was
-  a half-second wait and `SL_Rightdown(…)` (`ma00_000`) ran
-  `SL_rightdown`; the original does neither. Names are exact now, and
-  the build's list counts the skipped calls (`skipped: no function`,
-  13 names, 179 calls, `Boxframe` 153 of them).
-- The screen kept shaking through the whole prologue, from the first
-  `Shake` (`ma00_000`, 1 s) on: `screenshake` keeps its last size until
-  its slot is cleared, and the converter never cleared it. An NSS
-  `Shake` lasts its time, or until its picture is deleted (shakes of
-  500 s or 36 minutes end that way), and 0 ms or 0 px stops it. The
-  converter now gives each shake its time as `screenshake`'s new `end`
-  (CONscripter 81d0b80) and clears the slot when the shaken picture
-  goes or a stopping `Shake` comes. The checker missed it: its
-  `overlay` rule looked for an effect left on after `bg` changed, and
-  this game draws everything as sprites over `bg black`. It now also
-  reports a shake with no end left on for 30 pages (`--shake`), and
-  the trace counts the waits auto-play skips toward a shake's end. On
-  the prologue (419 pages) the old build gives two `overlay` findings,
-  the new one none.
+**The route runs, round 3 (2026-10-14):** all ten paths side by side (`--all`) on engine 0.19.1; no `error` or `missing`. Xvfb skip mode takes 40-56 min per route. Engine 0.18.0 run 9 died with heap corruption: `DirectReader`'s overlapping `strcpy` (`1d51abc`); an ASan build of 0.19.0 played run 9 (510 files, 34 min, `ASAN_OPTIONS=detect_leaks=0`) clean. Fixed on the way (each found by a checker rule):
+- A `?` in horizontal text exits NScripter with 255: text writes `?` full-width, `<?>` dropped (lint reports `?`); `<?>` at a line's end joins the next text line (it was a break; `ma01_026` typewriter captions one char per column).
+- `/* ... */` inside a text block is left out like `//`.
+- Unison lines (66 `CreateVOICE`, 32 files) play only if `#SYSTEM_voice_enable_another` is on; it starts on at first start.
+- `Play` on a still-playing loop started a second copy (`md04_048vs` eight times); `WaitAction(obj)` waited for all actions (`mb02_030vs` 15 s fade).
+- Runtime `if` branches ending with different pictures: the next sync removes what any branch left and redraws the merged pictures (every branch shows the first branch's pictures; `judgment_of_count` background stayed 150 pages).
+- A wildcard (`@StMR*`) matched only names, not aliases (~11,700 output lines changed: 44 more shakes, real moves for 177 waits).
+- Non-blocking actions cross-faded over their whole time at the next sync (a 270 s scroll blocked 270 s): now at most a `Wait`'s time, or 1 s. Full build memory 7 GB -> 1.2 GB (60x zooms).
+After the runs, from `--shot-pages` shots:
+- Vertical punctuation turned about the cell's centre (engine `3c7c957`); vertical windows start a line gap further right (`rubyon`; columns match the original to the pixel, filmed under wine).
+- `[text0081]〝卵〟を…` (`md05_003`): marker with text after it parsed as a marker.
+- English spaces: ONScripter skipped the space before half-width pairs; kept after other text, in sprite text too (`2179dbd`).
+- Function names are exact-case (exe `dispatch_builtin`, `call_nss_function`); an unknown name is skipped (`Waitkey(500)`, `SL_Rightdown`); the build counts `skipped: no function` (13 names, 179 calls, `Boxframe` 153).
+- `Shake` lasts its time or until its picture is deleted (0 ms/0 px stops it): `screenshake`'s new `end` (`81d0b80`) and the converter clears the slot. The checker's `--shake` reports a shake with no end left on for 30 pages; the trace counts auto-play-skipped waits toward it.
 
 **System screens done (Status, next item 4, steps 1-6):**
 
-1. Done: button strips joined from the `000`-`003` part files at
-   convert time (`Assets::strip`: normal, hover, disabled, pressed);
-   the yes/no questions as the game's pictures (`ConfirmDialog`
-   `pictures`, `backdrop`, `pressed`, `fade_ms`; built in
-   `convert/muramasa/screens.rs`), with the pressed state from
-   CONscripter's `spbtn num,no,pressed_cell` (625c598). Beside the
-   original (quit question, normal, both hovers, 拒否 pressed): the
-   same pixels, offset 0,0. The 150 ms sideways unroll is done (step
-   7). Left for later: the 記録をしました notice (with the save
-   screen), 選択肢まで戻りますか and 設定を初期状態に戻す (with their
-   screens).
-2. Done (static): the title at rest, the background, logo and
-   copyright composed into one picture, the six buttons with their
-   hover (`002`) and pressed (`003`) pictures, the hover sound (刀構え02)
-   and each button's click sound, the title music, Start's 3 s music
-   fade, 1 s fade to black and 2 s wait, 終了する quitting with no
-   question, しおりから dimmed to half while there is no quick save
-   (`TitleScreen` `pressed`, `hover_se`, `bgm`, `start_*`,
-   `exit_without_asking`, `TitleAction::Continue`; CONscripter's
-   `selectvoice` now works outside the define section, 325c9e1).
-   Beside the original (normal, hover, pressed): mean difference
-   0.1-3.5 levels, from the original's fire. The fire's glow is done
-   (step 7); left: the opening (step 7); 特別付加目録 waits for the
-   extras (step 8).
-3. Done: the right-click menu (a new `CommandMenu`, in
-   `conv-cons/src/command_menu.rs`) and the quick bar (`ButtonBar`
-   with a `base` over the buttons, a `BarSlide` and the pressed cell),
-   built in `convert/muramasa/screens.rs`. The menu: sixteen rows over
-   メニュー黒バック, opened by a right-click or M at a click wait; the
-   backdrop fades in over 100 ms, then the rows appear 10 ms apart from
-   the top; closing, they go from the bottom, then the backdrop fades
-   out (filmed: the rows go first, though `sys_menu.nss` starts the
-   fade with them). Filmed at 60 fps beside the original, opening and
-   closing land within a frame. It closes on キャンセル, M, a
-   right-click, or after skip, 超速, auto or hide; save, load, log,
-   settings, 好感度記録, title and quit come back to it. The game's
-   shortcut letters work at any click wait (CONscripter's `getkey`,
-   53555cf). The quick bar waits 32 px off the right edge and slides
-   in over 200 ms (cubic ease-out, `Dxl2`) when the pointer passes
-   x 968, out when it goes back: an invisible `btn` hotspot with
-   `getmouseover` ends the click wait when the pointer crosses the
-   edge, so no engine change was needed. While it is out a click that
-   misses its buttons doesn't advance. Its base carries the words and
-   lies over the buttons, which are colour washes behind it. Quick
-   save (slot 890, しおり sound) and quick load (300 ms to black) ask
-   nothing. 選択肢に戻る: every choice saves to slot 891 first; the item
-   is greyed while there is none, asks 選択肢まで戻りますか, and loads it
-   after 300 ms to black; a new game and every other load delete it
-   (`loadgosub`), as the original does with 9999. Beside the original
-   (no quick save, セーブ under the pointer): mean difference 0.36
-   levels over the screen, 0.88 in the menu, offset 0,0; quick bar at
-   rest 1.8, hovered 1.0-1.9, pressed 1.0, offset 0,0; the slide's
-   pixel steps match frame for frame (ours starts about 130 ms sooner:
-   the original polls the pointer in a process). Differences left:
-   - The menu has no pressed picture: filmed at 30 fps, the original
-     keeps the hover picture while the mouse button is held (its
-     `003` files are never shown), so the menu does the same.
-   - The bar moves only at click waits; the original's process also
-     slides it while text is being drawn.
-   - 超速スキップ skips like スキップ (pages shown): CONscripter has no
-     skip that hides them.
-   - Esc opens the menu (it is ONScripter's right-click); in the
-     original it asks ゲームを終了しますか. Space reads on and Ctrl
-     skips while held, as in ONScripter; in the original Space hides
-     the window.
-   - The bar is put away while the menu is open (the original's,
-     drawn above everything, stays if it was out).
-   - 好感度記録 (H) runs `sys_hmode.nss` compiled once as a subroutine
-     (`Game::subroutines`, `conv_favour`) between `pushscreen` and
-     `popscreen`. Its `judgment_of_count`, the favour screen, is now a
-     port (`convert/muramasa/favour.rs`), in the story too, where only
-     its background used to show: the NSS draws it with loops over
-     arrays and counters known only at run time, which the compiler
-     can't follow (after a runtime `if` it shows the first branch's
-     pictures). The port is a new generic `Op::PictureScreen`
-     (`conv-cons/src/picture_screen.rs`): pictures in the menus'
-     sprites over the scene and its text window, each with its runtime
-     test (the icon struck out and the column covered for a dead
-     heroine, 村正's black box while her counter is 0, one gauge column
-     per count), faded in over 300 ms, closed by a click. Beside the
-     original at the first page (H): mean difference 5.0 levels, offset
-     0,0; the panel is see-through, and the text under it differs
-     (wine's substitute font), and our dimmed surround is a little
-     darker. Left out from the story's visit: the new gauges blinking in
-     and a heroine's icon being struck out with its sound the first
-     time she is dead.
-   Fixed on the way: the title's しおりから used `load`, which isn't a
-   command (NScripter's is `loadgame`), so it stopped the game.
-4. Done: the save and load screens (a new `SaveGrid`, emitted by
-   `conv-cons/src/save_grid_screen.rs`, Muramasa's values in
-   `convert/muramasa/screens.rs` from `sys_save.nss`/`sys_load.nss`).
-   Five pages of twenty thumbnails over each page's own picture
-   (数字01-20背景save … 数字80-100背景load), four columns from the right,
-   under サムネールワク; 前頁/次頁 go round, 削除 toggles delete mode
-   (削除ボタン-003 over it), 退出, a right-click or the screen's key
-   (S, L) leave; it cross-fades in and out over 300 ms. The slot under
-   the pointer gets the hover frame and its details: the date, the
-   play time, the chapter (`$TITLE_NOW`, now `Op::Chapter`) and the
-   page's text down in columns from the right (CONscripter's
-   `vstrsp`, 3034b55), and a larger thumbnail. Each slot is an
-   invisible `exbtn` whose hover command shows its details. A click
-   saves (asking 記録を上書きして良いか over a full slot, then
-   記録をしました over the dimmed page until a click), loads (asking)
-   or deletes (asking). The thumbnail is the scene without the text
-   window, as in the original. The play time is CONscripter's
-   (`getplaytime`/`setplaytime`, 8b92e5b): the engine counts it, a
-   save keeps it, a load puts it back, a new game starts at 0. The
-   label of a save holds date|time|chapter|text (`savegame2`,
-   `getsavestr`); the text comes from `getlog`, with the page's line
-   breaks as the original keeps them. Beside the original under wine
-   (save screen, empty slot hovered: mean difference 0.91 levels,
-   offset 0,0; a filled slot hovered at the first page: 1.93, with no
-   pixel different in the grid, thumbnails included; the rest is the
-   text). Differences left:
-   - The texts are drawn in ipam, the original in MS 明朝, which wine
-     replaces with a narrower font sitting 2-10 px lower: our date
-     and play time are wider, and a column of the last line holds
-     20 characters where wine fits 22.
-   - The converter breaks a page's lines to fit the window, and those
-     breaks show in the last line; the original's `$SYSTEM_last_text`
-     has only the source's.
-   - No transitions inside the screen (the details appear at once;
-     the original fades them).
-5. Done: the backlog (a new `LineLog`, in
-   `conv-cons/src/line_log_screen.rs`; Muramasa's values in
-   `convert/muramasa/screens.rs`, `line_log()`): sixteen rows of 26
-   characters over バックログ背景, the history laid out as rows by
-   CONscripter (`logrows`, `getlogrow`, 8a7a34e: each page's lines cut
-   at 26, ruby as its base text, a voiced page's voice on its first
-   row). The speaker icon (x 102) replays the voice; the wheel and
-   逆/進 scroll a row, wheel-down at the newest row, 退出 and a
-   right-click close; the knob (x 860, y 50 oldest to 461 newest)
-   can be dragged. It fades in and out over 300 ms. Wheel-up at a
-   click wait and the menu's ログ表示 open it. The history used to end
-   at the last window change: NScripter's `setwindow` flushes it, and
-   the converter re-sets the window for each text block. Every game's
-   window changes are now `setwindow3` (the same without the flush;
-   Saihate's opening trace has the same pages either way). Beside the
-   original (wine, the same pages): at the newest row the icons, knob
-   and panel are the same pixels, text placed within 2 px (the font
-   differs). Filmed at 60 fps (`film/backlog-wheel-4up4down.mkv`), the
-   original moves a row a notch in two 15 px steps about 33 ms apart;
-   ours moves the row at once.
-
-   Done: the click-wait icon (`Script::wait_icon`, a new `WaitIcon`;
-   `TextWindow::wait_icon_at`). The flame's 32 pictures
-   (`改行改頁アイコン`, System.ini `icon_line`/`icon_page`) joined into a
-   strip, looped, at each window's `$SYSTEM_position_{x,y}_text_icon`
-   (read when the converter runs the window's `TypeBegin*` helper: 452,555
-   for the usual vertical box, 194 and 706 for others). The bar's wait
-   routine shows it as a sprite in the bar's range (over the text window)
-   and removes it when the wait ends, so it doesn't show while text types.
-   Beside the original: the same place, the frames fit the original's
-   pictures at offset 0,0. Pictures 1-19 are the flame burning, 20-32 it
-   withering to smoke; watched in the original on a real display (wine
-   under Xvfb redraws the waiting screen only about once a second), it
-   burns about a second, withers about as long and lights again after a
-   pause: ours shows 1-19 for 53 ms each, 20-32 for 77 ms, then waits
-   500 ms (the pause is a guess), a 2.5 s cycle (each picture's time is
-   `WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン,
-   15 pictures).
-6. Done: the settings screen (a new
-   `PictureSettings`, in `conv-cons/src/settings_screen.rs`; Muramasa's
-   values in `convert/muramasa/screens.rs`, `settings()`, from
-   `sys_config.nss`). コンフィグ over the screen, the controls laid over
-   it: six vertical sliders (voice, effects and music volume, auto wait,
-   text speed, game speed), nine 入/切 pairs (questions asked, a click
-   stops movies, auto and skip stop at a choice, skip unread text, the
-   voice plays on after a click, auto waits for the voice, music, effects
-   and voices heard), 承認 (asks 設定を初期状態に戻す, a new
-   `Switch::ConfirmReset`, then puts the defaults back), 実験 (a line of
-   景明's), the version line, 退出, right-click or C to leave; it fades in
-   and out over 300 ms and a pair's choice cross-fades over 100 ms. Each
-   control's resting picture is erased in the original (the picture shows
-   it): ours are strips with an empty first cell (`Assets::strip` takes
-   `""`), the `002` under the pointer; a slider's track is an invisible
-   `exbtn` that shows its knob's hover picture, and a press there drags
-   the knob. The display options (left column) are drawn as a first start
-   leaves them, without buttons. Values are globals %2920-%2941 (a
-   slider's position 0-1000, a pair's 0/1), with the first start's
-   defaults (the knobs found in the original's shot: voice and effects
-   800, music 600, auto wait 100, text speed 200, game speed 3), applied
-   at startup and as they change by CONscripter's new player settings
-   (ddb3686: `soundmute`, `clickvoicestop`, `autovoicewait`, `selectkeep`,
-   `moviestop`, `gamespeed`; volumes with `bgmvol`/`sevol`/`voicevol`,
-   skipping with `kidokumode`). The game speed is the exe's table
-   (`FUN_0047c250`, used by `Wait` and every action: time ÷ 0.5, 0.75,
-   1 (3), 1.5, 2, 3, 4, 5.5, 8, 12, 16, 32); the click wait sets 100 and
-   puts the story's back as it ends, so menus run at normal speed, as in
-   the original. Volumes follow the exe's curve approximately
-   ((p²/50 + p)/3 for 100·(v/1000)^1.661); the auto wait is the exe's
-   per-character wait (0-200 ms a character); text speed is ours (0-100 ms
-   a character, 20 at the default, unmeasured). Beside the original
-   (wine, the first page): mean difference 1.6 levels, every pixel within
-   40 levels but the version line (the font); 入 hovered matches.
-   The voice window (別窓を開く, a new `VoiceWindow`): ボイスセレクトウィンドウ背景
-   over black at 700/1000, each character's picture once the story has set
-   its `#voice_on_<name>` (55 flags, and `#一章クリア`, declared by the
-   game's `flags()`: the story sets them, only `sys_config` reads them),
-   with ボイスチェック on its box while its voices play; clicking the box
-   mutes or unmutes every voice of its class (`Story::voice_classes`, the
-   compiler's character numbers, passed to `menus()` with the flags; the
-   switches are the `%970+c` that `dwave` reads). Until 一章クリア it lists
-   fourteen characters with their `1章_` pictures, after it all 55, as
-   `ConfigVoiceArray` does. Classes of no entry (高官, 皇路, …) always
-   play, as `#SYSTEM_voice_enable_another` is never turned off. Beside the
-   original at the first page (その他男声 and その他女声 heard): mean
-   difference 0.57 levels, every pixel within 40 but the version line.
-   Left: the wheel over a slider.
+1. Button strips joined from `000`-`003` part files (`Assets::strip`); yes/no questions as the game's pictures (`ConfirmDialog`, built in `convert/muramasa/screens.rs`), pressed state by engine `spbtn num,no,pressed_cell` (`625c598`). Same pixels as the original, offset 0,0.
+2. Title: background, logo and copyright composed into one picture, six buttons (hover `002`, pressed `003`), hover sound 刀構え02, Start's 3 s music fade + 1 s fade to black + 2 s wait, 終了する asks nothing, しおりから dimmed while no quick save (`TitleScreen`; `selectvoice` works outside define, `325c9e1`). Mean difference 0.1-3.5 levels (the original's fire). The title's しおりから used `load`, not a command (`loadgame`).
+3. Right-click menu (`CommandMenu`, `conv-cons/src/command_menu.rs`) and quick bar (`ButtonBar`, `BarSlide`). Menu: sixteen rows over メニュー黒バック, opened by right-click or M at a click wait; backdrop fades in 100 ms, rows 10 ms apart from the top; closing, rows go first from the bottom (filmed), then the backdrop. Closes on キャンセル, M, right-click, or after skip/超速/auto/hide. Shortcut letters work at any click wait (`getkey`, `53555cf`). Bar waits 32 px off the right edge, slides in over 200 ms (cubic ease-out, `Dxl2`) when the pointer passes x 968: an invisible `btn` hotspot + `getmouseover`, no engine change; a click missing its buttons does not advance. Quick save slot 890 (しおり sound), quick load 300 ms to black, both ask nothing. 選択肢に戻る: every choice saves to slot 891; greyed while none; a new game and every other load delete it (`loadgosub`; the original does with 9999). Mean difference 0.36 (menu 0.88), bar 1.0-1.9, offset 0,0; our slide starts ~130 ms sooner (the original polls in a process). Differences left: menu has no pressed picture (the original keeps hover while held, filmed 30 fps); the bar moves only at click waits; 超速スキップ skips like スキップ; Esc opens the menu (original: asks ゲームを終了しますか), Space reads on / Ctrl skips while held (original: Space hides the window); the bar is put away while the menu is open. 好感度記録 (H) runs `sys_hmode.nss` as a subroutine (`Game::subroutines`, `conv_favour`) between `pushscreen`/`popscreen`; `judgment_of_count` is a port (`convert/muramasa/favour.rs`, also in the story) on a generic `Op::PictureScreen` (`conv-cons/src/picture_screen.rs`: sprites with runtime tests, 300 ms fade, click closes); mean difference 5.0, offset 0,0. Left out of the story's visit: new gauges blinking in, a heroine's icon struck out with its sound the first time she is dead.
+4. Save and load screens (`SaveGrid`, `conv-cons/src/save_grid_screen.rs`, values from `sys_save.nss`/`sys_load.nss`): five pages of twenty thumbnails, four columns from the right, 300 ms cross-fade; hover shows date, play time, chapter (`Op::Chapter`), page text in columns (`vstrsp`, `3034b55`), larger thumbnail; each slot an invisible `exbtn`. Overwrite asks 記録を上書きして良いか; 記録をしました over the dimmed page. Thumbnail = scene without the text window. Play time is the engine's (`getplaytime`/`setplaytime`, `8b92e5b`; a save keeps it, a new game starts at 0). Label = date|time|chapter|text (`savegame2`, `getsavestr`; text from `getlog`). Empty slot hovered 0.91, filled 1.93 (no grid pixel different, only text). Differences left: texts in ipam (the original's MS 明朝 is replaced by wine's narrower font, 2-10 px lower; a column holds 20 characters where wine fits 22); the converter's line breaks show in the last line (the original's `$SYSTEM_last_text` has only the source's); no transitions inside the screen.
+5. Backlog (`LineLog`, `conv-cons/src/line_log_screen.rs`, `line_log()`): sixteen rows of 26 characters over バックログ背景, engine `logrows`/`getlogrow` (`8a7a34e`: cut at 26, ruby as base, a voiced page's voice on its first row). Icon x 102 replays the voice; knob x 860, y 50 (oldest) to 461 (newest) draggable; 300 ms fade; wheel-up at a click wait and ログ表示 open it. The history used to end at the last window change (`setwindow` flushes it): every game's window changes are now `setwindow3`. Same pixels at the newest row, text within 2 px. Original moves a row a notch in two 15 px steps ~33 ms apart (`film/backlog-wheel-4up4down.mkv`); ours at once. Click-wait icon (`WaitIcon`, `Script::wait_icon`): 32 pictures of `改行改頁アイコン` (System.ini `icon_line`/`icon_page`) at `$SYSTEM_position_{x,y}_text_icon` (452,555 vertical box; 194 and 706 others), shown only while waiting. Pictures 1-19 burn, 20-32 wither; ours 53 ms each, then 77 ms each, then 500 ms pause (a guess), 2.5 s cycle (`WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン, 15 pictures).
+6. Settings (`PictureSettings`, `conv-cons/src/settings_screen.rs`, `settings()`, from `sys_config.nss`): six sliders (voice, effects, music volume, auto wait, text speed, game speed), nine 入/切 pairs, 承認 (asks 設定を初期状態に戻す, `Switch::ConfirmReset`), 実験, version line; 300 ms fade, a pair's choice 100 ms cross-fade; resting pictures erased (strips with an empty first cell, `Assets::strip("")`); slider track an invisible `exbtn`. Globals %2920-%2941 (slider 0-1000, pair 0/1), first-start defaults from the original's shot: voice and effects 800, music 600, auto wait 100, text speed 200, game speed 3; applied by engine player settings (`ddb3686`: `soundmute`, `clickvoicestop`, `autovoicewait`, `selectkeep`, `moviestop`, `gamespeed`, `bgmvol`/`sevol`/`voicevol`, `kidokumode`). Game speed = exe table `FUN_0047c250` (time / 0.5, 0.75, 1 (3), 1.5, 2, 3, 4, 5.5, 8, 12, 16, 32); the click wait sets 100 and restores the story's. Volume curve approx (p^2/50 + p)/3 for 100*(v/1000)^1.661; auto wait = exe per-character 0-200 ms; text speed ours (0-100 ms/char, 20 default, unmeasured). Mean difference 1.6 (all within 40 but the version line). Voice window (`VoiceWindow`): 55 `#voice_on_<name>` flags + `#一章クリア` (declared by the game's `flags()`), clicking a box mutes its class (`Story::voice_classes`, switches `%970+c`); before 一章クリア fourteen characters (`1章_` pictures), after all 55 (as `ConfigVoiceArray`); classes with no entry (高官, 皇路, ...) always play. Mean 0.57. Left: the wheel over a slider.
 
 **Extras, step 8 (2026-10-15):**
 
-1. Done: the menu (a new `PictureExtras`, `conv-cons/src/
-   picture_extras.rs`; Muramasa's values in `convert/muramasa/
-   extras.rs`): MENU背景画像 and five buttons with their hover and
-   pressed pictures; 画像, 回想 and 音楽 at 200/1000 and not clickable
-   until `#ClearG` (set at any route's end roll); the hover sound
-   (鎧_装着01), 装着06 on opening a mode, 剣戟弾く01 on leaving by
-   退出 or a right-click; 500 ms cross-fades from and back to the
-   title, whose music goes on (`TitleAction::Extras`; back from the
-   extras the title skips `bgm`). The `#` flags past %969 now go on
-   at %5200 (the gallery's would have run into the voice switches).
-2. Done: the gallery (a new `PictureGallery`, `conv-cons/src/
-   picture_gallery.rs`; the slots read from `extra_gallery.nss`'s
-   `Cg`, its 805 `#<cg>` flags declared by `flags()`): the three
-   categories (the open one pressed), 前頁/次頁 going round, 20 slots a
-   page down four columns from the right, 空白アイコン, the first CG
-   seen's thumbnail at half while some are unseen, 選択カーソル under
-   the pointer; the viewer fades each CG in over 500 ms (未見 for an
-   unseen one, black between two unseen), a picture larger than the
-   screen scrolls 12 ms a pixel on a click (a click pauses, the next
-   goes on, a right-click jumps to the end; `Vr`/`Hr` from the far
-   end), a click past the last or a right-click closes it over 300 ms.
-   Beside the original (2D, first page): mean difference 2.7 levels
-   over the grid. Found on the way: with `usewheel` a timed `btnwait`
-   returns -5, not -2, when the time runs out.
-3. Done: the sound room (a new `SoundRoom`, `conv-cons/src/
-   picture_sound.rs`; the entries read from `extra_sound.nss`'s
-   `Sound`): 37 BGM, five songs (`000` picture until `#msong0N`), three
-   movies (空白アイコン until `#mvOP02`) at the script's places; a
-   track plays looping and stays the extras' music across games
-   (global %2961: the title's at first, opened with the extras, the
-   title's music back on leaving if it differs), the playing one
-   clicked again fades out over 2 s; the ten-picture A-icon turns
-   26 px left of the track playing, 340 ms a picture (filmed at 100
-   frames a second with `ffmpeg -f x11grab -framerate 100 -video_size
-   26x24 -i :N+482,282 -f framemd5`: a change every 340 ms, steady
-   over 10 s, with the game at 17 % of a core); a movie fades the music
-   and the screen to black over 1 s, plays (the settings' 動画 option
-   decides whether a click stops it), the music comes back over 1 s
-   and the black fades over 300 ms. Beside the original (the title's
-   track playing): mean difference 1.3 levels, the icon's picture
-   aside. Found on the way: `:c;` draws a PNG's transparent pixels;
-   the extras draw PNGs with `:a;` and JPEGs with `:c;`
-   (`picture_extras::pic`); and a duplicate label (`conv_ps_draw`,
-   the settings') sent the room to the settings' drawing.
-4. Done: the recollection (a new `PictureReplay`, `conv-cons/src/
-   picture_replay.rs`; the scenes read from `extra_recollection.nss`'s
-   `Reco`): the ten scenes in the gallery's grid, 空白アイコン until the
-   scene's file has been read (`#ma01_020`, set at the file's end), its
-   CG's thumbnail after. Each scene is its file's `_MAIN` compiled once
-   more as a subroutine with `$PLACE_reco` true (a new `Game::replays`),
-   which takes the files' own replay branches. A click fades the music
-   out over 1 s; at the end the music fades over 2 s, everything (the
-   text window too) is cleared, and the list fades back in with the
-   extras' music. Played through `ma01_020` and back, then out to the
-   title. During a replay, as in the original, save, load, しおり
-   (quick save and load) and 選択肢に戻る are greyed in the menu and the
-   quick bar (`BarScreens::picture_replay`, `menu::NO_SAVE`), and
-   タイトルに戻る (asked, then `reset`) comes back to the list (global
-   %2962, read first thing by the title). The list stays held over
-   the scene's first picture, a freeze frame in screen-effect slot 4
-   (`PictureReplay::hold`), until the scene's `RecoIn` fades it out
-   over 500 ms and waits 1 s, as the original's `RecoScreen`.
-5. Done: the 3D viewer, 劒冑回転目録 (a new `Turntable`, `conv-cons/src/
-   picture_turntable.rs`; the entries read from `extra_dimension.nss`'s
-   `Dx`): 46 entries, 24 name plates a page in two rows of twelve from
-   the right, NO until the entry's `#av_` flag is set (九〇式指揮官騎
-   and 九四式指揮官騎 open from the start, 九〇式 chosen first). The
-   chosen plate is drawn pressed, its movie (`ムービー/3d/ex_NNN.ngs`,
-   400×400, about 5 s) loops at 80,28, played by the engine as a sprite
-   (`lsp …,":c/1,0,0;movie\3d_ex_NNN_mute.mp4"`, since 2026-10-16 at the
-   user's choice; it was frames at 15 a second, 98 MB of JPEG strips in
-   the archives, now 20 MB of loose H.264; CONscripter for Windows has no
-   sprite movies, so there it shows no movie), its large
-   name plate at 480,28 and its details at 60,436, the （開放） ones
-   once `#aw_` is set. 前頁/次頁 turn the page round, 退出 or a
-   right-click goes back to the menu; 500 ms in, 300 ms between pages
-   and entries. The page and the entry are globals (%2963, %2964), as
-   the original's `#DxPage`/`#SelectDxNumber`. Checked with a shot
-   beside the original's (`--goto conv_pextras_turntable` with flags
-   set). Movie paths with a folder (`dx/3d/…`) are found now (only the
-   file name was looked up). Unchecked: the movie's speed beside the
-   original (wine draws no movie).
-6. Done: back to the title (`0_boot.nss` `TitleFade`, the
-   `$エキストラタイトル` branch): the extras cut to white with
-   se戦闘_攻撃_刀衝突01 (the click's 剣戟弾く01 on a channel of its own,
-   so the clash doesn't cut it), and the title comes out of the white
-   over 1 s with the blurred background and logo spreading away: the
-   last second of the return opening, rendered from 2 s as
-   `title_extras2` (`opening::after_extras`, a `TitleOpening` with
-   `after_extras`). The music goes on (the title's, if the sound room
-   chose another).
-7. Done: the title's ライナー画像 button (`0_boot.nss`, `書記`): at
-   (60, 524) once `#悪鬼編終了` is set, it opens Nitroplus's
-   staff-comment page (`System("OPEN:http://www.nitroplus.co.jp/secret/
-   muramasamune")`, still online in 2026) in the browser, out of full
-   screen. Ours: `TitleAction::Link` and CONscripter's new `openurl`
-   (a new tab in the web build).
+1. Menu (`PictureExtras`, `conv-cons/src/picture_extras.rs`, values in `convert/muramasa/extras.rs`): five buttons; 画像, 回想, 音楽 at 200/1000 and not clickable until `#ClearG` (set at any route's end roll); sounds 鎧_装着01 hover, 装着06 opening a mode, 剣戟弾く01 leaving; 500 ms cross-fades, title music goes on (`TitleAction::Extras`). `#` flags past %969 go on at %5200.
+2. Gallery (`PictureGallery`; `extra_gallery.nss` `Cg`, 805 `#<cg>` flags): three categories, 20 slots a page in four columns from the right; viewer fades each CG in over 500 ms (未見 for unseen), a larger picture scrolls 12 ms a pixel on a click (click pauses, next goes on, right-click jumps to the end), closing 300 ms. Mean 2.7. With `usewheel` a timed `btnwait` returns -5, not -2, on timeout.
+3. Sound room (`SoundRoom`; `extra_sound.nss` `Sound`): 37 BGM, five songs (until `#msong0N`), three movies (until `#mvOP02`); the track stays the extras' music across games (global %2961); the playing one clicked again fades out over 2 s; the ten-picture A-icon turns 26 px left of the track, 340 ms a picture (filmed at 100 fps with `ffmpeg -f x11grab ... -f framemd5`). A movie fades music and screen to black over 1 s, music back over 1 s, black out over 300 ms. Mean 1.3. `:c;` draws a PNG's transparent pixels: extras use `:a;` for PNGs, `:c;` for JPEGs (`picture_extras::pic`); a duplicate label (`conv_ps_draw`) once sent the room to the settings' drawing.
+4. Recollection (`PictureReplay`; `extra_recollection.nss` `Reco`): ten scenes, 空白アイコン until the scene's file was read (`#ma01_020`, set at its end). Each scene = its file's `_MAIN` compiled again as a subroutine with `$PLACE_reco` true (`Game::replays`); music fades 1 s on click, 2 s at the end. In a replay save, load, しおり, 選択肢に戻る are greyed (`BarScreens::picture_replay`, `menu::NO_SAVE`), タイトルに戻る comes back to the list (global %2962). The list is held over the scene's first picture (freeze frame in screen-effect slot 4, `PictureReplay::hold`) until `RecoIn` fades it 500 ms and waits 1 s.
+5. 3D viewer 劒冑回転目録 (`Turntable`; `extra_dimension.nss` `Dx`): 46 entries, 24 plates a page (two rows of twelve from the right), NO until `#av_` set (九〇式 and 九四式指揮官騎 open at start); movie `ムービー/3d/ex_NNN.ngs` (400x400, ~5 s) loops at 80,28 as a sprite (`lsp ...,":c/1,0,0;movie\3d_ex_NNN_mute.mp4"`, 2026-10-16, the user's choice; was 98 MB of JPEG strips at 15 fps, now 20 MB H.264; Windows build has no sprite movies), plate at 480,28, details at 60,436 (（開放） once `#aw_`); 500 ms in, 300 ms between; page/entry globals %2963/%2964. Movie paths with a folder (`dx/3d/...`) are found now. Unchecked: movie speed beside the original.
+6. Back to the title (`0_boot.nss` `TitleFade`, `$エキストラタイトル`): cut to white with se戦闘_攻撃_刀衝突01 (the click's 剣戟弾く01 on its own channel), title out of the white over 1 s: the last second of the return opening, rendered from 2 s as `title_extras2` (`opening::after_extras`).
+7. Title's ライナー画像 button at (60, 524) once `#悪鬼編終了` is set opens Nitroplus's page (`System("OPEN:http://www.nitroplus.co.jp/secret/muramasamune")`, online in 2026): `TitleAction::Link`, engine `openurl` (new tab on web).
 
 **Motion and movies (Status, system screens step 7), done:**
 
-- The yes/no questions (`sys_close.nss` and the others alike): the
-  question and its buttons are zoomed sideways from nothing to
-  whole in 150 ms (`Dxl1`) about the middle while they and the black
-  fade in; closing, back to nothing in 150 ms while all fade out in
-  200 ms (filmed ×10 slowed: the text is squeezed, not uncovered).
-  Ours (`ConfirmDialog::unroll`, `Unroll { x: 512, close_ms: 200 }`):
-  a frame about every 16 ms, timed by `waittimer`, each sprite
-  `amsp`'d toward the line x 512 and `spzoom`'d sideways with its
-  alpha, and the backdrop faded. The original's buttons turn about
-  their own vertices (515 and 499), ours about 512: at most 13 px
-  apart, for 150 ms. Filmed at 60 fps: five frames in, three out,
-  as the original.
-- The openings (`TitleFade`): at launch (`!$Logo`, 11.2 s) 善悪相殺
-  drifts in, 村正鎮座 zooms out of the dark, two bursts of blood
-  sprays (multiplied, swinging in about a corner), drops and red
-  (added), the fire overlaid, a white flash, the title; on coming
-  back to the title (3 s) the logo grows out of the dark, the
-  background drops in from above, a white flash, a blurred glow of
-  the background and logo spreading away. CONscripter can't blend
-  sprites so, so the converter draws both frame by frame from the
-  script's timeline (`convert/muramasa/opening.rs`: every `Fade`,
-  `Zoom`, `Rotate` about its `SetVertex`, `Move`, the tempos,
-  `MoveFRP`'s random Bézier shake from a fixed seed, `SetBlur` and
-  `SetShade` as blurs; `MiddleWave` as a fade) into silent H.264
-  movies (`movie/title_launch2.mp4`, `title_return2.mp4`) that end
-  on the title at rest, buttons included (しおりから at half). The
-  title (`TitleScreen::openings`) starts the music, the sound
-  effect at the flash (se特殊_雰囲気_鎧登場演02, made with silence
-  before it), plays the movie with `mpegplay "f",1,1`, and puts the
-  sprites up at once; the glow then starts where the original's
-  process is (`TitleOpening::glow_keys`). The global %2960 tells the
-  launch (cleared in the define section; `reset` keeps it). In
-  CONscripter the hand-over differs by 1.5 levels (the player drops
-  the last frames: the last picture is held 200 ms). Beside the
-  original's launch under wine (a shot about every 0.8 s, wine
-  redraws slowly) the same pictures come in the same order. The
-  launch picture is picked as `TitleSet` does (the user, 2026-10-15):
-  the first launch after clearing 悪鬼編 shows 真生悪鬼ＥＤ, else
-  after 魔王編 (悪鬼編 not cleared) 村正鎮座, after 英雄編 最終正宗,
-  after 復讐編 香奈枝の凶眼, each once (`#…通過`, declared by
-  `flags()` with the `#…終了` flags); otherwise one at random among
-  the cleared routes' and 村正鎮座. Four movies
-  (`title_launch2_ev267`, `_ev501`, `_ev165`, `_ev004`), chosen by
-  `TitleOpening::when`/`sets`/`random` (NScripter `rnd` over the pool).
-  Checked: with `#英雄編終了` set the launch plays 最終正宗's. The
-  logos and the warning before it (`TitleLogo`) aren't converted.
-- The fire: `TitleSet` puts `ef046_炎a.jpg` (1920×1200) over the
-  title at (0,0), zoomed 2× about its centre, drawn in overlay
-  (`OverlayRender`, darkening this dark picture), and `CreateTPO1`'s
-  process fades it from 0 to 300 over 600 ms, holds until 1100 ms,
-  back to 0 by 1700 ms, holds until 2200 ms, for ever. Ours: the
-  converter draws the title with the fire overlaid at 300
-  (`Assets::overlaid`) and CONscripter's new `spalpha` (0ae2e87)
-  fades that picture in and out over the title with the same keys
-  (`TitleScreen::glow`). Beside the original under wine: the left
-  edge's red swings by about 10 levels in both (50-60 there,
-  45-55 ours; wine's picture is 5 levels lighter throughout). Where
-  the zoomed fire sits can't be told from shots (it is a soft
-  picture and moves the screen by 3 levels at most).
-and the movies (added by the user, 2026-10-15; done 2026-10-15).
-They are MPEG-1 program streams (`.ngs`, 1024×576, MP2 sound) in
-the disc's `ムービー/` folder, beside `<game>`, not in the archives
-(33 files, 353 MB, and 46 more in `ムービー/3d/` for the extras); the
-scripts name them `dx/<name>.ngs`. Each is encoded once to H.264 MP4
-in `movie/` (ASCII names: the file's own, or `mv_` and a hash of a
-Japanese one), which every CONscripter build plays (the web build in
-a `<video>` element, MPEG-1 being unplayable there).
-- `MoviePlay(file, skippable)` (full screen, the script waits:
-  `mvOP` at the end of chapter 1 in `ma01_026`, `mvOP02` in
-  `md01_018`, `mv剣戟_チャキーンチャキキーン` in `mb01_006`) is
-  `Op::Movie` (`bgmstop` + `mpegplay`) for a movie with sound, and
-  a new `Op::SceneMovie` for a silent one: `mpegplay "f",1,1`, a
-  CONscripter addition (b0de6a0) that leaves the music playing.
-  `moviestop` (the settings' 動画 pair) decides whether a click
-  stops it. `mv_smg_PV` (the title's demo, every 35 s in
-  `TitleProcess`) is not on the disc (only `mvPV.ngs`): it is left
-  out, and the title's demo loop isn't converted.
-- `CreateMovie(name, priority, x, y, loop, alpha, file)` is a movie
-  object (`MovieObject`), as the user chose (2026-10-15: frames
-  made by the converter, no engine movie sprite):
-  - A cut that fills the screen, plays once, and that the script
-    waits for (`WaitAction`/`WaitPlay` on it, or a `Wait`/`WaitKey`
-    of at least half its remaining time, which the scripts take
-    from `RemainTime`) plays as a movie with the music going on
-    (`Op::SceneMovie`; its own sound left out, the script plays the
-    `se特殊_mv用_*` effect beside it), then shows its last frame. The
-    last frame is loaded before `mpegplay` (opaque, though
-    `MovieSEStart2` fades the cut in only after its `WaitAction`) and
-    shown with `print 1` right after it: the engine redraws the screen
-    as the movie ends, and with the frame loaded after it the scene
-    before the cut flashed and faded back (2026-10-16; the trace
-    checker's `movie` rule no longer fires on the prologue's cut). The
-    time played counts toward the script's following waits for it.
-    This is `MovieSESet` + `MovieSEStart` (28 calls) and the single
-    cuts with `WaitAction` (5) or `RemainTime` (2).
-  - Any other plays as a sprite movie (since 55a8b78: `lsp` of an
-    MP4, one cell, looped or stopping on its last frame, zoomed with
-    `spzoom`; it was a strip of frames at 15 a second): `mvk100` (23 uses, a 9 s loop of smoke, top half
-    colour and bottom half opacity, zoomed 3×5 and more; `SubRender`
-    draws it black, `AddRender` as it is), and `mv剣戟_チャキーンチャキキーン`
-    looping under the text (`mb02_023vs`), a 300 ms cut in `mb03_019`; checked headless (2026-10-16): the `lsp` of
-    `mb02_023vs`'s cut plays (two screenshots 300 ms apart differ), but
-    auto-play doesn't play it (its trace shots of those pages are
-    black), so the trace can't show these. Paused (`Request(…, Pause)`
-    after 100-300 ms, `md01_006`, `mb03_019`) it is that one frame.
-  - Left as they are: a `Zoom` over time of the smoke jumps to its
-    end (as other zooms over time, a cross-fade), `Rotate` (the
-    smoke flipped) is ignored.
-- Engine fixes found on the way (f8d4cf4): `spzoom` on an animated
-  sprite showed only its first cell, and a screen update partly off
-  the screen was dropped.
+- Yes/no questions (`sys_close.nss` and others): zoomed sideways from nothing to whole in 150 ms (`Dxl1`) while they fade in; closing 150 ms zoom, 200 ms fade (filmed x10 slowed: squeezed, not uncovered). `ConfirmDialog::unroll`, `Unroll { x: 512, close_ms: 200 }`: a frame ~16 ms by `waittimer`, `amsp` + `spzoom`. The original turns buttons about their own vertices (515, 499), ours 512: at most 13 px for 150 ms. Five frames in, three out at 60 fps, as the original.
+- Openings (`TitleFade`): launch (`!$Logo`, 11.2 s) and return to the title (3 s). CONscripter cannot blend sprites so, so the converter draws both frame by frame from the script's timeline (`convert/muramasa/opening.rs`: `Fade`, `Zoom`, `Rotate` about `SetVertex`, `Move`, tempos, `MoveFRP`'s random Bézier shake from a fixed seed, `SetBlur`/`SetShade` as blurs, `MiddleWave` as a fade) into silent H.264 (`movie/title_launch2.mp4`, `title_return2.mp4`) ending on the title at rest. `TitleScreen::openings` starts the music, the effect at the flash (se特殊_雰囲気_鎧登場演02, silence before it), `mpegplay "f",1,1`, puts the sprites up at once; the glow starts where the original's process is (`TitleOpening::glow_keys`). Global %2960 tells the launch (cleared in define; `reset` keeps it). Hand-over differs 1.5 levels (the last picture held 200 ms). Launch picture as `TitleSet` (user, 2026-10-15): first launch after 悪鬼編 shows 真生悪鬼ＥＤ, else after 魔王編 村正鎮座, 英雄編 最終正宗, 復讐編 香奈枝の凶眼, each once (`#...通過`); otherwise random among cleared routes' and 村正鎮座. Four movies `title_launch2_ev267/_ev501/_ev165/_ev004` (`TitleOpening::when`/`sets`/`random`). Not converted: the logos and warning before it (`TitleLogo`).
+- Fire: `TitleSet` puts `ef046_炎a.jpg` (1920x1200) over the title, 2x about its centre, overlay blend; `CreateTPO1` fades it 0 -> 300 over 600 ms, holds to 1100, 0 by 1700, holds to 2200, forever. Ours: title drawn with the fire at 300 (`Assets::overlaid`) and engine `spalpha` (`0ae2e87`) with the same keys (`TitleScreen::glow`). Left edge red swings ~10 levels in both.
+- Movies (user, 2026-10-15): MPEG-1 `.ngs` (1024x576, MP2) in the disc's `ムービー/` folder, not in the archives (33 files, 353 MB; 46 more in `ムービー/3d/`), named `dx/<name>.ngs`; each encoded once to H.264 MP4 in `movie/` (ASCII names: own, or `mv_` + hash).
+  - `MoviePlay(file, skippable)` (full screen, script waits: `mvOP` in `ma01_026`, `mvOP02` in `md01_018`, `mv剣戟_チャキーンチャキキーン` in `mb01_006`) = `Op::Movie` (`bgmstop` + `mpegplay`) with sound, `Op::SceneMovie` (`mpegplay "f",1,1`, engine `b0de6a0`, music keeps playing) silent; `moviestop` decides whether a click stops it. `mv_smg_PV` (title demo every 35 s) is not on the disc (only `mvPV.ngs`): left out.
+  - `CreateMovie(name, priority, x, y, loop, alpha, file)`: a full-screen once-playing cut the script waits for (`WaitAction`/`WaitPlay`, or a `Wait`/`WaitKey` of at least half its remaining time) plays as `Op::SceneMovie` (own sound left out; the script plays `se特殊_mv用_*`), then shows its last frame, loaded before `mpegplay` and shown with `print 1` right after (loaded after, the prior scene flashed; 2026-10-16). Played time counts toward later waits. = `MovieSESet`+`MovieSEStart` (28), single cuts with `WaitAction` (5) or `RemainTime` (2).
+  - Any other is a sprite movie (since `55a8b78`: `lsp` of an MP4, one cell, looped or stopping on its last frame, `spzoom`): `mvk100` (23 uses, 9 s smoke loop, top half colour, bottom half opacity, zoomed 3x5+; `SubRender` black, `AddRender` as is), the 剣戟 loop under the text (`mb02_023vs`), a 300 ms cut in `mb03_019`. Auto-play does not play sprite movies (trace shots black). Paused (`Request(..., Pause)`, `md01_006`, `mb03_019`) = that frame. Left: a `Zoom` over time of the smoke jumps to its end; `Rotate` ignored.
+  - Engine fixes (`f8d4cf4`): `spzoom` on an animated sprite showed only the first cell; a screen update partly off screen was dropped.
 
-**Sound volume (2026-10-15):** every `SetVolume` is converted (it was
-ignored unless it went to 0, so sounds faded to 1 kept playing at full
-volume). The NSS volume becomes a percent of the player's setting by the
-exe's curve, 100·(volume/1000)^1.661 (`percent` in `nitroplus/convert.rs`;
-500 is 32 %, 1 is 0 %: silent but still playing, as in the original). A
-sound starts at its volume (`Op::SoundVolume` right before `SePlay` or
-`BgmPlay`, emitted as `chvolfade`/`bgmvolfade` for the channel it will
-take; in a script that sets any, every other sound starts at 100), a
-sound effect's fade-in is `SeFadeIn` (`dwavefadein`), a change while it
-plays is a `SoundVolume` ramp, and reaching 0 stops it: `SeFadeOut`
-(`dwavefadeout`) for a sound effect, `BgmStop` with its fade for the
-music. The engine ramps linearly in percent, the original linearly in
-its volume number (a fade sounds a little different midway). A
-240-second auto-play gave the same trace-check findings as before.
+**Sound volume (2026-10-15):** every `SetVolume` is converted (was ignored unless 0). NSS volume becomes a percent of the player's setting by the exe's curve 100*(volume/1000)^1.661 (`percent` in `nitroplus/convert.rs`; 500 = 32 %, 1 = 0 %: silent but playing). `Op::SoundVolume` before `SePlay`/`BgmPlay` (`chvolfade`/`bgmvolfade`; in a script that sets any, every other sound starts at 100); `SeFadeIn` = `dwavefadein`; reaching 0 stops: `SeFadeOut` (`dwavefadeout`) for effects, `BgmStop` with its fade. The engine ramps linearly in percent, the original in its volume number.
 
-**The figure in `ma01_002` (2026-10-15):** checked beside the original
-under wine (a boot patched to start `ma01_002`; shots in
-`research/nitroplus/local/shots/fig-ma01_002-orig-*.png`). The strokes
-(／＼ around ○□卍□○) line up the same in both; the note that it came
-apart in the vertical box was wrong. What differed: the original turns
-the arrows a quarter turn in vertical text (`おれ→` points down at the
-figure), so CONscripter now does too (c3d5ffc). It also draws ∧ turned
-(as ＞), which the script's own horizontal sketch in the comments
-doesn't want; probably wine's substitute font, so ∧ stays upright.
+**The figure in `ma01_002` (2026-10-15):** the strokes line up in vertical text (the "came apart" note was wrong). The original turns arrows a quarter turn in vertical text (`おれ→` points down): engine `c3d5ffc`. ∧ stays upright (the original's turned ∧ is probably wine's substitute font).
 
-**The route run that stopped drawing (2026-10-15):** a replay with
-`--shot-pages` (engine 0.19.0) once stopped at `f_md01_002`'s
-`print 10,500` (page 18,573) with the process spinning. Not reproduced
-with engine 0.22.0: the run through `md01_002` (`engrun.py --only 3 --at
-md01_002`, ending in `md04_045aa`) played its 160 files to the end, and
-again with a shot of each of its first 400 pages. Closed unless it comes
-back. On the way, nstrace looped forever in `ma02_003a`: it skipped
-`btnwait`, so the favour screen's wait loop never ended; `btnwait` now
-sets its variable to 0, a click.
+**The route run that stopped drawing (2026-10-15):** a replay (engine 0.19.0) stopped at `f_md01_002`'s `print 10,500` (page 18,573); not reproduced on 0.22.0 (160 files, `engrun.py --only 3 --at md01_002`). Closed unless it returns. nstrace looped in `ma02_003a` because it skipped `btnwait`; `btnwait` now sets its variable to 0.
 
 ### One `*conv_boot_end` (2026-10-18)
 
-The boot logos' subroutine was jumped over to a label of the same name
-as conv-cons's boot guard end (`*conv_boot_end`, defined twice; the
-engine keeps the first). It is `*conv_boot_body_end` now (dead code
-today: the jump follows the story's last jump).
+The boot logos' subroutine jumped to a label named like conv-cons's boot guard end (`*conv_boot_end`, defined twice; the engine keeps the first): now `*conv_boot_body_end` (dead code today).
