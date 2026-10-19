@@ -378,7 +378,7 @@ pub fn share(args: usize, reasons: &[String]) -> f64 {
     if reasons.iter().any(|r| r.contains("not converted")) {
         return 0.0;
     }
-    let lost = reasons.iter().filter(|r| r.ends_with(" ignored")).count();
+    let lost = reasons.iter().filter(|r| ignored(r).is_some()).count();
     if args == 0 {
         return if lost > 0 { 0.0 } else { 1.0 };
     }
@@ -390,7 +390,8 @@ pub fn share(args: usize, reasons: &[String]) -> f64 {
 /// notes naming a whole call left unconverted (`built-in X`, `Request X`,
 /// `CreateProcess X`, `CreateEffect X`) 0; a pick made when converting
 /// (seeded `Random`) 0.8; each "… ignored" one argument lost, as in
-/// [`share`]; any other note (an approximation) 0.5; the lowest wins.
+/// [`share`], or, with a role ("… ignored (tempo)"), what the role weighs
+/// ([`role_weight`]); any other note (an approximation) 0.5; the lowest wins.
 /// `None` (unmeasured): a note says a file is missing in this build.
 pub fn credit(args: usize, reasons: &[String]) -> Option<f64> {
     if reasons.iter().any(|r| r.contains("in this build")) {
@@ -399,16 +400,42 @@ pub fn credit(args: usize, reasons: &[String]) -> Option<f64> {
     let whole_call = |r: &str| {
         ["built-in ", "Request ", "CreateProcess ", "CreateEffect "].iter().any(|p| r.strip_prefix(p).is_some_and(|rest| !rest.contains(' ')))
     };
-    let mut c = share(args, reasons);
+    // Each argument lost: what its role controls, else one argument's part.
+    let lost: f64 = reasons.iter().filter_map(|r| ignored(r)).map(|role| role.map_or(1.0 / args.max(1) as f64, role_weight)).sum();
+    let mut c = (1.0 - lost).max(0.0);
     for r in reasons {
         c = c.min(match r.as_str() {
             r if whole_call(r) || r.contains("not converted") => 0.0,
-            r if r.ends_with(" ignored") => 1.0,
+            r if ignored(r).is_some() => 1.0,
             r if r.contains("picked when converting") => 0.8,
             _ => 0.5,
         });
     }
     Some(c)
+}
+
+/// An argument the converter left unread: `Some(role)` for a "… ignored"
+/// note, the role from its "… ignored (<role>)" suffix if it has one.
+fn ignored(reason: &str) -> Option<Option<&str>> {
+    if reason.ends_with(" ignored") {
+        return Some(None);
+    }
+    reason.rsplit_once(" ignored (").and_then(|(_, role)| role.strip_suffix(')')).map(Some)
+}
+
+/// The part of a call an unread argument of this role loses, whatever
+/// the number of arguments: what is on screen and where (`place`, `size`,
+/// `picture`) all of it; the layer `order` half; a `tempo` (an ease, a
+/// time, a wait: timing parity weighs durations) 0.3; `none` (a value
+/// the original ignores too) nothing.
+fn role_weight(role: &str) -> f64 {
+    match role {
+        "place" | "size" | "picture" => 1.0,
+        "order" => 0.5,
+        "tempo" => 0.3,
+        "none" => 0.0,
+        _ => 0.5,
+    }
 }
 
 /// The `TOP` entries with the highest counts, as `[[reason, n], …]`, and
@@ -535,6 +562,11 @@ mod tests {
         assert_eq!(c(2, &["Request Enter for another text than the next"]), Some(0.5));
         assert_eq!(c(7, &["CreateEffect KitanoBlue on part of the screen"]), Some(0.5));
         assert_eq!(c(1, &["Random picked when converting"]), Some(0.8));
+        // Roles: what an unread argument controls, not 1/args.
+        assert_eq!(c(7, &["CreateWindow argument 4 ignored (size)"]), Some(0.0));
+        assert_eq!(c(4, &["Delete argument 1 ignored (tempo)"]), Some(0.7));
+        assert_eq!(c(4, &["EffectStart :EffectNumber argument 1 ignored (none)", "EffectStart :Priority ignored (order)"]), Some(0.5));
+        assert_eq!(super::share(4, &r(&["Delete argument 1 ignored (tempo)"])), 0.75);
         assert_eq!(c(4, &["Rotate about z", "Move argument 1 ignored"]), Some(0.5));
         assert_eq!(c(7, &["CreateMovie: no movies in this build"]), None);
         let mut m = super::Metrics::default();
