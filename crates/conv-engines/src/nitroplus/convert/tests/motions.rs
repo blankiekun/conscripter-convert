@@ -301,3 +301,40 @@ scene a.nss
     let motions = c.ops.iter().filter(|op| matches!(op, Op::SpriteMotion2 { .. })).count();
     assert_eq!(motions, 2, "{:?}", c.ops);
 }
+
+#[test]
+fn a_new_picture_zoomed_without_waiting_zooms_from_its_size() {
+    // ma04_018vs:361-365: shown at 1200 and zoomed to 1000 over 200 ms, the script on at once.
+    let story = r#"
+scene a.nss
+{
+	CreateTexture("ev", 5100, 0, 0, "cg/bg/a.jpg");
+	Zoom("ev", 0, 1200, 1200, null, false);
+	Zoom("ev", 200, 1000, 1000, null, false);
+	Wait(10);
+}
+"#;
+    let c = compile(story, LIBRARY);
+    let zoom = c.ops.iter().find_map(|op| match op { Op::SpriteMotion2 { keys, .. } => Some((keys[0].zoom, keys[1].zoom, keys[1].ms)), _ => None });
+    assert_eq!(zoom, Some((120, 100, 200)), "{:?}", c.ops);
+    assert!(!c.notes.contains_key(crate::metrics::TIMING[1]), "{:?}", c.notes);
+}
+
+#[test]
+fn a_new_picture_on_a_path_without_waiting_runs_it() {
+    // FadeFR2 (function_move.nss:5566) on a new picture, mc04_008:138.
+    let story = r#"
+scene a.nss
+{
+	CreateTexture("ev", 5100, 0, 0, "cg/bg/a.jpg");
+	BezierMove("ev", 300, (@0,@0){@30,@10}{@60,@-10}(@90,@0), null, false);
+	Wait(10);
+}
+"#;
+    let c = compile(story, LIBRARY);
+    let keys = c.ops.iter().find_map(|op| match op { Op::SpriteMotion2 { keys, .. } => Some(keys.clone()), _ => None }).expect("a motion");
+    // (From its start, 90 px left of its end, to the end.)
+    assert_eq!((keys[0].x, keys.last().unwrap().x, keys.last().unwrap().ms), (-90, 0, 300), "{keys:?}");
+    assert!(keys.len() > 2, "{keys:?}");
+    assert!(!c.notes.contains_key(crate::metrics::TIMING[1]), "{:?}", c.notes);
+}
