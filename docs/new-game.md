@@ -106,7 +106,7 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
      git-ignored handoff files; where the user keeps the game goes in
      your memory.
    - A worktree per game (`../conscripter-convert-<name>`), with one
-     short-lived branch and pull request per task item, made from
+     short-lived branch and pull request per feature, made from
      `origin/main`; keep game-specific code out of the shared files
      (`CLAUDE.md`, "Rules" and "Working beside other agents").
    - Keep each session to one item: do it, update "Status", open the

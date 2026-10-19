@@ -38,9 +38,12 @@ not in the repo.
 - Nobody pushes to `main` (here) or `master` (engine): both are
   protected, and every change goes in through a pull request that the
   team lead (or the user) reviews and merges. Don't merge your own PRs.
-- One PR per task item, on a short-lived branch `<game>/<topic>` made
-  from `origin/main` (`git fetch && git switch -c <game>/<topic>
-  origin/main`). Keep it to a few commits with short subjects (under 72
+- One PR per feature (the user, 2026-10-18), on a short-lived branch
+  `<game>/<topic>` made from `origin/main` (`git fetch && git switch -c
+  <game>/<topic> origin/main`). Items that build on each other go in one
+  PR, a commit each, not a stack of PRs. A change to any game's `0.txt`
+  and an engine change keep a PR of their own; a doc-only lint or Status
+  fix rides in the next related PR. Keep commit subjects short (under 72
   characters; detail goes in the body); the PR is squash-merged into one
   commit, titled after the PR.
 - Engine changes: inside `engine/`, a branch `<game>/<topic>` from
