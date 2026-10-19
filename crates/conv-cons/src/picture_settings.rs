@@ -118,13 +118,11 @@ fn added_in(o: PairOption) -> u8 {
     }
 }
 
-/// The language that runs: a global, set in the define section from the
-/// Language setting and by a load ([`LOAD_LANGUAGE`]); with two editions in
-/// one script only a line both share may switch it (docs/string-tables.md).
-pub(crate) const LANGUAGE_NOW: &str = "%conv_lang_now";
 /// The language a save was made in (1 Japanese, 2 English, 0 a save from
 /// before): not global, so a save keeps it.
-const SAVE_LANGUAGE: &str = "%conv_save_lang";
+/// The running language is the save's after a load ([`LOAD_LANGUAGE`]), so
+/// it is also the language that runs.
+pub(crate) const SAVE_LANGUAGE: &str = "%conv_save_lang";
 /// The `loadgosub` routine with a Language setting: the save's language
 /// first, then [`crate::LOAD_CLEAR`].
 const LOAD_LANGUAGE: &str = "conv_load_lang";
@@ -134,23 +132,27 @@ pub(crate) fn has_language(s: &PictureSettings) -> bool {
     s.pairs.iter().any(|p| p.option == PairOption::English)
 }
 
-/// In the define section, after its `language`: the language the Language
-/// setting holds (from the second start on), and a load going on in the
-/// save's language. Both editions write these same lines, so they stay
-/// shared and the switch moves no code under the engine's feet.
-pub(crate) fn define_language(out: &mut String, load_clear: &str) {
-    let (now, save, l) = (LANGUAGE_NOW, SAVE_LANGUAGE, LOAD_LANGUAGE);
+/// The define section's language: the Language setting's from the second
+/// start on, else `first` (the script's `language` line, which the engine
+/// reads its first table from when it remembers none: `language.txt`); and
+/// a load going on in the save's language. Both editions write these same
+/// lines, so they stay shared and a switch moves no code under the
+/// engine's feet. The setting is the language that runs.
+pub(crate) fn define_language(out: &mut String, load_clear: &str, first: &str) {
+    let (save, l) = (SAVE_LANGUAGE, LOAD_LANGUAGE);
     let (english, done) = (format!("%{}", named("english")), format!("%{}", named("done")));
     for line in [
-        format!("defvar {},global", &now[1..]),
         format!("defvar {}", &save[1..]),
-        format!("if {done} > 0 mov {now},{english}"),
-        format!("if {done} > 0 && {now} == 1 language \"en\""),
-        format!("if {done} > 0 && {now} == 0 language \"ja\""),
+        // `first` before the others: a build of both editions puts the other's code there (conv-cli)
+        format!("if {done} > 0 goto *conv_lang_set"),
+        first.to_string(),
+        "*conv_lang_set".to_string(),
+        format!("if {done} > 0 && {english} == 1 language \"en\""),
+        format!("if {done} > 0 && {english} == 0 language \"ja\""),
         format!("loadgosub *{l}:goto *{l}_end"),
         format!("*{l}"),
-        format!("if {save} == 2 && {now} == 0 mov {now},1:mov {english},1:language \"en\""),
-        format!("if {save} == 1 && {now} == 1 mov {now},0:mov {english},0:language \"ja\""),
+        format!("if {save} == 2 && {english} == 0 mov {english},1:language \"en\""),
+        format!("if {save} == 1 && {english} == 1 mov {english},0:language \"ja\""),
         format!("goto *{load_clear}"),
         format!("*{l}_end"),
     ] {
@@ -207,10 +209,6 @@ fn values(out: &mut String, s: &PictureSettings) {
     }
     for (i, p) in s.pairs.iter().enumerate() {
         w(format!("mov {},{}", pair_var(s, i), u8::from(p.default_on)));
-        if p.option == PairOption::English {
-            // the default is the edition's own language, the one running
-            w(format!("mov {LANGUAGE_NOW},{}", u8::from(p.default_on)));
-        }
     }
     w(format!("mov %{},{}", named("done"), done(s)));
     w("return".into());

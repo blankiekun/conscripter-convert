@@ -81,7 +81,8 @@ pub(crate) fn labels(out: &mut String, s: &PictureSettings) {
         // a language picked closes the screen with 1: the game restarts in it
         let b = crate::BUTTON_VAR;
         let english = picture_settings::pair_var(s, s.pairs.iter().position(|p| p.option == PairOption::English).unwrap_or(0));
-        writeln!(out, "*{}\nscreen \"settings\",{b}\nif {b} == 1 && {english} != {} definereset\nreturn", crate::menu::SETTINGS, picture_settings::LANGUAGE_NOW).unwrap();
+        // (the language that runs: the save marks', 1 Japanese, 2 English)
+        writeln!(out, "*{}\nscreen \"settings\",{b}\nif {b} == 1 && {english}+1 != {} definereset\nreturn", crate::menu::SETTINGS, picture_settings::SAVE_LANGUAGE).unwrap();
     } else {
         writeln!(out, "*{}\nscreen \"settings\"\nreturn", crate::menu::SETTINGS).unwrap();
     }

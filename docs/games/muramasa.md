@@ -769,7 +769,7 @@ movie folder in a dry run).
 Japanese and English in one build (`docs/string-tables.md`): English
 code and text per language, pictures in `layer\en\`, differing event
 CGs in `layer\uncensored\` (unchecked on a censored CG), Language and
-Pictures rows; a language change restarts. Next: EN font; later, a live
+Pictures rows, the English font; a language change restarts. Later, a live
 switch ("islands", `docs/string-tables.md`).
 
 Testing notes: other agents stop engines with `pkill -x conscripter`; run

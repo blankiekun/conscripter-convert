@@ -100,7 +100,12 @@ Two rows beside each other (the settings screens are the engine's
   With two editions' code in one script (Muramasa) picking another
   language restarts the game (`definereset`): only a line both editions
   share may switch. A save remembers its language (`%conv_save_lang`)
-  and a load goes on in it.
+  and a load goes on in it. The engine remembers the language
+  (`language.txt` in the save folder) and reads the script once with
+  its table at a start; the define section's own `language` line runs
+  only on the first start. The English text is drawn in the English
+  release's font, written as `default.en.ttf` (the engine's font of a
+  language).
   Later, a live mid-game switch through per-language labels (`X@en`,
   the engine resolving a plain name at call time) needs "islands": in 3
   scenes 1,696 differing blocks (6,808 lines) sit inside story code,
@@ -209,9 +214,19 @@ which a translator leaves alone).
    the language and pictures rows, the English font (the engine opens
    one font file).
 3. Tsukihime: the pages that line up (29,197 of 42,532) share one
-   script with two tables; the rest keep their two copies.
-4. Engine: backlog by ID; the language chosen kept in the engine's
-   global data so startup reads the right table once; the web package
+   script with two tables; the rest keep their two copies. Then the
+   backlog by ID (deferred until this, as no build switches with a
+   backlog before it: Muramasa switches only at a start): the converter
+   writes a log table per language, `log.<code>.txt` (each text ID → its
+   text as a backlog page holds it: plain text, a newline per line
+   break, ruby as `(base/ruby)`), and the engine records the IDs of each
+   page's whole lines; after a switch it shows a page made of whole
+   lines from the new language's log table (a page cut mid-line, at a
+   textgosub click wait, keeps the text it drew). Simpler than the
+   engine parsing a table line's text tags.
+4. Engine: the language chosen kept (`language.txt`) so startup reads
+   the right table once, and a language's own font: done (CONscripter
+   #181); the web package
    lists the tables (`cons_index.json`); a save's place looked up across
    the whole script by its ID (merges with the label-stability work:
    per-scene labels, NEXT SLOTS (a)).

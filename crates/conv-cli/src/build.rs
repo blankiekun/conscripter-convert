@@ -411,7 +411,9 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, tables: &[(String, S
         fs::write(output.join("default.ttf"), font)?;
         // the engine draws the characters default.ttf lacks from fallback.ttf
         let fallback = output.join("fallback.ttf");
-        if needs_fallback(font) {
+        // a language's own font (default.en.ttf, written by the engine's build) too
+        let own = fs::read_dir(output)?.flatten().filter(|e| e.file_name().to_str().is_some_and(|n| n.starts_with("default.") && n.ends_with(".ttf") && n != "default.ttf"));
+        if needs_fallback(font) || own.filter_map(|e| fs::read(e.path()).ok()).any(|f| needs_fallback(&f)) {
             fs::write(fallback, DEFAULT_FONT)?;
         } else if fallback.exists() {
             fs::remove_file(fallback)?;
