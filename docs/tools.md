@@ -36,6 +36,20 @@ bullet you need.
   Start anywhere with `--goto <label> --vars <file>` instead of patching
   `0.txt`. Exit codes: 0 end, 1 auto-play stuck, 2 script error, 3
   startup failure, 128+n a signal.
+- Nightly playback check: `tests/playback.sh [--update] [--pages N]
+  [game ...]`, after `tests/snapshot.sh` (the 03:30 user timer
+  `conscripter-snapshot.timer` runs both on `origin/main`; its log in
+  `out/nightly/<date>.log`). Per game it auto-plays the dry run's
+  `0.txt` from `*conv_title_start` (`--goto`), headless, `--real-time`,
+  3,000 pages, with no pictures or sounds (no full build: motions and
+  effect times are traced all the same), a renamed engine copy, 3 GiB
+  and 400 s at most; then `cons_trace_check.py` on the trace, and the
+  `jump` and `duration` counts against `tests/snapshots/<game>.playback`
+  (ceilings as the `.lint` files: a rise fails, `--update` lowers). All
+  seven games take about 10 minutes. A game stops where it must press a
+  button with no picture (Django at its first choice plate, page 559).
+  Runs are left in `out/playback/<game>`; `--self-test` checks the
+  compare.
 - Against the original (a trace of it, `docs/new-game.md` steps 22-23):
   `research/tools/trace_diff.py orig.jsonl ours.jsonl --map <the
   build's --source-map file>` prints the pages' text, command and time
