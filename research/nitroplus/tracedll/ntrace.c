@@ -50,6 +50,12 @@
  *                 Taken holding the object mutex, every other thread
  *                 suspended and the game clock held (trace_speed.h): the
  *                 game sees no time pass. research/tools/exe_call.py loads it.
+ *   NTRACE_SCENE_DUMPS  Windows path of a folder: Django's main thread
+ *                 entering a script file it hasn't run before dumps there as
+ *                 s<NNNN> (the "dump" record names the file in "scene").
+ *                 s0000 is whole, the base; each later one holds only the
+ *                 4 KB pages whose hash differs from the base's ("P" lines
+ *                 of its .map; "base s0000" first). load_dump rebuilds it.
  */
 #include <windows.h>
 #include <stdio.h>
@@ -193,8 +199,23 @@ static void put_line(HANDLE f, const char *fmt, ...) {
 
 /* the process's memory into dump_dir as <label>.bin/.map (NTRACE_DUMPS);
  * no CRT calls while the other threads are stopped */
-static void dump(const unsigned char *label, int n) {
+/* a 4 KB page's FNV-1a hash (never 0: 0 marks a page the base lacks) */
+static unsigned long long page_fnv(const unsigned char *p) {
+    unsigned long long h = 14695981039346656037ULL;
+    for (int i = 0; i < 4096; i++) h = (h ^ p[i]) * 1099511628211ULL;
+    return h ? h : 1;
+}
+
+/* NTRACE_SCENE_DUMPS: the base's page hashes, by page number below 2 GB */
+static unsigned long long *base_hash;
+static int scene_dumps, n_scenes;
+
+/* mode 0: everything; 1: everything, the base of later scene dumps (its page
+ * hashes kept); 2: a scene dump, only the pages that differ from the base
+ * ("P addr size offset" lines; "base <label>" first, regions marked "d") */
+static void dump(const unsigned char *label, int n, int mode, const char *scene) {
     char name[64], path[MAX_PATH + 80];
+    static char base_name[64];
     HANDLE th[512];
     int nth = 0, held = obj_mutex && WaitForSingleObject(*obj_mutex, 2000) == WAIT_OBJECT_0;
     long t = ms();
@@ -215,6 +236,8 @@ static void dump(const unsigned char *label, int n) {
     HANDLE map = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
     HMODULE exe = GetModuleHandleA(NULL);
     MEMORY_BASIC_INFORMATION m;
+    if (mode == 1) lstrcpynA(base_name, name, sizeof base_name);
+    if (mode == 2) put_line(map, "base %s\n", base_name);
     for (char *a = (char *)0x10000; a < (char *)0x7fff0000 && VirtualQuery(a, &m, sizeof m); a = (char *)m.BaseAddress + m.RegionSize) {
         if (m.State != MEM_COMMIT || m.Protect & (PAGE_NOACCESS | PAGE_GUARD) || !m.Protect) continue;
         if (m.Type == MEM_IMAGE && m.AllocationBase != exe) continue;
@@ -222,16 +245,55 @@ static void dump(const unsigned char *label, int n) {
             put_line(map, "%08x %08x %x %x -\n", (unsigned)m.BaseAddress, (unsigned)m.RegionSize, (unsigned)m.Protect, (unsigned)m.Type);
             continue;
         }
-        put_line(map, "%08x %08x %x %x %x\n", (unsigned)m.BaseAddress, (unsigned)m.RegionSize, (unsigned)m.Protect, (unsigned)m.Type, (unsigned)total);
-        WriteFile(bin, m.BaseAddress, m.RegionSize, &w, NULL);
-        total += m.RegionSize;
+        unsigned char *b = m.BaseAddress, *e = b + m.RegionSize;
+        if (mode != 2) {
+            put_line(map, "%08x %08x %x %x %x\n", (unsigned)b, (unsigned)m.RegionSize, (unsigned)m.Protect, (unsigned)m.Type, (unsigned)total);
+            WriteFile(bin, b, m.RegionSize, &w, NULL);
+            total += m.RegionSize;
+            if (mode == 1)
+                for (unsigned char *q = b; q < e; q += 4096) base_hash[(unsigned)q >> 12] = page_fnv(q);
+            continue;
+        }
+        put_line(map, "%08x %08x %x %x d\n", (unsigned)b, (unsigned)m.RegionSize, (unsigned)m.Protect, (unsigned)m.Type);
+        for (unsigned char *q = b, *run = NULL; q <= e; q += 4096) { /* runs of changed pages */
+            int changed = q < e && page_fnv(q) != base_hash[(unsigned)q >> 12];
+            if (changed && !run) run = q;
+            if (!changed && run) {
+                put_line(map, "P %08x %x %x\n", (unsigned)run, (unsigned)(q - run), (unsigned)total);
+                WriteFile(bin, run, q - run, &w, NULL);
+                total += q - run;
+                run = NULL;
+            }
+        }
     }
     CloseHandle(bin);
     CloseHandle(map);
     while (nth--) ResumeThread(th[nth]), CloseHandle(th[nth]);
     speed_hold(0);
     if (held) ReleaseMutex(*obj_mutex);
-    fprintf(out, "{\"t\":\"dump\",\"pg\":%ld,\"ms\":%ld,\"label\":\"%s\",\"bytes\":%lld,\"locked\":%d}\n", pages, t, name, total, held);
+    fprintf(out, "{\"t\":\"dump\",\"pg\":%ld,\"ms\":%ld,\"label\":\"%s\",\"bytes\":%lld,\"locked\":%d", pages, t, name, total, held);
+    if (scene) {
+        fputs(",\"scene\":", out);
+        put_str((const unsigned char *)scene, strlen(scene), 0);
+    }
+    fputs("}\n", out);
+}
+
+/* NTRACE_SCENE_DUMPS: the main thread runs a statement of a file it hasn't
+ * run before: a dump (the first one whole, the base; then the pages that
+ * differ from it) */
+static void scene_dump(unsigned char *rec) {
+    static char *seen[2048];
+    const char *f = (const char *)rec + FILE_NAME_AT;
+    if (!_strnicmp(f, "nss/", 4) || !_strnicmp(f, "nss\\", 4)) f += 4;
+    for (int i = 0; i < n_scenes; i++)
+        if (!strcmp(seen[i], f)) return;
+    if (n_scenes == 2048) return;
+    seen[n_scenes] = _strdup(f);
+    char label[16];
+    wsprintfA(label, "s%04d", n_scenes);
+    dump((const unsigned char *)label, strlen(label), n_scenes ? 2 : 1, f);
+    n_scenes++;
 }
 
 /* a statement about to be dispatched: *pos its text */
@@ -252,8 +314,9 @@ void __cdecl nt_cmd(unsigned char *th, unsigned char **pos, unsigned char *ctx) 
         if (dump_dir[0] && !strncmp((const char *)p, "Delete(\"__dump_", 15)) {
             const unsigned char *l = p + 15, *e = l;
             while (*e && *e != '"') e++;
-            dump(l, e - l);
+            dump(l, e - l, 0, NULL);
         }
+        if (scene_dumps && thread_no() == 0) scene_dump(FILE_REC(ctx, th));
         fflush(out);
     }
     LeaveCriticalSection(&lock);
@@ -516,6 +579,10 @@ static void install(void) {
     if ((p = getenv("NTRACE_PAGES"))) max_pages = atol(p);
     if ((p = getenv("NTRACE_SHOT_REQ"))) lstrcpynA(shot_req, p, sizeof shot_req);
     if ((p = getenv("NTRACE_DUMPS"))) lstrcpynA(dump_dir, p, sizeof dump_dir), sp_force = 1;
+    if ((p = getenv("NTRACE_SCENE_DUMPS"))) {
+        lstrcpynA(dump_dir, p, sizeof dump_dir), sp_force = 1, scene_dumps = 1;
+        base_hash = calloc(0x80000, sizeof *base_hash); /* a hash per 4 KB page below 2 GB */
+    }
     if ((p = getenv("NTRACE_DUMP_MAX_MB"))) dump_max = atol(p) << 20;
     int django = !memcmp((void *)D_AFTER_LAYOUT, "\x83\xc4\x1c\x85\xc0", 5) && *(unsigned char *)D_CALL_DISPATCH == 0xe8 &&
                  *(unsigned char *)D_CALL_ENTER1 == 0xe8 && *(unsigned char *)D_CALL_ENTER2 == 0xe8;

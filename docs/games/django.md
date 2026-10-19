@@ -324,6 +324,13 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   +0, x/y/z at +0x3ec/+0x3f0/+0x3f4, and the render record at +0x804 (its
   alpha a byte at +0x14). Per-frame callbacks sit at +0x820..+0x83c, and
   `0x436040` steps every object once a frame.
+  `ntrace.sh --scene-dumps <dir>` dumps instead at each script file the
+  story enters: `s0000` whole (the base), and each later one only the
+  4 KB pages that differ from the base, packed with zstd as the run goes
+  (`load_dump` rebuilds a scene from both). In a 5 min test at SPEED=8
+  (55 pages, seven files to dja001_03), the base was 74 MB and the diffs
+  0.4-109 MB raw (65 % of the changed pages zero). Packed, the seven took
+  46 MB, and one loads in 1-2 s.
 
 What it showed (2026-10-15):
 

@@ -246,7 +246,9 @@ take that state from one short run and step the exe's own code on it:
    time. Run it at 1x: script waits follow the clock, while motions
    step once per frame. The dumps go under `research/<engine>/local/`.
    The dumps alone often answer the question: read the object's fields
-   in the dumps before and after the case.
+   in the dumps before and after the case. For a dump at every scene start
+   instead, `--scene-dumps` stores a base and per scene the changed
+   pages (docs/games/django.md, "Memory snapshots").
 3. **load_dump**: `exe_call.py`'s `Exe.load_dump(prefix)` maps a dump
    over the image. It puts the exe's code and import slots back from the
    file, so imports stay stubs. Win32 stubs pop their stdcall arguments,

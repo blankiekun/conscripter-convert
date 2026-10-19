@@ -69,7 +69,22 @@ def main():
         open(pre + ".bin", "wb").write(struct.pack("<I", 1234).ljust(0x1000, b"\0") + b"\xcc" * 0x1000)
         open(pre + ".map", "w").write("10000000 00001000 4 20000 0\n00401000 00001000 20 1000000 1000\n20000000 00010000 4 20000 -\n")
         assert e.load_dump(pre) == 2
-    assert e.call(BASE + 0x1030)[0] == 1234
+        # a scene dump over that base: one changed page
+        open(pre + "s.bin", "wb").write(struct.pack("<I", 5678).ljust(0x1000, b"\0"))
+        open(pre + "s.map", "w").write("base x\n10000000 00001000 4 20000 d\nP 10000000 1000 0\n")
+        assert e.call(BASE + 0x1030)[0] == 1234
+        assert e.load_dump(pre + "s") == 2  # the base's regions
+        assert e.call(BASE + 0x1030)[0] == 5678
+        try:  # a packed scene dump reads the same (Python 3.14's zstd; CI's older Python skips this)
+            from compression import zstd
+        except ImportError:
+            zstd = None
+        if zstd:
+            open(pre + "s.bin.zst", "wb").write(zstd.compress(open(pre + "s.bin", "rb").read()))
+            os.remove(pre + "s.bin")
+            e.uc.mem_write(0x10000000, bytes(4))
+            e.load_dump(pre + "s")
+            assert e.call(BASE + 0x1030)[0] == 5678
     assert e.call(BASE + 0x1000, [40, 2])[0] == 42
     print("exe_call self-test: ok")
 

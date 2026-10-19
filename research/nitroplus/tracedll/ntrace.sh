@@ -20,6 +20,9 @@
 # on that one line; --dumps DIR writes the memory dumps its
 # `Delete("__dump_<label>");` statements ask for into DIR (ntrace.c,
 # NTRACE_DUMPS; research/nitroplus/sched_probe.nss is such a probe).
+# --scene-dumps DIR: a dump at each script file the story enters (the first
+# whole, the rest as the pages that changed; ntrace.c NTRACE_SCENE_DUMPS),
+# packed with zstd as the run goes.
 #
 # --shots: at each text block, MS of game time (default 1000) after it
 # starts, the game's window is saved as DIR/<pg>.webp, lossless (pg: the
@@ -51,12 +54,13 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${NTRACE_HOME:-$repo/out/ntrace}
-OUT= PAGES=60 SECS=900 SHOT= SHOTS= DELAY=1000 CAP=200 PATCH= PROBE= DUMPS=
+OUT= PAGES=60 SECS=900 SHOT= SHOTS= DELAY=1000 CAP=200 PATCH= PROBE= DUMPS= SDUMPS=
 while [ $# -gt 0 ]; do case $1 in
   -o) OUT=$2; shift 2;; --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;;
   --shot) SHOT=$2; shift 2;; --shots) SHOTS=$(realpath -m "$2"); shift 2;; --shot-delay) DELAY=$2; shift 2;;
   --cap-mb) CAP=$2; shift 2;; --patch) PATCH=$(realpath "$2"); shift 2;;
-  --probe) PROBE=$(realpath "$2"); shift 2;; --dumps) DUMPS=$(realpath -m "$2"); shift 2;; *) sed -n '2,33p' "$0"; exit 2;; esac; done
+  --probe) PROBE=$(realpath "$2"); shift 2;; --dumps) DUMPS=$(realpath -m "$2"); shift 2;;
+  --scene-dumps) SDUMPS=$(realpath -m "$2"); shift 2;; *) sed -n '2,35p' "$0"; exit 2;; esac; done
 EXE_NAME=Muramasa.exe; [ -f "$GAME/Django.exe" ] && EXE_NAME=Django.exe
 [ -n "$OUT" ] && [ -f "$GAME/$EXE_NAME" ] || { echo "need -o and GAME=<folder of Muramasa.exe or Django.exe>" >&2; exit 2; }
 [ $EXE_NAME = Muramasa.exe ] || [ -f "$EXE" ] || { echo "Django: need EXE=<the unpacked 1.01 Django.exe>" >&2; exit 2; }
@@ -151,6 +155,9 @@ rm -f "$C/ntrace/trace.jsonl" "$H/clicks.log" "$C/ntrace/shot.req"
 alive() { kill -0 $wpid 2>/dev/null || { [ $EXE_NAME = Django.exe ] && pgrep -x Django.exe >/dev/null; }; }
 export NTRACE_OUT='C:\ntrace\trace.jsonl' NTRACE_PAGES=$PAGES TRACE_SPEED=${SPEED:-1}
 [ -n "$DUMPS" ] && { mkdir -p "$DUMPS"; export NTRACE_DUMPS="Z:${DUMPS//\//\\}"; }
+[ -n "$SDUMPS" ] && { mkdir -p "$SDUMPS"; export NTRACE_SCENE_DUMPS="Z:${SDUMPS//\//\\}"; }
+# packs each scene dump but the newest (zstd -3: about a tenth; exe_call reads .bin.zst)
+pack() { ls -t "$SDUMPS"/*.bin 2>/dev/null | tail -n +"$1" | xargs -r zstd -q -3 --rm; }
 if [ $EXE_NAME = Django.exe ]; then
   (cd "$M" && wine explorer /desktop=ntrace,1024x768 'C:\ntrace\xlaunch.exe' 'C:\game\Django.exe' 'C:\ntrace\ntrace.dll') > "$H/wine.log" 2>&1 &
   wpid=$!
@@ -182,7 +189,8 @@ if [ -n "$SHOTS" ]; then  # the shots the DLL asks for (ntrace.c, NTRACE_SHOT_RE
    done) &
 fi
 end=$((SECONDS + SECS))
-while alive && [ $SECONDS -lt $end ]; do sleep 1; done
+while alive && [ $SECONDS -lt $end ]; do sleep 1; [ -n "$SDUMPS" ] && [ $((SECONDS % 30)) = 0 ] && pack 2; done
+[ -n "$SDUMPS" ] && { sleep 2; pack 1; }
 [ -n "$SHOT" ] && import -window root "$SHOT"
 cp "$C/ntrace/trace.jsonl" "$OUT"
 echo "$(grep -c '"t":"page"' "$OUT") pages, $(wc -l < "$OUT") records -> $OUT"
