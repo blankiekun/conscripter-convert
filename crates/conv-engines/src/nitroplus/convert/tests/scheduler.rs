@@ -54,7 +54,6 @@ fn fade_fade_after_an_unwaited_move_keeps_the_move() {
 }
 
 #[test]
-#[ignore = "ours lets the 16 s move run on to its end; the exe stops it at 1/16 of the way"]
 fn a_zero_ms_move_stops_the_one_in_flight_where_it_is() {
     let c = run(&format!("{SHOWN}\tWait(1000);\n\tMove(\"bg\", 0, @0, @0, null, true);\n\tWait(1000);"));
     // Stopped at 20 px of 320 (its centre at 532): moved or placed there.
@@ -88,4 +87,12 @@ fn type_begin_waits_only_for_its_box() {
     let c = run(&format!("\tCreateTexture(\"bg\", 100, 0, 0, \"cg/bg/a.jpg\");\n{box_}\tWait(0);\n\tFade(\"bg\", 1000, 500, null, false);\n\tTypeBegin(\"box\", \"$SYSTEM_present_text\");"));
     assert!(c.notes.is_empty(), "{:?}", c.notes);
     assert!(motions(&c).contains(&1000) && c.ops.iter().all(|op| !matches!(op, Op::BeginTransition { fade_ms, .. } if *fade_ms > 100)), "{:?}", c.ops);
+}
+
+#[test]
+fn a_zero_ms_fade_stops_the_one_in_flight_at_its_value() {
+    // msp first ends the engine's fade (at its last key), then sets 600.
+    let c = run("\tCreateTexture(\"bg\", 100, 0, 0, \"cg/bg/a.jpg\");\n\tWait(0);\n\tFade(\"bg\", 4000, 0, null, false);\n\tWait(1000);\n\tFade(\"bg\", 0, 600, null, true);\n\tWait(1000);");
+    let pause = c.ops.iter().position(|op| matches!(op, Op::Pause { .. })).unwrap();
+    assert!(c.ops[pause..].iter().any(|op| matches!(op, Op::SpriteOpacity { opacity: 153, .. })), "{:?}", c.ops);
 }
