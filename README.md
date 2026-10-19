@@ -27,7 +27,9 @@ reads a game's archives, images, audio and compiled scripts and writes a
 
 States: Playable (start to end, system screens done), Story plays (the whole
 story, some screens missing), In progress, Early. Each game's document says
-what converts, what doesn't and why.
+what converts, what doesn't and why. How much of each game's script converts,
+updated from this repository's snapshots: the
+[conversion metrics page](https://blankiekun.github.io/sites/convert-metrics.html).
 
 ## Get a game playing
 
