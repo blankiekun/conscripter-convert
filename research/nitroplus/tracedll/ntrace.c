@@ -210,6 +210,7 @@ static unsigned long long page_fnv(const unsigned char *p) {
 
 /* NTRACE_SCENE_DUMPS: the base's page hashes, by page number below 2 GB */
 static unsigned long long *base_hash;
+static void *dump_th, *dump_ctx; /* the process and script context of the statement a scene dump stopped at */
 static int scene_dumps, n_scenes;
 
 /* mode 0: everything; 1: everything, the base of later scene dumps (its page
@@ -277,6 +278,7 @@ static void dump(const unsigned char *label, int n, int mode, const char *scene)
     if (scene) {
         fputs(",\"scene\":", out);
         put_str((const unsigned char *)scene, strlen(scene), 0);
+        fprintf(out, ",\"th\":\"%p\",\"ctx\":\"%p\",\"tid\":%lu", dump_th, dump_ctx, me);
     }
     fputs("}\n", out);
 }
@@ -284,7 +286,7 @@ static void dump(const unsigned char *label, int n, int mode, const char *scene)
 /* NTRACE_SCENE_DUMPS: a thread runs a statement of a file it hasn't
  * run before: a dump (the first one whole, the base; then the pages that
  * differ from it) */
-static void scene_dump(unsigned char *rec) {
+static void scene_dump(unsigned char *rec, void *th, void *ctx) {
     static char *seen[2048];
     const char *f = (const char *)rec + FILE_NAME_AT;
     if (!_strnicmp(f, "nss/", 4) || !_strnicmp(f, "nss\\", 4)) f += 4;
@@ -294,6 +296,7 @@ static void scene_dump(unsigned char *rec) {
     seen[n_scenes] = _strdup(f);
     char label[16];
     wsprintfA(label, "s%04d", n_scenes);
+    dump_th = th, dump_ctx = ctx;
     dump((const unsigned char *)label, strlen(label), n_scenes ? 2 : 1, f);
     n_scenes++;
 }
@@ -318,7 +321,7 @@ void __cdecl nt_cmd(unsigned char *th, unsigned char **pos, unsigned char *ctx) 
             while (*e && *e != '"') e++;
             dump(l, e - l, 0, NULL);
         }
-        if (scene_dumps == 1) scene_dump(FILE_REC(ctx, th));
+        if (scene_dumps == 1) scene_dump(FILE_REC(ctx, th), th, ctx);
         fflush(out);
     }
     LeaveCriticalSection(&lock);
@@ -386,7 +389,7 @@ static void log_pages(unsigned char *rec, const unsigned char *at, unsigned char
 void __cdecl nt_page(unsigned char *th, int i, unsigned char *ctx) {
     unsigned char *start = *(unsigned char **)(th + 0xe8c + 4 * i), *end = *(unsigned char **)(th + 0x168c + 4 * i);
     EnterCriticalSection(&lock);
-    if (scene_dumps == 2) scene_dump(FILE_REC(ctx, th)); /* NTRACE_SCENE_AT=page */
+    if (scene_dumps == 2) scene_dump(FILE_REC(ctx, th), th, ctx); /* NTRACE_SCENE_AT=page */
     log_pages(FILE_REC(ctx, th), start, start, end);
     LeaveCriticalSection(&lock);
 }
