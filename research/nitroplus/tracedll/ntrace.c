@@ -56,6 +56,8 @@
  *                 s0000 is whole, the base; each later one holds only the
  *                 4 KB pages whose hash differs from the base's ("P" lines
  *                 of its .map; "base s0000" first). load_dump rebuilds it.
+ *   NTRACE_SCENE_AT  "page": the scene dumps are taken instead as a file's
+ *                 first text block starts (装甲悪鬼村正's block hook)
  */
 #include <windows.h>
 #include <stdio.h>
@@ -316,7 +318,7 @@ void __cdecl nt_cmd(unsigned char *th, unsigned char **pos, unsigned char *ctx) 
             while (*e && *e != '"') e++;
             dump(l, e - l, 0, NULL);
         }
-        if (scene_dumps) scene_dump(FILE_REC(ctx, th));
+        if (scene_dumps == 1) scene_dump(FILE_REC(ctx, th));
         fflush(out);
     }
     LeaveCriticalSection(&lock);
@@ -384,6 +386,7 @@ static void log_pages(unsigned char *rec, const unsigned char *at, unsigned char
 void __cdecl nt_page(unsigned char *th, int i, unsigned char *ctx) {
     unsigned char *start = *(unsigned char **)(th + 0xe8c + 4 * i), *end = *(unsigned char **)(th + 0x168c + 4 * i);
     EnterCriticalSection(&lock);
+    if (scene_dumps == 2) scene_dump(FILE_REC(ctx, th)); /* NTRACE_SCENE_AT=page */
     log_pages(FILE_REC(ctx, th), start, start, end);
     LeaveCriticalSection(&lock);
 }
@@ -581,6 +584,7 @@ static void install(void) {
     if ((p = getenv("NTRACE_DUMPS"))) lstrcpynA(dump_dir, p, sizeof dump_dir), sp_force = 1;
     if ((p = getenv("NTRACE_SCENE_DUMPS"))) {
         lstrcpynA(dump_dir, p, sizeof dump_dir), sp_force = 1, scene_dumps = 1;
+        if ((p = getenv("NTRACE_SCENE_AT")) && !strcmp(p, "page")) scene_dumps = 2;
         base_hash = calloc(0x80000, sizeof *base_hash); /* a hash per 4 KB page below 2 GB */
     }
     if ((p = getenv("NTRACE_DUMP_MAX_MB"))) dump_max = atol(p) << 20;
