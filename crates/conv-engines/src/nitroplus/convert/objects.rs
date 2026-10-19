@@ -116,6 +116,8 @@ impl<'a> Compiler<'a, '_> {
 
     pub(super) fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
+        // (Made again: the old picture's move isn't its own.)
+        self.runs.remove(&name);
         let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, loop_fade: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None, stencil: None, cut: None, screen_children: false, fade: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
