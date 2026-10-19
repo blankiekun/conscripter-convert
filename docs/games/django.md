@@ -491,7 +491,7 @@ Open:
   menu is needed first.
 - A 0 ms `Move` on a picture whose move runs stops it where it is in the
   exe (snapshot oracle); ours lets it run to its end (ignored test
-  `tests/scheduler.rs::a_zero_ms_move_stops_the_one_in_flight_where_it_is`).
+  `a_zero_ms_move_stops_the_one_in_flight_where_it_is`, `nitroplus/convert/tests/scheduler.rs`).
 - `spgrab` (engine #32, merged) could draw a move that changes picture
   as a copy fading out over the moved picture: not used yet.
 - `RemainTime` on a sound returns its whole length, not the rest
