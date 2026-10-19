@@ -40,9 +40,10 @@ summary)
   echo "$g: $(running && echo still running || echo stopped); pages $(pages); last $(last)"
   if [ -f "$OUT/ours.map" ] && [ -f "$OUT/ours.jsonl" ] && [ -f "$T" ]; then
     ms=; [ $kind = nitro ] && ms="--ms --thread 0"
-    python3 -I research/tools/trace_diff.py "$T" "$OUT/ours.jsonl" --map "$OUT/ours.map" --pages "$(pages)" $ms --max 400 2>&1 \
-      | grep -a -o -E '^ *[a-z]+:|\b(text|missing|merged|quiet|time)\b' | sort | uniq -c | sort -rn | head -8 | sed 's/^/  diff kind /'
-  else echo "  no ours.jsonl/ours.map to diff against (see $OUT/ours.log)"; fi | head -14
+    d=$(python3 -I research/tools/trace_diff.py "$T" "$OUT/ours.jsonl" --map "$OUT/ours.map" --pages "$(pages)" $ms --max 400 --top 5 2>&1)
+    grep -a -v '^top ' <<<"$d" | grep -a -o -E '^ *[a-z]+:|\b(text|missing|merged|quiet|time)\b' | sort | uniq -c | sort -rn | head -8 | sed 's/^/  diff kind /'
+    grep -a '^top ' <<<"$d" | cut -c1-200 | sed 's/^top  */  largest time /'
+  else echo "  no ours.jsonl/ours.map to diff against (see $OUT/ours.log)"; fi | head -19
   exit 0;;
 esac
 

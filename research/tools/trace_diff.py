@@ -200,7 +200,17 @@ def compare(orig, ours, fps, unit=None, merge_into=(), speed=1, mapped=()):
     return findings
 
 
+def top_time(findings, n):
+    """The n 'time' findings with the largest |ours - original|, largest first."""
+    def delta(text):
+        got, want = re.search(r' (-?\d+) ms, original (-?\d+) ms', text).groups()
+        return abs(int(got) - int(want))
+    return sorted((t for _, k, t in findings if k == 'time'), key=delta, reverse=True)[:n]
+
+
 def self_test():
+    f = [(1, 'time', 'a 100 ms, original 0 ms'), (2, 'page', 'x'), (3, 'time', 'b 0 ms, original 16000 ms'), (4, 'time', 'c 500 ms, original 0 ms')]
+    assert top_time(f, 2) == ['b 0 ms, original 16000 ms', 'c 500 ms, original 0 ms']
     m = ([10, 20, 30], ['4:1', '4:2', None])
     assert lookup(m, 25) == '4:2' and lookup(m, 31) is None and lookup(m, 5) is None
     assert source_key('0004.cd:19') == '4:19' and source_key('-') is None
@@ -257,6 +267,7 @@ def main():
     ap.add_argument('--merge-into', default='', help="the original's ops that commit staged changes (Tsukihime: _FADS): a missing command before one that has ours is 'merged'")
     ap.add_argument('--orig-speed', type=float, help="the original's SPEED=N when its trace has no meta record saying so")
     ap.add_argument('--max', type=int, default=20, help='findings shown per kind (default 20)')
+    ap.add_argument('--top', type=int, default=0, help="first print the N 'time' findings with the largest |difference| (triage anything over 1 s first)")
     ap.add_argument('--self-test', action='store_true')
     a = ap.parse_args()
     if a.self_test:
@@ -267,6 +278,8 @@ def main():
     orig = orig_side(a.orig, a.pages, 'ms' if a.ms else 'f', a.thread)
     speed = a.orig_speed or next((r.get('speed', 1) for r in records(a.orig) if r['t'] == 'meta'), 1)
     findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None, set(filter(None, a.merge_into.split(','))), speed, set(m[1]))
+    for text in top_time(findings, a.top):
+        print(f'top      {text}')
     shown = {}
     for pg, kind, text in sorted(findings, key=lambda f: f[0]):
         shown[kind] = shown.get(kind, 0) + 1
