@@ -13,6 +13,9 @@ use super::assets::{NpaAssets, PICTURE_DIRS};
 use super::convert::{self, Game};
 use super::npa::{Key, Npa};
 use super::{english, npk, nss};
+
+/// Where the English edition's own files go in a build of both (CONscripter's asset layers).
+pub const EN_LAYER: &str = "layer/en";
 use crate::build::{Built, Opts};
 
 /// The games, by the exe in their folder (which also gives the archives'
@@ -83,7 +86,8 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         anyhow::bail!("--original-archives doesn't take --english yet (the Japanese pictures would win)");
     }
     let mut port = crate::metrics::Metrics::default();
-    // the Japanese, compiled too: its text fills text.ja.txt
+    // with --english, both editions: the Japanese is the base, the English
+    // its code and text per language (strtab::merge), its own files in layer\en\
     let ja_files = run.english.map(|_| files.clone());
     if let Some(dir) = run.english {
         let report = english::English::load(&open_npk(dir, "script.npk")?)?.apply(&mut files);
@@ -123,11 +127,18 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     if crate::find(game, "cg2.npa").exists() {
         assets.cg2 = Some(open("cg2.npa")?);
     }
-    if let Some(dir) = run.english {
-        assets.cg_en = Some(open_npk(dir, "cg.npk")?);
-        let fonts = open_npk(dir, "font.npk")?;
-        assets.font_en = fonts.find("media/font/droidserif-muramasa.ttf").and_then(|e| fonts.data(e).ok());
-    }
+    let mut en_assets = match run.english {
+        Some(dir) => {
+            let mut a = NpaAssets::new(open("cg.npa")?, open("sound.npa")?, open("voice.npa")?, &opts.output.join(EN_LAYER));
+            a.out.dry_run = opts.dry_run;
+            a.font = opts.font.to_vec();
+            a.cg_en = Some(open_npk(dir, "cg.npk")?);
+            let fonts = open_npk(dir, "font.npk")?;
+            a.font_en = fonts.find("media/font/droidserif-muramasa.ttf").and_then(|e| fonts.data(e).ok());
+            Some(a)
+        }
+        None => None,
+    };
     let movies = match run.movies {
         Some(m) => Some(m.to_path_buf()).filter(|m| m.is_dir()),
         None => find_movies(game),
@@ -138,7 +149,12 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         Some(_) if !opts.dry_run && std::process::Command::new("ffmpeg").arg("-version").output().is_err() => {
             anyhow::bail!("ffmpeg not found: the movies need it (install ffmpeg, or pass --no-movies to leave them out)")
         }
-        Some(m) => assets.movie_dir = Some(m),
+        Some(m) => {
+            if let Some(a) = &mut en_assets {
+                a.movie_dir = Some(m.clone());
+            }
+            assets.movie_dir = Some(m)
+        }
         None if opts.dry_run => println!("no movie folder (movie, movies or ムービー, in {} or beside it)", game.display()),
         None => anyhow::bail!(
             "no movie folder (movie, movies or ムービー, in {} or beside it): give it with --movies, or pass --no-movies to leave the movies out",
@@ -149,7 +165,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     let g = GAMES.iter().find(|(exe, _)| *exe == exe_name).map_or(&Game::PLAIN, |(_, g)| *g);
     let g_ja = g;
     let g = if run.english.is_some() && exe_name == "Muramasa.exe" { &convert::MURAMASA_EN } else { g };
-    assets.screen = g.screen;
+    assets.screen = g_ja.screen;
+    if let Some(a) = &mut en_assets {
+        a.screen = g.screen;
+    }
     let (file, scene) = match (run.file, g.story) {
         (Some(file), _) => (file, run.scene.unwrap_or(file)),
         (None, Some((file, story))) => (file, run.scene.unwrap_or(story)),
@@ -166,50 +185,63 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
             None => convert::compile_scene(files, file, scene, g, assets).map_err(anyhow::Error::msg)?,
         })
     };
-    let compiled = compile(&files, g, &mut assets)?;
-    let ja = ja_files.map(|f| compile(&f, g_ja, &mut assets)).transpose()?;
-    for e in &assets.out.errors {
+    let (base_files, en_files) = match ja_files {
+        Some(ja) => (ja, Some(files)),
+        None => (files, None),
+    };
+    let mut base = compile(&base_files, g_ja, &mut assets)?;
+    let en = match (en_files, &mut en_assets) {
+        (Some(f), Some(a)) => {
+            assets.share_with(a);
+            Some((compile(&f, g, a)?, f))
+        }
+        _ => None,
+    };
+    for e in assets.out.errors.iter().chain(en_assets.iter().flat_map(|a| &a.out.errors)) {
         println!("  asset error: {e}");
     }
     if std::env::var_os("NSS_TRACE").is_some() {
-        let mut flags: Vec<_> = compiled.flags.iter().map(|(name, &v)| (v.global, v.index, conv_core::alloc::number(v, convert::GLOBAL_BORDER), name)).collect();
+        let mut flags: Vec<_> = base.flags.iter().map(|(name, &v)| (v.global, v.index, conv_core::alloc::number(v, convert::GLOBAL_BORDER), name)).collect();
         flags.sort();
         for (_, _, var, name) in flags {
             eprintln!("flag %{var} {name}");
         }
     }
-    let story = convert::Story { flags: &compiled.flags, voice_classes: &compiled.voice_classes, files: &files };
-    let boot_label = compiled.ops.iter().any(|op| matches!(op, Op::Label(l) if l == convert::BOOT_LABEL)).then(|| convert::BOOT_LABEL.to_string());
-    let boot = boot_label.map(|l| BootStep { gosub: Some(l), ..Default::default() }).into_iter().collect();
-    let mut ir = Script {
-        title: opts.title.to_string(),
-        width: g.screen.0 as u32,
-        height: g.screen.1 as u32,
-        global_border: Some(convert::GLOBAL_BORDER),
-        window: compiled.window,
-        ops: compiled.ops,
-        source_map: compiled.source_map,
-        single_byte_text: run.english.is_some(),
-        language: if run.english.is_some() { "en" } else { "ja" }.into(),
-        boot,
-        ..Default::default()
+    // the IR of a compile, its menus filled
+    let script_of = |c: &mut convert::Compiled, g: &Game, files: &BTreeMap<String, nss::NssFile>, english: bool, assets: &mut NpaAssets| -> Script {
+        let story = convert::Story { flags: &c.flags, voice_classes: &c.voice_classes, files };
+        let boot_label = c.ops.iter().any(|op| matches!(op, Op::Label(l) if l == convert::BOOT_LABEL)).then(|| convert::BOOT_LABEL.to_string());
+        let boot = boot_label.map(|l| BootStep { gosub: Some(l), ..Default::default() }).into_iter().collect();
+        let mut ir = Script {
+            title: opts.title.to_string(),
+            width: g.screen.0 as u32,
+            height: g.screen.1 as u32,
+            global_border: Some(convert::GLOBAL_BORDER),
+            window: c.window.take(),
+            ops: std::mem::take(&mut c.ops),
+            source_map: std::mem::take(&mut c.source_map),
+            single_byte_text: english,
+            language: if english { "en" } else { "ja" }.into(),
+            boot,
+            ..Default::default()
+        };
+        g.menus(assets, &mut ir, &story);
+        ir
     };
-    g.menus(&mut assets, &mut ir, &story);
-    // the Japanese's text lines as the English build lays them out around them
-    let translation = ja.map(|c| {
-        let ops = std::mem::take(&mut ir.ops);
-        let map = std::mem::take(&mut ir.source_map);
-        let t = Script { ops: c.ops, source_map: c.source_map, window: c.window, single_byte_text: false, language: "ja".into(), ..ir.clone() };
-        (ir.ops, ir.source_map) = (ops, map);
-        t
-    });
+    let ir = script_of(&mut base, g_ja, &base_files, false, &mut assets);
+    let mut translation = None;
+    // the English edition's counts and notes are the build's (as before it had the Japanese beside it)
+    if let (Some((mut c, f)), Some(a)) = (en, &mut en_assets) {
+        translation = Some(script_of(&mut c, g, &f, true, a));
+        base = c;
+    }
     if run.original_archives {
         original_archives(game, &key, &mut assets, opts.output)?;
     }
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
-    let mut metrics = compiled.metrics;
+    let mut metrics = base.metrics;
     metrics.merge(port);
-    Ok(Built { ir, notes: compiled.notes, metrics, engine: "nitroplus", engine_doc: "nitroplus-nss", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None, translation })
+    Ok(Built { ir, notes: base.notes, metrics, engine: "nitroplus", engine_doc: "nitroplus-nss", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None, translation })
 }
 
 /// Writes `cons_archives.txt` (each script folder and its archive) and

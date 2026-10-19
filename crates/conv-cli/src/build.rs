@@ -51,6 +51,33 @@ pub struct BuildArgs {
     pub small: bool,
 }
 
+/// Where an edition's own files go, by language (CONscripter's asset
+/// layers: `layer\\en\\cg\\…` is read for `cg\\…` while the text is English).
+const LAYERS: &str = "layer";
+
+/// Deletes the files under `layer` that are the same as the base's at the
+/// same path (a layer holds only what differs). Returns how many.
+fn dedupe_layer(output: &Path, layer: &Path) -> Result<usize> {
+    let mut n = 0;
+    let mut dirs = vec![layer.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            let path = e.path();
+            if path.is_dir() {
+                dirs.push(path);
+            } else if let Ok(rel) = path.strip_prefix(layer) {
+                let base = output.join(rel);
+                if base.is_file() && fs::metadata(&base)?.len() == e.metadata()?.len() && fs::read(&base)? == fs::read(&path)? {
+                    fs::remove_file(&path)?;
+                    n += 1;
+                }
+            }
+        }
+    }
+    Ok(n)
+}
+
 /// A whole-game build: checks the output folder (`output_dirs`: the
 /// asset folders, packed into `arc.nsa`), lets the engine compile the game
 /// and write its assets (`compile`), then emits the script, converts
@@ -62,7 +89,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let BuildArgs { output, font, loose, dry_run, source_map, parity_report, webp, audio, small } = args;
     let webp = webp.get(small)?;
     // every engine's folders, the warp maps of its transitions and the screens
-    let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS]).collect();
+    let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS, LAYERS]).collect();
     let output_dirs = &output_dirs[..];
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
@@ -74,12 +101,23 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         ir.language = "ja".into();
     }
     // A dry run writes the script but no assets (no WebP, no sound).
-    let conv_cons::Emitted { script: source, lines, rows } = conv_cons::emit_mapped(&ir, conv_cons::strtab::Strings::tables(translation.is_some()));
+    let conv_cons::Emitted { script: mut source, lines, rows } = conv_cons::emit_mapped(&ir, conv_cons::strtab::Strings::tables(translation.is_some()));
     let mut tables = vec![(ir.language.clone(), conv_cons::strtab::table(&rows))];
     if let Some(t) = &translation {
+        use conv_cons::strtab::{merge, translated, Edition};
         let other = conv_cons::emit_mapped(t, conv_cons::strtab::Strings::tables(true));
-        let (table, kept) = conv_cons::strtab::translated(&rows, &other.rows);
-        println!("  text.{}.txt: {} of {} lines from the {} build, {kept} kept as in text.{}.txt", t.language, rows.len() - kept, rows.len(), t.language, ir.language);
+        let (table, kept) = if lines.is_empty() || other.lines.is_empty() {
+            translated(&rows, &other.rows)
+        } else {
+            // shortcut: --source-map stays the base's lines before the merge; map the merge's padding when a tool needs it
+            let m = merge(Edition { script: &source, lines: &lines, rows: &rows }, Edition { script: &other.script, lines: &other.lines, rows: &other.rows });
+            println!("  {} runs of code differ from the {} build: {} lines per language", m.blocks, t.language, m.lines);
+            // a build given the other edition starts in it: the edition the player gave
+            source = m.script.replacen(&format!("language \"{}\"", ir.language), &format!("language \"{}\"", t.language), 1);
+            tables[0].1 = m.tables.0;
+            (m.tables.1, m.kept)
+        };
+        println!("  text.{}.txt: {} of {} text lines from the {} build, {kept} kept as in text.{}.txt", t.language, rows.len() - kept, rows.len(), t.language, ir.language);
         tables.push((t.language.clone(), table));
     }
     if dry_run {
@@ -100,7 +138,10 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     }
     // the tables name pictures too (window lines, choice plates): retargeted with the script
     let joined = std::iter::once(source).chain(tables.iter().map(|t| t.1.clone())).collect::<Vec<_>>().join("\0");
-    let joined = webp_tree(&output, picture_dirs, webp, dry_run, joined)?;
+    // the other edition's own pictures, in its layer
+    let layer_dirs: Vec<String> = translation.iter().flat_map(|t| picture_dirs.iter().map(move |d| format!("{LAYERS}/{}/{d}", t.language))).collect();
+    let all_dirs: Vec<&str> = picture_dirs.iter().copied().chain(layer_dirs.iter().map(String::as_str)).collect();
+    let joined = webp_tree(&output, &all_dirs, webp, dry_run, joined)?;
     let mut parts = joined.split('\0').map(str::to_string);
     let source = parts.next().unwrap_or_default();
     tables.iter_mut().zip(parts).for_each(|(t, p)| t.1 = p);
@@ -118,6 +159,22 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     }
     let media = version::media(webp, opts.audio);
     let lost = write_game(&output, &ir, &source, &tables, (!dry_run).then_some(&*font), package.as_deref(), &media)?;
+    if let Some(t) = &translation {
+        let layer = output.join(LAYERS).join(&t.language);
+        // its menus, where they differ
+        let base: BTreeMap<String, String> = conv_cons::screen_files(&ir).into_iter().collect();
+        for (name, lua) in conv_cons::screen_files(t) {
+            if base.get(&name) != Some(&lua) {
+                record(&format!("{LAYERS}/{}/{SCREENS}/{name}", t.language));
+                fs::create_dir_all(layer.join(SCREENS))?;
+                fs::write(layer.join(SCREENS).join(name), lua)?;
+            }
+        }
+        if !dry_run {
+            let n = dedupe_layer(&output, &layer)?;
+            println!("  {LAYERS}/{}: {n} files the same as the base left out", t.language);
+        }
+    }
     if !dry_run && !loose {
         pack(&output, output_dirs)?;
     }
@@ -490,11 +547,16 @@ pub fn lint_dir(dir: &Path, files: Option<&BTreeSet<String>>) -> Result<conv_con
     let path = dir.join("0.txt");
     let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
     let mut script = conv_cons::decode(&bytes);
-    let table = conv_cons::strtab::first_language(&script).map(|l| dir.join(format!("text.{l}.txt")));
-    if let Some(Ok(table)) = table.map(fs::read) {
+    let lang = conv_cons::strtab::first_language(&script).unwrap_or_default().to_string();
+    if let Ok(table) = fs::read(dir.join(format!("text.{lang}.txt"))) {
         script = conv_cons::strtab::fill(&script, &conv_cons::decode(&table));
     }
-    Ok(conv_cons::lint::lint(&script, &|n| files.is_none_or(|f| f.contains(&n.replace('/', "\\").to_lowercase()))))
+    // a file of the language's layer counts too (the engine reads it first)
+    let layer = format!("{LAYERS}\\{lang}\\");
+    Ok(conv_cons::lint::lint(&script, &|n| {
+        let n = n.replace('/', "\\").to_lowercase();
+        files.is_none_or(|f| f.contains(&n) || f.contains(&format!("{layer}{n}")))
+    }))
 }
 
 #[cfg(test)]

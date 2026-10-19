@@ -187,10 +187,16 @@ which a translator leaves alone).
    as before) also gets `text.ja.txt` from the Japanese compile. Every
    game's filled script is the same as before. 月姫 keeps its two copies,
    both in its one table, until 3.
-2. Muramasa: one build of both editions: `layer\en\` (English pictures,
-   name plates, telops, movies, font) and `layer\uncensored\` (the CGs
-   that differ), the two settings rows, the English font for English
-   text (the font is per language: a table line can set it).
+2. Muramasa: one build of both editions. Done: the `--english` build
+   is the Japanese game plus the English: each run of lines from one
+   source instruction whose code differs (or that one edition lacks) is
+   per-language table lines (`strtab::merge`; the user's decision: each
+   language plays exactly like its original), the English edition's own
+   pictures and menus in `layer\en\`; it starts in English. Every
+   language's filled script is its edition's own build but for blank
+   lines (3 scenes). Left: `layer\uncensored\` (the CGs that differ),
+   the language and pictures rows, the English font (the engine opens
+   one font file).
 3. Tsukihime: the pages that line up (29,197 of 42,532) share one
    script with two tables; the rest keep their two copies.
 4. Engine: backlog by ID; the language chosen kept in the engine's

@@ -47,6 +47,8 @@ pub struct NpaAssets<'a> {
     pub font_en: Option<Vec<u8>>,
     /// The `--font`, for `CreateText`.
     pub font: Vec<u8>,
+    /// A layer's assets: the base output, read where this one lacks a file.
+    pub base_root: Option<PathBuf>,
     images: HashMap<String, Option<(String, u32, u32)>>,
     sounds: HashMap<String, Option<String>>,
     movies: HashMap<String, Option<MovieInfo>>,
@@ -64,7 +66,7 @@ pub struct NpaAssets<'a> {
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, font: Vec::new(), images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H), copied: Vec::new() }
+        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, font: Vec::new(), base_root: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H), copied: Vec::new() }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -101,7 +103,7 @@ impl<'a> NpaAssets<'a> {
         } else {
             format!("[0:v]{turn}[v]")
         };
-        let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), self.out.root.join(movie).into(), "-filter_complex".into(), graph.into(), "-map".into(), "[v]".into(), "-map".into(), "0:a?".into()];
+        let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), self.src(movie).into(), "-filter_complex".into(), graph.into(), "-map".into(), "[v]".into(), "-map".into(), "0:a?".into()];
         args.extend(crate::media::mp4_options(22, "slow").into_iter().map(Into::into));
         if let Err(e) = crate::media::ffmpeg(&dest, args, |_| Ok(())) {
             self.out.errors.push(format!("{movie}: {e}"));
@@ -180,7 +182,7 @@ impl<'a> NpaAssets<'a> {
         if let Some(size) = image.strip_prefix("system/color_").and_then(|r| r.strip_suffix(".png")).and_then(|r| r.split_once('_')).and_then(|(_, s)| s.split_once('x')) {
             return Some((size.0.parse().ok()?, size.1.parse().ok()?));
         }
-        let data = fs::read(self.out.root.join(image)).ok()?;
+        let data = fs::read(self.src(image)).ok()?;
         image_size(&data)
     }
 
@@ -200,7 +202,7 @@ impl<'a> NpaAssets<'a> {
             crate::output::record(&rel);
             return Some((rel, ow, oh));
         }
-        let img = image::open(self.out.root.join(image)).ok()?;
+        let img = image::open(self.src(image)).ok()?;
         let scaled = match clip {
             None => img.resize_exact(w, h, image::imageops::FilterType::Triangle),
             Some((x0, y0, x1, y1)) => {
@@ -224,6 +226,28 @@ impl<'a> NpaAssets<'a> {
         }
         self.out.write(&rel, &data);
         Some((rel, ow, oh))
+    }
+}
+
+impl NpaAssets<'_> {
+    /// Where a file the output holds is read from: this output, else the
+    /// base's (a layer's assets read the pictures the base wrote).
+    fn src(&self, rel: impl AsRef<Path>) -> PathBuf {
+        let own = self.out.root.join(&rel);
+        match &self.base_root {
+            Some(base) if !own.exists() => base.join(rel),
+            _ => own,
+        }
+    }
+
+    /// Hands `other` (the English edition's, written into its layer) what
+    /// this one found, so it doesn't write it again: the sounds and movies,
+    /// and the pictures but those the English release has its own of.
+    pub fn share_with(&self, other: &mut NpaAssets) {
+        other.base_root = Some(self.out.root.clone());
+        other.sounds.extend(self.sounds.iter().map(|(k, v)| (k.clone(), v.clone())));
+        other.movies.extend(self.movies.iter().map(|(k, v)| (k.clone(), *v)));
+        other.images.extend(self.images.iter().filter(|(k, _)| !ENGLISH_FIRST.iter().any(|p| k.contains(p))).map(|(k, v)| (k.clone(), v.clone())));
     }
 }
 
@@ -280,7 +304,7 @@ impl Assets for NpaAssets<'_> {
         }
         let mut out = image::RgbaImage::new((x1 - x0) as u32, (y1 - y0) as u32);
         for (image, x, y, opacity) in parts {
-            let mut img = image::open(self.out.root.join(image)).ok()?.into_rgba8();
+            let mut img = image::open(self.src(image)).ok()?.into_rgba8();
             for p in img.pixels_mut() {
                 p.0[3] = (p.0[3] as i64 * opacity / 1000) as u8;
             }
@@ -299,7 +323,7 @@ impl Assets for NpaAssets<'_> {
         if self.out.have(&cut) {
             return Some(cut);
         }
-        let img = image::open(self.out.root.join(&rel)).ok()?.into_rgba8();
+        let img = image::open(self.src(&rel)).ok()?.into_rgba8();
         let mut out = image::RgbaImage::new(SCREEN_W as u32, SCREEN_H as u32);
         image::imageops::overlay(&mut out, &img, x0, y0);
         self.out.write_png(&cut, &out);
@@ -361,7 +385,7 @@ impl Assets for NpaAssets<'_> {
             }
             // Read and written as they are: a JPEG keeps its quality, a
             // PNG (perhaps a strip of cells) is the same size.
-            let mut img = image::open(self.out.root.join(image)).ok()?;
+            let mut img = image::open(self.src(image)).ok()?;
             let (w, h) = (img.width(), img.height());
             if x {
                 img = img.fliph();
@@ -405,7 +429,7 @@ impl Assets for NpaAssets<'_> {
         }
         let mut out = image::RgbaImage::new(size.0, size.1);
         for (i, (cell, _, _)) in cells.iter().enumerate().filter_map(|(i, c)| Some((i, c.as_ref()?))) {
-            let img = image::open(self.out.root.join(cell)).ok()?.into_rgba8();
+            let img = image::open(self.src(cell)).ok()?.into_rgba8();
             image::imageops::overlay(&mut out, &img, (i as u32 * w) as i64, 0);
         }
         self.out.write_png(&rel, &out);
@@ -526,8 +550,8 @@ impl Assets for NpaAssets<'_> {
         if self.out.have(&rel) {
             return Some(rel);
         }
-        let base_img = image::open(self.out.root.join(base)).ok()?.into_rgb8();
-        let top_img = image::open(self.out.root.join(&top)).ok()?.into_rgb8();
+        let base_img = image::open(self.src(base)).ok()?.into_rgb8();
+        let top_img = image::open(self.src(&top)).ok()?.into_rgb8();
         let (sw, sh) = base_img.dimensions();
         let (cx, cy) = (tw as f64 / 2.0, th as f64 / 2.0);
         let z = zoom.max(1) as f64 / 1000.0;
@@ -567,8 +591,8 @@ impl Assets for NpaAssets<'_> {
         if self.out.have(&rel) {
             return Some(rel);
         }
-        let mut out = image::open(self.out.root.join(image)).ok()?.into_rgba8();
-        let m = image::open(self.out.root.join(mask)).ok()?.into_rgba8();
+        let mut out = image::open(self.src(image)).ok()?.into_rgba8();
+        let m = image::open(self.src(mask)).ok()?.into_rgba8();
         // A pixel's place on the screen from the picture's unzoomed top left.
         let from_centre = |u: u32, size: u32, z: i64| (u as f64 + 0.5 - size as f64 / 2.0) * z as f64 / 1000.0;
         for (x, y, p) in out.enumerate_pixels_mut() {
@@ -590,7 +614,7 @@ impl Assets for NpaAssets<'_> {
             return None;
         }
         let rel = if path.starts_with("cg/") || path.starts_with("en/") { self.image(path)?.0 } else { path.to_string() };
-        Some(image::open(self.out.root.join(rel)).ok()?.into_rgba8())
+        Some(image::open(self.src(rel)).ok()?.into_rgba8())
     }
 
     fn frames_movie(&mut self, name: &str, fps: u32, frames: u32, draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String> {
@@ -644,7 +668,7 @@ impl Assets for NpaAssets<'_> {
             return Some(rel);
         }
         let delay = format!("adelay={delay_ms}:all=1");
-        let args: Vec<std::ffi::OsString> = vec!["-i".into(), self.out.root.join(&src).into(), "-af".into(), delay.into(), "-c:a".into(), "libvorbis".into(), "-q:a".into(), "5".into()];
+        let args: Vec<std::ffi::OsString> = vec!["-i".into(), self.src(&src).into(), "-af".into(), delay.into(), "-c:a".into(), "libvorbis".into(), "-q:a".into(), "5".into()];
         if let Err(e) = crate::media::ffmpeg(&dest, args, |_| Ok(())) {
             self.out.errors.push(format!("{rel}: {e}"));
             return None;
@@ -658,7 +682,7 @@ impl Assets for NpaAssets<'_> {
         if self.out.have(&rel) {
             return Some(rel);
         }
-        let data = std::fs::read(self.out.root.join(&src)).ok()?;
+        let data = std::fs::read(self.src(&src)).ok()?;
         let rate = ogg_rate(&data)? as u64;
         match crate::ogg::set_loop(&data, start_ms as u64 * rate / 1000, Some(end_ms as u64 * rate / 1000)) {
             Ok(tagged) => self.out.write(&rel, &tagged),
