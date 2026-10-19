@@ -525,6 +525,26 @@ rather than by browsing:
     sounds flushed after a statement with that statement; 装甲悪鬼村正:
     docs/games/muramasa.md, "Trace diff".
 
+**Reference traces** (a full trace of the original, few tokens): `research/tools/reftrace.sh <game>`
+(saihate, muramasa, muramasa-en, django, oretsuba, tsukihime) builds our dry run, `ours.map` and our
+trace on the same route, then starts the original's run in the background under
+`systemd-run --user --scope -p MemoryMax=3G`, through `headless-run.sh`, into `out/<game>-reftrace/`
+(git-ignored). Game folders come from the `~/.config/conscripter-convert/games` links; per-machine route
+inputs (`saihate-route.arg`, `<mura|django>-choose.txt`, the patched `*-patch/` dirs, oretsuba's
+`keys.sh`) from `$CD` (default `out/reftrace`); other variables are listed at the top of the script.
+`reftrace.sh status <game>` prints at most 5 lines (running, pages, last scene, minutes since progress,
+free RAM); `reftrace.sh summary <game>` at most 15 (pages, how far, top `trace_diff.py` kinds). 続・殺戮のジャンゴ runs at
+`SPEED=1`: at `SPEED=8` its full run stalled on several pages (2026-10-18), and at 1 it ran on, so the speed
+hook is the suspected cause (not yet confirmed). 装甲悪鬼村正's first H-mode screen
+(`sys_hmode.nss`, near page 4884) waits in a `select` for a click the clickless run never gives: `mura-patch/`
+holds a copy with that line's `select{` made `if(0){` (one line, so the trace's lines hold), and `function_magiccube.nss` (the 立方陣 puzzle after
+`md05_025`) one whose line 261 `select{` is `$立方陣正解=true;$Loop_end=false;$Answer=true;if(0){` (solved, so the
+route goes on to `md05_025end`). The other selects outside the story files are menus, the title or the quick
+bar, which a clickless run never opens or which don't block the story. A watchdog
+resumes 最果てのイマ from its last save after 10 min without progress; for the others it logs the stall
+to `watchdog.log`. Rhythm: one `status` about 5 min after the start (setup problems show then), then every
+30-60 min, `summary` at the end.
+
     **Trace speeds** (2026-10-17, 40 pages from each trace's start; wall
     seconds a page once the game runs, plus 20-30 s of start-up). A wine
     original runs faster with `SPEED=N` (`xtrace.sh`, `ntrace.sh`):

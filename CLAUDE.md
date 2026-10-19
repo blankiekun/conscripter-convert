@@ -176,6 +176,7 @@ on each later turn; several agents run at once.
 - **Code before wine**: the decompile and the dry run answer most
   questions (Rules, "Wine is the last resort"). Shots, `shots.py` and the
   film list: `docs/tools.md` ("Code before wine").
+- **Reference traces of the originals**: `research/tools/reftrace.sh <game>` starts one, `reftrace.sh status <game>` after ~5 min and every 30-60 min, `summary <game>` at the end (docs/new-game.md, "Reference traces"); don't poll or hand-run the wrappers.
 - **Batch** independent commands into one call; keep replies short, no
   progress narration between steps.
 - **Stop at the end of the item asked for** (commit, push, update the
