@@ -580,7 +580,9 @@ elsewhere) and the next sync places it there (`lsp` ends the
 already stopped one (`msp` ends the motion first). Tests:
 `a_zero_ms_move_stops_the_one_in_flight_where_it_is`,
 `a_zero_ms_fade_stops_the_one_in_flight_at_its_value`
-(`nitroplus/convert/tests/scheduler.rs`).
+(`nitroplus/convert/tests/scheduler.rs`). For that the compiler's
+clock now counts a move the script waits for (`SpriteMove`), and a
+`WaitAction` on a picture or making it again ends its run.
 
 ### Timing parity (2026-10-18)
 
