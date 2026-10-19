@@ -9,11 +9,17 @@ run one frame (research/nitroplus/sched_django.py is Django's).
     h.alloc(n)                           # n zero bytes (also HeapAlloc's stub)
     h.frame(step)                        # the clock +1/fps, then step(h)
 
+Many dumps at once: pool_map(fn, items, jobs) runs fn(item) in worker
+processes (one Unicorn each; processes, not threads, for the GIL), jobs from
+default_jobs(): the CPUs, or fewer when free memory holds fewer workers of
+~200 MB each.
+
 Stubs every adapter gets: timeGetTime/GetTickCount from the frame clock, the
 mutex and critical-section calls succeed, HeapAlloc from a bump arena
 (HeapFree does nothing). Anything else an exe calls returns 0 and is listed
 in h.e.hits.
 """
+import multiprocessing
 import os
 import struct
 import sys
@@ -73,3 +79,19 @@ class Harness:
     def frame(self, step):
         self.ms += 1000 / self.fps
         step(self)
+
+
+def default_jobs(mb_each=200, spare_mb=2048):
+    """worker processes the machine holds now: CPUs, and MemAvailable less spare_mb at mb_each"""
+    avail = next(int(l.split()[1]) // 1024 for l in open("/proc/meminfo") if l.startswith("MemAvailable:"))
+    return max(1, min(os.cpu_count() or 1, (avail - spare_mb) // mb_each))
+
+
+def pool_map(fn, items, jobs=None):
+    """[fn(item) for item in items], in `jobs` worker processes (fn: a module-level function)"""
+    items = list(items)
+    jobs = min(jobs or default_jobs(), len(items)) or 1
+    if jobs == 1:
+        return [fn(i) for i in items]
+    with multiprocessing.get_context("fork").Pool(jobs) as p:
+        return p.map(fn, items, chunksize=1)

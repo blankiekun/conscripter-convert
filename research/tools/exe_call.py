@@ -51,7 +51,9 @@ STDCALL = {"timeGetTime": 0, "GetTickCount": 0, "GetProcessHeap": 0, "GetCurrent
            "EnterCriticalSection": 1, "LeaveCriticalSection": 1, "SuspendThread": 1, "ResumeThread": 1,
            "WaitForSingleObject": 2, "HeapAlloc": 3, "HeapFree": 3, "HeapReAlloc": 4, "PostMessageA": 4,
            "SendMessageA": 4, "VirtualAlloc": 4, "VirtualFree": 3, "GlobalAlloc": 2, "GlobalFree": 1,
-           "TlsGetValue": 1, "TlsSetValue": 2, "FlsGetValue": 1, "FlsSetValue": 2}
+           "TlsGetValue": 1, "TlsSetValue": 2, "FlsGetValue": 1, "FlsSetValue": 2, "GetLastError": 0,
+           "SetLastError": 1, "GetCurrentProcess": 0, "InterlockedIncrement": 1, "InterlockedDecrement": 1,
+           "InterlockedExchange": 2, "OutputDebugStringA": 1, "timeBeginPeriod": 1, "timeEndPeriod": 1}
 
 
 def up(n):
@@ -234,10 +236,13 @@ class Exe:
     def ptr(self, addr):
         return struct.unpack("<Q" if self.arch == "arm64" else "<I", self.read(addr, 8 if self.arch == "arm64" else 4))[0]
 
-    def call(self, addr, args=(), cc="cdecl", ret="int", limit=10_000_000):
+    def call(self, addr, args=(), cc="cdecl", ret="int", limit=10_000_000, regs=None):
         """Call addr with args (int, float, ('d', x) a double, ('&', fmt, x) a pointer to one,
-        ('buf', n) a buffer); return (value, [buffer addresses])."""
+        ('buf', n) a buffer); regs: registers set first by name ({"edi": 1}, a value the
+        code takes unset); return (value, [buffer addresses])."""
         uc, heap, bufs = self.uc, HEAP, []
+        for r, v in (regs or {}).items():
+            uc.reg_write(getattr({"x86": X, "arm": A, "arm64": A64}[self.arch], f"UC_{self.arch.upper()}_REG_{r.upper()}"), v)
         vals = []
         for a in args:  # pointers first, into the heap
             if isinstance(a, tuple) and a[0] in ("&", "buf"):

@@ -254,7 +254,14 @@ take that state from one short run and step the exe's own code on it:
 4. **Step the frame function**: `research/tools/sched_harness.py` stubs
    the clock to +1/fps per frame, the heap from an arena and the CRT's
    TLS. An engine adapter queues actions through the exe's own job code and calls its per-frame
-   stepper N times, reading x, y and alpha per frame.
+   stepper N times, reading x, y and alpha per frame. Django's is
+   `research/nitroplus/sched_django.py <exe> <dumps> [--jobs N]
+   [--cases]`. With no flags it steps every dump in a pool of worker
+   processes (`sched_harness.pool_map`: one Unicorn per process,
+   processes rather than threads because of the GIL, about 130 MB each;
+   by default as many as the CPUs and free memory allow). The 20 probe
+   dumps take 2.1 s with 1 worker and 0.3 s with 20. `--cases` runs the
+   four overlap cases and checks each against the case's later dump.
 5. **Into tests**: the numbers become fixtures of the converter's unit
    tests and `(scheduler)` rows marked seen in the findings table.
 
