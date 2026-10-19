@@ -1,0 +1,25 @@
+# Ciel's route, normal ending: Ciel's points on days 1-2, the tea room,
+# the day 3 night option (needs G003), the Arcueid points (F081 >= 5) for
+# the extra ending's run, and none of the route's dead ends (QA_13-QA_20)
+take ちょっとした疑問がわいてしまった。
+take 廊下に出てから考えよう。
+take 学校をぶらつく。
+take とりあえず、廊下に出て考えよう。
+take 茶道室に行ってみようか……？
+take ……いや、俺の起こした現実だ。
+take ホテルに戻ろうと思う。
+take アルクェイドの方が、ほっとけない。
+take 『それ以上進んだら嫌いになるからなっ！』
+take ……アルクェイドには従えない。
+avoid ―――このまま押し切る！
+avoid 先輩に駆け寄る。
+avoid 問題はない。話は放課後にすればいいし。
+avoid 自分は足手まといだ。ここで待っていよう。
+avoid じゃあ、痛くて効かないものを。
+avoid 後方に逃げる。
+avoid ……因果応報だ。女を手本にして処理しよう。
+avoid ……眼鏡を外す。
+avoid 最短で、あの吸血鬼を殺す。
+avoid 面倒だ。殺してしまえ。
+# yes to the lesson question
+button tm_QACALL 2

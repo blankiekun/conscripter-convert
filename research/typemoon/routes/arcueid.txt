@@ -1,0 +1,15 @@
+# Arcueid's route: the first option everywhere but her 11 dead ends (QA_01-QA_11)
+avoid ……酔狂はここまでだ。逃げよう。
+avoid 屋敷に戻ろうと思う。
+avoid ……部屋で外の様子をうかがう。
+avoid ……今すぐヴローヴを捜すべきだ。
+avoid 下りていく。
+avoid ……投擲だ。
+avoid ……牽引だ。
+avoid ……嘘をついて誤魔化す。
+avoid ……槙久の書斎を調べてみる。
+avoid アルクェイドに会いに行く。
+avoid ……学校に戻っているかも？
+avoid ただ、欲しいだけなんだ。
+# yes to the lesson question
+button tm_QACALL 2

@@ -655,7 +655,10 @@ impl Lowering<'_, '_> {
                 let Some(&var) = self.vars.get(&format!("_STCG {}", arg(0).to_lowercase())) else { return false };
                 self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(1) });
             }
-            "_END_" => self.ops.push(Op::ReturnToTitle),
+            // `_RTM_` ends the script (back to the caller: the title here; the
+            // Ending List's replays end at `_RDED` first). Live where no
+            // `_END_` follows: `QACALL`'s "no" to a lesson, `STAFFROLL`.
+            "_END_" | "_RTM_" | "_RTMN" => self.ops.push(Op::ReturnToTitle),
             // `_TOMP(n)` (`FUN_0016ef30`) plays movie-table entry n in
             // overlay 0 and `_TOMW` waits for it: one blocking movie here.
             // It stops skip and auto mode (but n = 7, which no script
@@ -2185,6 +2188,8 @@ mod tests {
         // `_RDED(12)` (a scene's flag, no reader yet) is left out.
         assert_eq!(c.ops[4], Op::If { var: flag, cmp: Compare::Eq, value: Operand::Const(0), label: "tm_S__OK_not_all".into() });
         assert_eq!(c.ops[4 + 24..4 + 27], [Op::Jump("tm_S__OK".into()), Op::Label("tm_S__OK_not_all".into()), Op::ReturnToTitle]);
+        // `_RTM_` ends the script.
+        assert_eq!(c.ops[4 + 27], Op::ReturnToTitle);
         assert_eq!(lesson_flag(556).unwrap().index, 999);
     }
 
