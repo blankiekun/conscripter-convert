@@ -229,6 +229,11 @@ impl<'a> NpaAssets<'a> {
     }
 }
 
+/// Pixels that must differ (by over 32 in a channel) for an English CG to
+/// be another picture than the Japanese, not a re-encode of it.
+// guess: a mosaic covers thousands of pixels; the re-encoded UI pictures of 3 scenes differ in under 800
+const CENSORED_PIXELS: usize = 2000;
+
 impl NpaAssets<'_> {
     /// Where a file the output holds is read from: this output, else the
     /// base's (a layer's assets read the pictures the base wrote).
@@ -238,6 +243,37 @@ impl NpaAssets<'_> {
             Some(base) if !own.exists() => base.join(rel),
             _ => own,
         }
+    }
+
+    /// The English release's event CGs (`cg/ev/`) that differ from the Japanese ones the
+    /// base (`base`, the Japanese edition's assets) took: written as PNG
+    /// under `layer` (its uncensored pictures; CONscripter reads them while
+    /// that layer is on). Compares the decoded pixels. Returns how many.
+    /// shortcut: pictures made from a CG (zooms, mirrors, strips) stay the base's; make them from the layer's when a scene shows the difference.
+    pub fn uncensored(&mut self, base: &NpaAssets, layer: &Path) -> usize {
+        let Some(npk) = self.cg_en.as_ref() else { return 0 };
+        let mut n = 0;
+        let mut keys: Vec<&String> = base.images.iter().filter(|(k, v)| v.as_ref().is_some_and(|v| &v.0 == *k) && k.starts_with("cg/ev/")).map(|(k, _)| k).collect();
+        keys.sort();
+        for key in keys {
+            let Some(entry) = npk.find(&format!("media/{key}")) else { continue };
+            let en = npk.data(entry).ok().and_then(|d| image::load_from_memory(&d).ok());
+            let ja = image::open(base.out.root.join(key)).ok();
+            let (Some(en), Some(ja)) = (en, ja) else { continue };
+            // a re-encode differs a little here and there; what was censored, in a whole area
+            let (e, j) = (en.to_rgba8(), ja.to_rgba8());
+            let changed = e.pixels().zip(j.pixels()).filter(|(p, q)| p.0.iter().zip(q.0).any(|(a, b)| a.abs_diff(b) > 32)).count();
+            if e.dimensions() == j.dimensions() && changed < CENSORED_PIXELS {
+                continue;
+            }
+            let rel = layer.join(key);
+            let _ = fs::create_dir_all(rel.parent().unwrap_or(layer));
+            match en.save_with_format(&rel, image::ImageFormat::Png) {
+                Ok(()) => n += 1,
+                Err(e) => self.out.errors.push(format!("{key}: {e}")),
+            }
+        }
+        n
     }
 
     /// Hands `other` (the English edition's, written into its layer) what
