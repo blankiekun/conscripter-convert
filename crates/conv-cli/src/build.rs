@@ -103,9 +103,11 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     // A dry run writes the script but no assets (no WebP, no sound).
     let conv_cons::Emitted { script: mut source, lines, rows } = conv_cons::emit_mapped(&ir, conv_cons::strtab::Strings::tables(translation.is_some()));
     let mut tables = vec![(ir.language.clone(), conv_cons::strtab::table(&rows))];
-    if let Some(t) = &translation {
+    let other = translation.as_ref().map(|t| conv_cons::emit_mapped(t, conv_cons::strtab::Strings::tables(true)));
+    // the timing parity is of the edition whose counts the build's are (the other's when there is one)
+    let parity = if dry_run { other.as_ref().map_or_else(|| (source.clone(), lines.clone()), |o| (o.script.clone(), o.lines.clone())) } else { Default::default() };
+    if let (Some(t), Some(other)) = (&translation, &other) {
         use conv_cons::strtab::{merge, translated, Edition};
-        let other = conv_cons::emit_mapped(t, conv_cons::strtab::Strings::tables(true));
         let (table, kept) = if lines.is_empty() || other.lines.is_empty() {
             translated(&rows, &other.rows)
         } else {
@@ -122,7 +124,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     }
     if dry_run {
         // NSS fades each picture on its own: a print counts once per picture
-        let ours = conv_cons::parity::animated_ms(&source, &lines, |f| metrics.source_ms.contains_key(f), engine == "nitroplus");
+        let ours = conv_cons::parity::animated_ms(&parity.0, &parity.1, |f| metrics.source_ms.contains_key(f), engine == "nitroplus");
         metrics.ours_ms = ours;
     }
     if lines.is_empty() {
