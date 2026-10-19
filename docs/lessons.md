@@ -61,6 +61,18 @@ The steps that apply them are in `docs/new-game.md`.
   reached only through function pointers has to be turned into functions
   before the decompiled output shows what a built-in does
   (`docs/new-game.md` §2, "Mapping the whole exe").
+- **What the original does is a question for its code, not the user**
+  (2026-10-19). "Does a new BGM cut the one fading out?" went to the
+  user for a day; the decompiles answered it in an hour (俺たちに翼はない
+  and 月姫: their documents, "Sound channels" and "Two music slots"). It
+  stuck because Oretsuba's Ghidra export had gone with its deleted
+  worktree, Tsukihime's export predated its names, and in both only the
+  script command was named, not the sound manager under it. So: rebuild
+  a missing export from the game document's recipe
+  (`ghidra_export.sh`, minutes) and read it; name a subsystem whole (its
+  channels, their states, the per-frame update) when you first touch
+  it, not only the command's entry; ask the user only for decisions. An
+  idea agent's "open questions" follow the same rule.
 - **A built-in "converted" can still drop an argument** (村正, 2026-10-16):
   NSS `CreateWindow` was listed as converted because its children were
   placed, but its size, which clips them, was never read; the user saw

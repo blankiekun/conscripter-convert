@@ -146,6 +146,18 @@ Found so far:
   fragment GXP 0x8115f304 with `value` = (frames/30, `:Param` 0,
   `:Param` 1, the effect's fade level, +0x4c, which the effect base
   steps from 0 to 1 and back in states 6 and 7).
+- Sound channels (2026-10-19, `names.tsv` `channel_*`, `cri_player_*`):
+  the sound manager at 0x814e907c is a list of channels, each its own
+  CRI AtomEx player with a fader (`criAtomExPlayer_SetFadeOutTime`
+  0x8109df04, `_Stop` 0x810a173e: the fader fades that player alone).
+  Music uses channels 4 and 5 in turn. BgmStop (`bgm_stop` 0x81120910)
+  fades out whichever of them plays over `:Div` frames (`:Div` 0: a cut).
+  BgmPlay (`bgm_start` 0x8111ee38) plays on 5 when 4 is active (playing
+  or fading), else on 4, then looks at the other channel: fading out, it
+  is left alone and **fades on under the new music** at BgmStop's rate;
+  playing and `:Div` > 0, it is faded out over `:Div` frames (a
+  cross-fade); otherwise it is cut. A third track while both still sound
+  restarts the channel it lands on (its tail is cut).
 
 ### Files (`<game>/media/`)
 
