@@ -43,7 +43,10 @@
 # the same way, compared without their commit lines; --update rewrites
 # one only when its counts changed, naming the commit on origin/main
 # they were measured on top of (the merge base: a branch's own commits
-# are gone once it is squash-merged).
+# are gone once it is squash-merged). Its "parity" line (timing parity:
+# per scene, the motion time the source asks for against the time 0.txt
+# animates there; the dry run's --parity-report lists every scene) is
+# ratcheted like the gaps: a rise of short_ms exits 2.
 #
 # --diff REF also builds REF (a commit, branch or tag; origin/main for a
 # fresh base) in its own worktree out/snapshot-ref with its own target
@@ -243,14 +246,14 @@ $others"
     fi
     msnap=tests/snapshots/$id.metrics.json
     counts() { grep -v '^"commit' "$1" 2>/dev/null; }
-    totals() { sed -n 's/^"totals": \(.*\),$/\1/p' "$1"; }
+    totals() { sed -n 's/^"\(totals\|parity\)": \(.*\),$/\2/p' "$1" | paste -sd' '; }
     if [ "$(counts "$msnap")" = "$(counts "$out/metrics.json")" ]; then
         echo "$id: metrics same"
     elif [ $update = 1 ]; then
         sed -e "s/^\"commit\": .*/$base_line/" -e "s/^\"commit_date\": .*/$base_date/" "$out/metrics.json" > "$msnap"; echo "$id: metrics written ($(totals "$msnap"))"
     else
         echo "$id: metrics CHANGED (now $(totals "$out/metrics.json"); diff $msnap $out/metrics.json)"; changed=1
-        for k in gaps left_out; do
+        for k in gaps left_out short_ms; do
             o=$(totals "$msnap" | sed -n "s/.*\"$k\": \([0-9]*\).*/\1/p"); n=$(totals "$out/metrics.json" | sed -n "s/.*\"$k\": \([0-9]*\).*/\1/p")
             [ "${o:-0}" = "${n:-0}" ] || echo "$id: $k ${o:-0} -> ${n:-0}"
             [ "${n:-0}" -le "${o:-0}" ] || [ $accept = 1 ] || rose=1
@@ -265,5 +268,5 @@ for id in "${ids[@]}"; do
         echo "${f[1]} : $id command counts off the pair's ratio (informative):"; echo "$off" | sed 's/^/    /'
     fi
 done
-[ $rose = 0 ] || { echo "gaps/left_out rose or command counts moved: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
+[ $rose = 0 ] || { echo "gaps/left_out/short_ms rose or command counts moved: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
 exit $changed

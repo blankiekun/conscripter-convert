@@ -2,8 +2,8 @@
 "game": "saihate-no-ima",
 "engine": "xuse",
 "engine_doc": "xuse",
-"commit": "13d2ac95",
-"commit_date": "2026-10-17",
+"commit": "2b49cc2f",
+"commit_date": "2026-10-18",
 "totals": {"calls": 84713, "full": 84710, "gaps": 0, "left_out": 3, "weighted": 84710.0},
 "kinds": {
 "opcode 0x40": {"calls": 30958, "gaps": 0, "left_out": 1, "reasons": [["the unreachable debug menu", 1]], "weighted": 30957.0},
@@ -89,5 +89,7 @@
 "opcode 0x8d": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0},
 "opcode 0x96": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0}
 },
-"outside_calls": []
+"outside_calls": [],
+"parity": {"source_ms": 9059970, "ours_ms": 9216505, "short_ms": 800, "scenes_short": 3},
+"parity_worst": [["0031.cd", 8900, 8500], ["0030.cd", 9800, 9500], ["0003.cd", 184400, 184300]]
 }

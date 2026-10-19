@@ -2,7 +2,7 @@
 "game": "tsukihime",
 "engine": "typemoon",
 "engine_doc": "typemoon",
-"commit": "ebcb8fe6",
+"commit": "2b49cc2f",
 "commit_date": "2026-10-18",
 "totals": {"calls": 1082419, "full": 1036018, "gaps": 20437, "left_out": 25964, "weighted": 1039998.3},
 "kinds": {
@@ -103,5 +103,7 @@
 "_IFUR": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0},
 "_SELS": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0}
 },
-"outside_calls": []
+"outside_calls": [],
+"parity": {"source_ms": 14811607, "ours_ms": 273091916, "short_ms": 7, "scenes_short": 2},
+"parity_worst": [["TEST_SCRIPT", 6, 0], ["00_01", 1, 0]]
 }

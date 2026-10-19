@@ -218,6 +218,21 @@ fn label(script: &str, name: Option<&str>) -> String {
     }
 }
 
+/// The motion time command `c` asks for, in ms (timing parity,
+/// `metrics.json`): `_FADS(type, ms, …)`, `_STGS`/`_STRT(layer, from, to,
+/// ms, …)`, `_STZ4`'s ms (argument 5), `_SHOK`'s period × turns.
+/// shortcut: `_STMA` (the exe's motion table) counts 0, read its table when a parity gap points there.
+fn motion_ms(c: &Command) -> u64 {
+    let n = |i: usize, default: i32| c.args.get(i).filter(|a| !a.trim().is_empty()).map_or(Some(default), |a| number(a)).unwrap_or(0).max(0) as u64;
+    match c.opcode() {
+        "_FADS" => n(1, 0),
+        "_STGS" | "_STRT" => n(3, 0),
+        "_STZ4" => n(5, 0),
+        "_SHOK" => n(2, 300).max(17) * n(3, 3).max(1),
+        _ => 0,
+    }
+}
+
 /// A whole-number argument: digits with `+`/`-` between them (`258-18`).
 /// A `.` ends it (`242.25` is 242): the exe's expression reader
 /// (`FUN_00103160`) takes the digits with `strtol` and stops at a `.`.
@@ -1694,6 +1709,7 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         l.open_ifs.clear();
         for (index, c) in commands.iter().enumerate() {
             l.source_map.push((l.ops.len(), conv_core::ir::SourceLoc { file: name.clone(), index }));
+            l.metrics.motion(name, motion_ms(c));
             if let Some((_, why)) = LEFT_OUT.iter().find(|(k, _)| *k == c.opcode()) {
                 l.metrics.left_out(c.opcode(), why);
                 continue;

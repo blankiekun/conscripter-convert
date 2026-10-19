@@ -124,6 +124,7 @@ pub fn build(game: &Path, linear: bool, original_archives: bool, opts: &Opts) ->
         }
         for (index, ins) in cd.code.iter().enumerate() {
             let kind = format!("opcode {:#04x}", ins.op);
+            metrics.motion(file, motion_ms(cd, ins));
             let reasons = gaps.remove(&index).unwrap_or_default();
             match LEFT_OUT.iter().find(|&&(f, i, _)| !reasons.is_empty() && f == file && i == index) {
                 Some((_, _, why)) => metrics.left_out(&kind, why),
@@ -210,4 +211,24 @@ fn original_archives_file(game: &Path, ranges: &[(String, PathBuf, usize, usize)
     fs::write(opts.output.join("cons_archives.txt"), list)?;
     println!("--original-archives: {} files read in place from the game's own", ranges.len());
     Ok(())
+}
+
+/// The motion time instruction `ins` asks for, in ms (timing parity,
+/// `metrics.json`): fades, transitions, flashes, pulses, bust-up fades and
+/// the environment's shake and ripple (layouts: the game document's
+/// "Script bytecode").
+/// shortcut: 0x6d quakes and 0x86 key-frame motions count 0, decode them when a parity gap points there.
+fn motion_ms(cd: &CdScript, ins: &super::cd::Instr) -> u64 {
+    let u32_at = |skip: usize| cd.bytes(ins.arg as u32 as usize + skip, 4).map_or(0, |b| u64::from(u32::from_le_bytes([b[0], b[1], b[2], b[3]])));
+    match ins.op {
+        0x72 | 0x74 => u64::from(ins.arg as u32 & 0xffff),
+        0x76 => u32_at(0),
+        0x77 => u32_at(8),
+        0x6e => 100,
+        0x6f => cd.surprise(ins).and_then(|s| s.ok()).map_or(0, |s| u64::from(s.time_ms)),
+        // the 500 ms cross-fade, unless every entry is marked as no change (bit 1)
+        0x8e => cd.sprites(ins).and_then(|s| s.ok()).map_or(0, |e| if e.iter().any(|e| e.mode & 2 == 0) { 500 } else { 0 }),
+        0x8c => cd.environment(ins).and_then(|e| e.ok()).map_or(0, |e| u64::from(e.ripple.map_or(0, |r| r.time_ms) + e.shake.map_or(0, |s| s.time_ms))),
+        _ => 0,
+    }
 }

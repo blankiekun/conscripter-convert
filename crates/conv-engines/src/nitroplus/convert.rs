@@ -37,7 +37,7 @@
 //! game: unset variables are empty), which holds for linear scenes. What
 //! isn't converted is counted in [`Compiled::notes`].
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use conv_core::ir::{ArithOp, SpriteFilter, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, ChoiceStyle, SCREEN_UNDER, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
@@ -1142,6 +1142,12 @@ struct Compiler<'a, 'b> {
     played_at: HashMap<String, (&'a str, u32)>,
     /// The file of a page's code being run (the `<PRE>`'s), for the marks.
     code_file: Option<&'a str>,
+    /// The scene file being run (not a function's): where its calls'
+    /// motion time goes (`metrics.json`'s timing parity).
+    scene_file: &'a str,
+    /// The (picture, ms) moved, zoomed or turned since the last wait:
+    /// [`Self::parity_motion`].
+    parity_moving: HashSet<(String, i64)>,
 }
 
 /// One way through a fork: its state at the end, and the op that marks it
@@ -1264,6 +1270,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             running: Vec::new(),
             played_at: HashMap::new(),
             code_file: None,
+            scene_file: file,
+            parity_moving: HashSet::new(),
         }
     }
 
@@ -1543,6 +1551,28 @@ impl<'a, 'b> Compiler<'a, 'b> {
         Flow::Normal
     }
 
+    /// Timing parity (`metrics.json`): the motion time builtin `name`
+    /// asks for. The timed builtins are all (obj, ms, …); a move, zoom or
+    /// turn of a picture already moving over the same time since the last
+    /// wait is the same motion (one `spmotion`), counted once.
+    fn parity_motion(&mut self, name: &str, args: &[Value]) {
+        let ms = args.get(1).map_or(0, |v| v.int().max(0));
+        let ms = match name {
+            "Move" | "Zoom" | "Rotate" | "BezierMove" => {
+                let obj = args.first().map(Value::string).unwrap_or_default();
+                if self.parity_moving.insert((obj, ms)) { ms } else { 0 }
+            }
+            "Fade" | "DrawTransition" | "Shake" | "MoveCamera" => ms,
+            _ => {
+                if name == "Draw" || name.starts_with("Wait") {
+                    self.parity_moving.clear();
+                }
+                0
+            }
+        };
+        self.metrics.motion(self.scene_file, ms as u64);
+    }
+
     /// `@->scene`, `nss/file.nss->scene`, `nss/file.nss` (its chapter main).
     fn call_scene(&mut self, target: &str, chapter: bool) {
         let (file, scene) = match target.split_once("->") {
@@ -1567,6 +1597,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             return;
         }
         let saved = std::mem::replace(&mut self.file, file);
+        let saved_scene = std::mem::replace(&mut self.scene_file, file);
         let mark = self.seq;
         let saved_mark = self.chapter_mark;
         if chapter {
@@ -1579,6 +1610,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.frames.pop();
         self.depth -= 1;
         self.file = saved;
+        self.scene_file = saved_scene;
         self.chapter_mark = saved_mark;
         if chapter && self.game.chapter_objects {
             self.delete_chapter_objects(mark);
@@ -1672,6 +1704,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let command = self.function(name).is_none();
                 if command {
                     self.metrics.begin(name);
+                    self.parity_motion(name, &args);
                 }
                 let value = if (self.game.call)(self, name, &args) {
                     Value::Null

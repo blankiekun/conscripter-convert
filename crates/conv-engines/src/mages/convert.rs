@@ -89,6 +89,19 @@ fn ms(frames: i64) -> u32 {
     (frames.max(0) * 1000 / 60) as u32
 }
 
+/// The motion time task `t` asks for, in ms (timing parity,
+/// `metrics.json`): its `:Time` (defaults as the tasks read them).
+/// shortcut: a picture's own fade-in (Sprite, CharacterOpen) counts 0 (it is often staged under an InOut), split them when a parity gap points there.
+fn motion_ms(t: &Block) -> u64 {
+    let time = |default| u64::from(ms(t.int("Time").unwrap_or(default)));
+    match t.task_type() {
+        Some("InOut" | "InOut_Act") => time(30),
+        Some("SpriteDeleteBG" | "EffectQuake") if t.int("Loop") != Some(1) => time(60),
+        Some("FadeOut" | "FadeIn" | "CharacterMove" | "SpriteMove" | "SpriteQuake") => time(0),
+        _ => 0,
+    }
+}
+
 fn sx(x: i64) -> i32 {
     (x * 3 / 4) as i32
 }
@@ -1956,6 +1969,7 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
             }
             // shortcut: a key never read counts as one value lost however many it has.
             l.out.metrics.call(&kind, t.values(), reasons);
+            l.out.metrics.motion(name, motion_ms(t));
         }
         if l.staging {
             l.out.ops.push(Op::EndTransition);
