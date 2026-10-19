@@ -68,16 +68,10 @@ shows what it does. The line under them shows the exact command.
 **Recommended
 settings** puts them back.
 
-| Option | Games | Flag |
-|---|---|---|
-| Window title | all | `--title` |
-| Smaller download (WebP pictures and Opus voices) | all | `--small` |
-| WebP pictures, WebP quality (empty: near-lossless; 0-100: lossy, 80 is about a quarter of the size) | all | `--webp`, `--webp-quality` |
-| Voices and sound effects (vorbis/opus), their quality | all | `--audio-codec`, `--audio-quality` |
-| Loose files | all | `--loose` |
-| Script only (dry run) | all | `--dry-run` |
-| Start at the script, story files to follow | 村正 | `--file`, `--chain` |
-| Only these scenes | 翼 | `--scenes` |
+Each option is one of the converter's flags, described in
+[`docs/cli.md`](../docs/cli.md) ("Build options"); the GUI adds the game's
+own: `--file` and `--chain` for 村正 (start at the script, story files to
+follow) and `--scenes` for 翼 (only these scenes).
 
 **ffmpeg** is not included (its usual builds are GPL with libx264, and
 large). Install it so `ffmpeg` is on PATH (Windows: for example

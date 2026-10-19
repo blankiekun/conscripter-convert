@@ -387,6 +387,31 @@ mod tests {
     use super::*;
     use std::ffi::OsStr;
 
+    /// docs/cli.md names every subcommand and `--flag` (so it can't drift from clap).
+    #[test]
+    fn cli_doc_lists_everything() {
+        use clap::CommandFactory;
+        fn walk(cmd: &clap::Command, path: &str, doc: &str, missing: &mut Vec<String>) {
+            for a in cmd.get_arguments() {
+                match a.get_long() {
+                    Some(l) if l != "help" && l != "version" && !doc.contains(&format!("--{l}")) => missing.push(format!("{path} --{l}")),
+                    _ => {}
+                }
+            }
+            for sub in cmd.get_subcommands().filter(|c| c.get_name() != "help") {
+                let p = format!("{path} {}", sub.get_name());
+                if !doc.contains(&p) {
+                    missing.push(p.clone());
+                }
+                walk(sub, &p, doc, missing);
+            }
+        }
+        let doc = include_str!("../../../docs/cli.md");
+        let mut missing = Vec::new();
+        walk(&Cli::command(), "conscripter-convert", doc, &mut missing);
+        assert!(missing.is_empty(), "not in docs/cli.md: {missing:?}");
+    }
+
     #[test]
     fn safe_paths() {
         assert_eq!(safe_relative_path("a.png"), Some(PathBuf::from("a.png")));
