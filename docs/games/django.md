@@ -311,6 +311,19 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   `winedbg` and a log of who took the mutex). With the pointer nudged
   as above, 50 pages ran without a click (2026-10-17); should it stop
   for 60 s, the script clicks.
+- **Memory snapshots** (2026-10-18): `ntrace.sh --probe
+  research/nitroplus/sched_probe.nss --dumps
+  research/nitroplus/local/dumps --pages 2 --seconds 240` runs the probe's
+  statements where dja000 unlocks the menu and writes the process's
+  memory at each `Delete("__dump_<label>")` (20 dumps of about 94 MB, the
+  object mutex held and the game clock stopped; the whole run takes
+  40 s at 1x). Run it at 1x: script waits follow the clock, while motions
+  step once per frame. `exe_call.py`'s `load_dump` maps one, so the exe's
+  own functions run against the game's state. The objects are a list from
+  `0x50fb1c` (node +0xc the object, +0x18 the next node), with the name at
+  +0, x/y/z at +0x3ec/+0x3f0/+0x3f4, and the render record at +0x804 (its
+  alpha a byte at +0x14). Per-frame callbacks sit at +0x820..+0x83c, and
+  `0x436040` steps every object once a frame.
 
 What it showed (2026-10-15):
 

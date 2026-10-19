@@ -220,7 +220,59 @@ game set up needs that state written into memory first (fields of an
 object passed as a buffer); a stdcall import's stub leaves its
 arguments on the stack; the Vita's SCE relocations and import stubs
 are not read (the eboot runs at its own addresses, so only an import
-call is wrong: stub it).
+call is wrong: stub it). For state the game sets up, a trace DLL can dump
+the process's memory at chosen statements (Django's `ntrace.sh --dumps`,
+docs/games/django.md "Running the original under wine"). `load_dump`
+then maps a dump, so the exe's own functions run on real objects. Stub
+the clock with a function (`stub_import("WINMM.dll!timeGetTime", …)`)
+to step frames.
+
+### Snapshot oracle
+
+A question about what the original does over time ("does an unwaited
+move go on through a 0 ms fade?") usually needs state the game sets up:
+objects, their queued actions, the frame clock. Rather than film it,
+take that state from one short run and step the exe's own code on it:
+
+1. **A probe scene**: script statements that make the case (create a
+   picture, queue the actions as the game's scripts do), with a marker
+   statement before and after each step. For Django it is
+   `research/nitroplus/sched_probe.nss`; each marker is
+   `Delete("__dump_<label>")`, a name nothing has.
+2. **Dumps**: the trace DLL writes the process's committed memory at
+   each marker (`ntrace.sh --probe <file> --dumps <dir>`; `ntrace.c`,
+   `NTRACE_DUMPS`). It holds the engine's object mutex, suspends the
+   other threads and stops the game clock, so the dump costs the game no
+   time. Run it at 1x: script waits follow the clock, while motions
+   step once per frame. The dumps go under `research/<engine>/local/`.
+   The dumps alone often answer the question: read the object's fields
+   in the dumps before and after the case.
+3. **load_dump**: `exe_call.py`'s `Exe.load_dump(prefix)` maps a dump
+   over the image. It puts the exe's code and import slots back from the
+   file, so imports stay stubs. Win32 stubs pop their stdcall arguments,
+   and FS points at a thread block (MSVC's SEH prologs).
+4. **Step the frame function**: `research/tools/sched_harness.py` stubs
+   the clock to +1/fps per frame, the heap from an arena and the CRT's
+   TLS. An engine adapter queues actions through the exe's own job code and calls its per-frame
+   stepper N times, reading x, y and alpha per frame.
+5. **Into tests**: the numbers become fixtures of the converter's unit
+   tests and `(scheduler)` rows marked seen in the findings table.
+
+Worked example, Django's FadeFade (dja010_01:76-78: an unwaited 16 s
+`Move`, then `Fade(0)` and a 1 s fade in). The probe run took 40 s,
+the prefix's creation included. It wrote 20 dumps of about 94 MB each,
+and `load_dump` maps one in 0.1 s. The dumps show the Move queued with
+960 steps, still at step 0 after `Fade(…, 0, …, true)` (alpha 0: no
+frame passed). After the 1 s fade in it was at step 63 (x -560 → -540),
+and after another second at step 126 (x -519). The pan goes on, which
+#564 fixed in our converter. Stepping `0x436040` from that dump moves
+x one step a frame.
+
+Prior art: AFL-Unicorn's `unicorn_dumper` scripts (dump a debugged
+process, then run a function under Unicorn from that state), and the
+snapshot fuzzers "what the fuzz" and Snapchange (run from a memory
+snapshot under emulation or a hypervisor). Here the snapshot comes from
+a trace DLL inside the game under wine, at a statement the script marks.
 
 ### Marking what a finding rests on
 

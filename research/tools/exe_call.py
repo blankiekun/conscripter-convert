@@ -16,9 +16,14 @@ Arguments: `5`, `0x10` int; `1.5` float; `d:1.5` double; `&1.5`, `&i:5`,
 Float arguments go on the stack (x86), in s/d registers (ARM hard-float,
 AArch64). A call outside the image (an import) returns 0, or the value given
 with --stub ADDR=VALUE, and is reported; so is a hit on an address --stub
-names inside the image (stubbing an inner function).
+names inside the image (stubbing an inner function). A stub's value may be
+a function of (exe, address of its arguments): a clock, an allocator. A
+Win32 import in STDCALL pops its arguments.
 
-As a module: `Exe(path).call(addr, args, cc=..., ret=...)` for many calls.
+As a module: `Exe(path).call(addr, args, cc=..., ret=...)` for many calls;
+`Exe(path).load_dump(prefix)` first maps a process dump (ntrace.c,
+NTRACE_DUMPS) so calls run against the game's real state. --dump-in PREFIX
+does that from the command line.
 """
 import argparse
 import struct
@@ -36,8 +41,17 @@ STUBS = 0xf0000000        # imports point here, unmapped: a fetch is a stub hit
 STACK, STACK_SIZE = 0xe0000000, 0x100000
 HEAP = 0xe8000000         # argument buffers
 RET = 0xef000000          # the return address; the call ends when it is reached
+TIB = 0xef100000          # x86: the thread block FS points at
 NSO_BASE = 0x100000       # where Ghidra puts an ET_DYN image
 PAGE = 0x1000
+# argument counts of the stdcall Win32 imports a stub pops (a stub of one not
+# listed leaves its arguments on the stack: add it here)
+STDCALL = {"timeGetTime": 0, "GetTickCount": 0, "GetProcessHeap": 0, "GetCurrentThreadId": 0, "GetForegroundWindow": 0,
+           "QueryPerformanceCounter": 1, "Sleep": 1, "ReleaseMutex": 1, "SetEvent": 1, "ResetEvent": 1, "CloseHandle": 1,
+           "EnterCriticalSection": 1, "LeaveCriticalSection": 1, "SuspendThread": 1, "ResumeThread": 1,
+           "WaitForSingleObject": 2, "HeapAlloc": 3, "HeapFree": 3, "HeapReAlloc": 4, "PostMessageA": 4,
+           "SendMessageA": 4, "VirtualAlloc": 4, "VirtualFree": 3, "GlobalAlloc": 2, "GlobalFree": 1,
+           "TlsGetValue": 1, "TlsSetValue": 2, "FlsGetValue": 1, "FlsSetValue": 2}
 
 
 def up(n):
@@ -72,6 +86,19 @@ class Exe:
         self.uc.mem_map(RET, PAGE)
         if self.arch == "x86":  # at the return: fstp qword [RET+0x100] (st0 if a float came back)
             self.uc.mem_write(RET, b"\xdd\x1d" + struct.pack("<I", RET + 0x100))
+            # a thread block at FS (MSVC's SEH prologs read fs:[0]): an empty SEH chain, the stack's bounds, itself
+            # (32-bit mode has no FS base register: a GDT entry with the block as its base, at TIB + 0x800)
+            self.uc.mem_map(TIB, PAGE)
+            self.uc.mem_write(TIB, struct.pack("<7I", 0xffffffff, STACK + STACK_SIZE, STACK, 0, 0, 0, TIB))
+            def seg(base, limit, access, flags):  # a GDT descriptor
+                return (limit & 0xffff | (base & 0xffffff) << 16 | access << 40 | (limit >> 16) << 48
+                        | flags << 52 | (base >> 24) << 56)
+            # 1: flat data (DS, ES, SS once a GDT is set), 2: the thread block (FS); ring 0, 32-bit
+            self.uc.mem_write(TIB + 0x800, struct.pack("<3Q", 0, seg(0, 0xfffff, 0x93, 0xc), seg(TIB, 0xfff, 0x93, 0x4)))
+            self.uc.reg_write(X.UC_X86_REG_GDTR, (0, TIB + 0x800, 0x18 - 1, 0))
+            for r in (X.UC_X86_REG_DS, X.UC_X86_REG_ES, X.UC_X86_REG_SS):
+                self.uc.reg_write(r, 0x8)
+            self.uc.reg_write(X.UC_X86_REG_FS, 0x10)
         self.stubs = {}   # address -> value, for --stub
         self.hits = []
 
@@ -95,8 +122,11 @@ class Exe:
         hdr = struct.unpack_from("<I", d, o + 60)[0]
         img = bytearray(up(size_img))
         img[:hdr] = d[:hdr]
+        self.code, self.iat = [], {}  # executable sections (va, size); IAT slot -> stub: load_dump puts them back
         for s in range(nsec):
             vsize, va, rsize, roff = struct.unpack_from("<IIII", d, o + opt + 40 * s + 8)
+            if struct.unpack_from("<I", d, o + opt + 40 * s + 36)[0] & 0x20000000:
+                self.code.append((base + va, min(rsize, vsize or rsize)))
             img[va:va + min(rsize, vsize or rsize)] = d[roff:roff + min(rsize, vsize or rsize)]
         imp = struct.unpack_from("<I", d, o + 104)[0]  # DataDirectory[1]: imports
         n = 0
@@ -113,9 +143,11 @@ class Exe:
                 n += 1
                 self.imports[addr] = f"{dll}!{fn}"
                 struct.pack_into("<I", img, iat + k, addr)
+                self.iat[base + iat + k] = addr
             imp += 20
         self._map(base, img)
         self.range = (base, base + len(img))
+        self.image = (base, bytes(img))
 
     def _elf(self, d):
         phoff, phes, phn = struct.unpack_from("<I", d, 0x1c)[0], *struct.unpack_from("<HH", d, 0x2a)
@@ -163,6 +195,38 @@ class Exe:
                         struct.pack_into("<Q", img, off, addr)
         self._map(NSO_BASE, img)
         self.range = (NSO_BASE, NSO_BASE + len(img))
+
+    def load_dump(self, prefix):
+        """Map a process memory dump over the image: <prefix>.map (a line per
+        region: base size protect type offset, hex; offset `-`: left out) and
+        <prefix>.bin (ntrace.c NTRACE_DUMPS). The exe's code and import slots
+        are put back as the file has them (a trace DLL's patches, the real
+        DLLs' addresses), so imports stay stubs. Returns the regions loaded."""
+        n = 0
+        with open(prefix + ".bin", "rb") as b:
+            for line in open(prefix + ".map"):
+                base, size, _, _, off = line.split()
+                if off == "-":
+                    continue
+                b.seek(int(off, 16))
+                self._map(int(base, 16), b.read(int(size, 16)))
+                n += 1
+        if self.arch == "x86":
+            base, img = self.image
+            for va, size in self.code:
+                self.uc.mem_write(va, img[va - base:va - base + size])
+            for slot, stub in self.iat.items():
+                self.uc.mem_write(slot, struct.pack("<I", stub))
+        return n
+
+    def stub_import(self, name, value):
+        """Stub the import named `dll!fn` (case-insensitive) with value, or a
+        function called at each hit (a clock)."""
+        for a, n in self.imports.items():
+            if n.lower() == name.lower():
+                self.stubs[a] = value
+                return a
+        raise KeyError(name)
 
     def read(self, addr, n):
         return bytes(self.uc.mem_read(addr, n))
@@ -275,9 +339,15 @@ class Exe:
         self.hits.append((pc, self.imports.get(pc, ""), why))
         if self.arch == "x86":
             sp = uc.reg_read(X.UC_X86_REG_ESP)
-            uc.reg_write(X.UC_X86_REG_ESP, sp + 4)  # shortcut: cdecl; a stdcall import's arguments stay
+            if callable(value):
+                value = value(self, sp + 4)
+            # a Win32 import is stdcall: it pops its arguments (STDCALL); others are taken as cdecl
+            pop = 4 * STDCALL.get(self.imports.get(pc, "").split("!")[-1], 0)
+            uc.reg_write(X.UC_X86_REG_ESP, sp + 4 + pop)
             uc.reg_write(X.UC_X86_REG_EAX, value & 0xffffffff)
             return struct.unpack("<I", self.read(sp, 4))[0]
+        if callable(value):
+            value = value(self, None)
         if self.arch == "arm":
             uc.reg_write(A.UC_ARM_REG_R0, value & 0xffffffff)
             return uc.reg_read(A.UC_ARM_REG_LR)
@@ -331,9 +401,12 @@ def main():
     p.add_argument("--ret", default="int", choices=["int", "float", "double"])
     p.add_argument("--stub", action="append", default=[], metavar="ADDR=VALUE")
     p.add_argument("--dump", action="append", default=[], metavar="ADDR:LEN")
+    p.add_argument("--dump-in", metavar="PREFIX", help="map PREFIX.map/.bin, a process dump, first")
     p.add_argument("--arm", action="store_true", help="ARM code in ARM state, not Thumb")
     a = p.parse_args()
     exe = Exe(a.exe, thumb=not a.arm)
+    if a.dump_in:
+        exe.load_dump(a.dump_in)
     for s in a.stub:
         k, v = s.split("=")
         exe.stubs[num(k)] = num(v)

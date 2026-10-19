@@ -24,11 +24,23 @@
 
 static LONGLONG sp_n = 1, sp_q0, sp_freq; /* the factor, real QPC at install, its rate */
 static DWORD sp_ms0;                      /* timeGetTime at install */
+static int sp_force;                      /* set before speed_install: hook the clocks at 1x too (speed_hold) */
+
+static LONGLONG sp_held, sp_hold_at; /* real ticks the clock stood still; when the current hold began (0: none) */
 
 static LONGLONG sp_qpc(void) { /* game time, in QPC ticks since boot */
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
-    return sp_q0 + (t.QuadPart - sp_q0) * sp_n;
+    if (sp_hold_at) t.QuadPart = sp_hold_at;
+    return sp_q0 + (t.QuadPart - sp_q0 - sp_held) * sp_n;
+}
+/* stop the game clock (on) and start it again (off): a trace DLL's own slow
+ * work (ntrace's memory dumps) takes no game time */
+static void speed_hold(int on) {
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    if (on && !sp_hold_at) sp_hold_at = t.QuadPart;
+    else if (!on && sp_hold_at) sp_held += t.QuadPart - sp_hold_at, sp_hold_at = 0;
 }
 /* game ms since install (the trace records' "ms") */
 static long speed_ms(void) { return (long)((sp_qpc() - sp_q0) * 1000 / sp_freq); }
@@ -83,8 +95,8 @@ static long speed_install(void) {
     QueryPerformanceFrequency(&f);
     QueryPerformanceCounter(&t);
     sp_freq = f.QuadPart, sp_q0 = t.QuadPart, sp_ms0 = timeGetTime();
-    if (!p || atol(p) <= 1) return 1;
-    sp_n = atol(p);
+    if ((!p || atol(p) <= 1) && !sp_force) return 1;
+    sp_n = p && atol(p) > 1 ? atol(p) : 1;
     LoadLibraryA("winmm.dll");
     static const struct { const char *dll, *fn; void *to; } h[] = {
         {"winmm.dll", "timeGetTime", (void *)sp_timeGetTime},
