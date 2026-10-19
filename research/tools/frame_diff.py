@@ -13,10 +13,14 @@ them (in order, any distance ahead: a run may start earlier). Between two
 paired pages, each object the original moves (two records differing in x,
 y or alpha) is a motion, matched to our sprite showing the same picture
 (research/tools/scene_check.py's key). Kinds: missing (ours doesn't move
-it), extra (ours moves a picture the original doesn't), end (where it
+it), extra (ours moves a picture the original doesn't), copy (a second
+sprite of a picture both move, as our cross-fades between zooms make;
+not a difference), end (where it
 ends, more than --tol-px off, default 4), duration (more than --tol-ms off,
 default 50), path (the largest gap at the same fraction of the motion,
-over --tol-px; positions as top-left corners, alpha left out of it).
+over --tol-px; positions as top-left corners, alpha left out of it). For
+our pre-zoomed copies (`system/zoom/…`), whose box corner isn't the
+object's position, the motion is compared from where each starts.
 """
 import argparse
 import json
@@ -25,7 +29,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from scene_check import key  # noqa: E402
+from scene_check import key, zoomed  # noqa: E402
 import trace_diff as td  # noqa: E402
 
 WINDOW = 30000  # ms after a page that its motions are looked for in
@@ -112,6 +116,9 @@ def compare(o_pages, o_objs, u_pages, u_samples, tol_px=4, tol_ms=50):
                 continue
             n = min(cand, key=lambda n: abs((left[n][0]["ms"] - ulo) - (seq[0]["ms"] - olo)))
             us = left.pop(n)
+            if zoomed(us[0]["pic"]):  # our pre-zoomed copy: its box's corner isn't the object's; compare how far it moved
+                dx, dy = us[0]["x"] - seq[0]["x"], us[0]["y"] - seq[0]["y"]
+                us = [dict(r, x=r["x"] - dx, y=r["y"] - dy) for r in us]
             if abs(us[-1]["x"] - seq[-1]["x"]) > tol_px or abs(us[-1]["y"] - seq[-1]["y"]) > tol_px:
                 finds.append(("end", page, f"{seq[0]['pic']}: original {seq[-1]['x']},{seq[-1]['y']}, ours {us[-1]['x']},{us[-1]['y']}"))
             do, du = seq[-1]["ms"] - seq[0]["ms"], us[-1]["ms"] - us[0]["ms"]
@@ -120,7 +127,9 @@ def compare(o_pages, o_objs, u_pages, u_samples, tol_px=4, tol_ms=50):
             gap = max(max(abs(a - b) for a, b in zip(at_fraction(seq, f / 10), at_fraction(us, f / 10))) for f in range(11))
             if gap > tol_px:
                 finds.append(("path", page, f"{seq[0]['pic']}: {gap} px apart at the same fraction"))
-        finds += [("extra", page, f"{s[0]['pic']} {s[0]['x']},{s[0]['y']} -> {s[-1]['x']},{s[-1]['y']}") for s in left.values()]
+        shown = {key(q[0]["pic"]) for q in om.values()}  # a second sprite of a picture the original moves: our cross-fade copy
+        finds += [("copy" if key(s[0]["pic"]) in shown else "extra", page, f"{s[0]['pic']} {s[0]['x']},{s[0]['y']} -> {s[-1]['x']},{s[-1]['y']}")
+                  for s in left.values()]
     return pairs, finds
 
 

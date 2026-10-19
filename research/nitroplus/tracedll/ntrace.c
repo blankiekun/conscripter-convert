@@ -57,10 +57,11 @@
  *                 4 KB pages whose hash differs from the base's ("P" lines
  *                 of its .map; "base s0000" first). load_dump rebuilds it.
  *   NTRACE_FRAMES  1: Django writes a "obj" record per frame for each shown
- *                 object whose state changed: name, x, y, alpha (0-255) as
- *                 drawn that frame; zoom zx/zy and rotation rx/ry/rz as the last
- *                 Zoom/Rotate asked (their targets, +0x484 and +0x4c8: not the
- *                 value mid-motion); "call", the call that made it, on its
+ *                 object whose state changed: name, x, y, alpha (0-255), zoom
+ *                 zx/zy (per mille) and rotation rx/ry/rz (degrees) as drawn that
+ *                 frame (the texture record at render +0x20: +0xb4/+0xb8,
+ *                 +0xa8..+0xb0, as the Zoom and Rotate frame callbacks 0x43eec0,
+ *                 0x43f190 write them); "call", the call that made it, on its
  *                 first record; "gone" when it goes.
  *                 "f" counts the frames.
  *   NTRACE_SCENE_AT  "page": the scene dumps are taken instead as a file's
@@ -476,8 +477,9 @@ void __cdecl nt_frame(void) {
         struct ost *s = ost_of(o), n = {o};
         if (!s) break;
         n.x = *(int *)(o + 0x3ec), n.y = *(int *)(o + 0x3f0), n.a = r[0x14];
-        (void)v;  /* the zoom and rotation the last Zoom/Rotate asked for (their callbacks' targets): not mid-motion */
-        n.zx = *(int *)(o + 0x484), n.zy = *(int *)(o + 0x488), n.rx = *(int *)(o + 0x4c8), n.ry = *(int *)(o + 0x4cc), n.rz = *(int *)(o + 0x4d0);
+        (void)v;
+        unsigned char *tx = *(unsigned char **)(r + 0x20);  /* the texture record the frame callbacks draw from */
+        if (tx) n.zx = *(int *)(tx + 0xb4), n.zy = *(int *)(tx + 0xb8), n.rx = *(int *)(tx + 0xa8), n.ry = *(int *)(tx + 0xac), n.rz = *(int *)(tx + 0xb0);
         lstrcpynA(n.name, (const char *)o, sizeof n.name);
         n.seen = frame_n;
         if (s->o != o || memcmp(&s->x, &n.x, 8 * sizeof(int)) || strcmp(s->name, n.name)) {
