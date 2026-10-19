@@ -314,8 +314,9 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
 - **Per-frame state trace** (2026-10-19): `ntrace.sh --frames` writes an
   `obj` record each frame for every shown object whose state changed:
   x, y and alpha as drawn that frame (+0x3ec/+0x3f0, render +0x14); zoom
-  and rotation as the last Zoom/Rotate asked (+0x484, +0x4c8: their
-  targets, not mid-motion values); the creating call (+0x180) on its
+  and rotation as drawn too (the texture record at render +0x20: zoom
+  +0xb4/+0xb8 per mille, rotation +0xa8..+0xb0, as the Zoom and Rotate
+  frame callbacks 0x43eec0 and 0x43f190 write them); the creating call (+0x180) on its
   first record; `gone`. It hooks the frame thread's call of step_objects
   (`0x435d4b`). A probe checked it: Move 500 ms in 30 frames, then the
   Fade frame by frame, Zoom 1500/2500 and Rotate 33 as asked. Played
@@ -324,11 +325,13 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   (dja001_02-04, 268 pages with `--clicks 700`, 400 s at 1x) gave 36,449
   `obj` records (4.6 MB). `research/tools/frame_diff.py` compares them with
   our `--real-time` trace's `sample` records. Pages pair by the
-  instruction that shows them (99 of 268 paired); motions match by
-  picture. First run: missing 46, extra 171, end 12, duration 13, path
-  16. Much of `extra` and `path` is our pre-zoomed copies, whose
-  `sample` gives the centre of the scaled box: a known limit of the
-  pairing, to refine before the counts mean much.
+  instruction that shows them; motions match by picture (NFKC: the
+  archive's `bu宇宙紳士ｃ` is the script's `bu宇宙紳士C`) in the same
+  page window or the next or previous one. Our pre-zoomed copies compare
+  by how far they move. With the drawn zoom (a 130-page run): all 130
+  pages pair; missing 48, extra 213 (168 of them pre-zoomed copies still
+  unmatched), end 29, path 33, duration 24, zoom 4, copy 13. The whole
+  route runs overnight (2026-10-19, `scene_chain.py --quiet 120`).
 - **Memory snapshots** (2026-10-18): `ntrace.sh --probe
   research/nitroplus/sched_probe.nss --dumps
   research/nitroplus/local/dumps --pages 2 --seconds 240` runs the probe's
