@@ -243,6 +243,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     if let Some(a) = en_assets.as_mut().filter(|_| !opts.dry_run) {
         let n = a.uncensored(&assets, &opts.output.join(UNCENSORED_LAYER));
         println!("{UNCENSORED_LAYER}: {n} of the English release's CGs that differ from the Japanese");
+        // the English text's font: CONscripter draws with it while the language is English
+        if let Some(f) = &a.font_en {
+            std::fs::write(opts.output.join("default.en.ttf"), f)?;
+        }
     }
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
     let mut metrics = base.metrics;

@@ -503,10 +503,12 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
         writeln!(out, "mov {TITLE_SHOWN},0").unwrap();
     }
     if !script.language.is_empty() {
-        writeln!(out, "language \"{}\"", script.language).unwrap();
-    }
-    if script.picture_settings.as_ref().is_some_and(picture_settings::has_language) {
-        picture_settings::define_language(&mut out, LOAD_CLEAR);
+        let first = format!("language \"{}\"", script.language);
+        if script.picture_settings.as_ref().is_some_and(picture_settings::has_language) {
+            picture_settings::define_language(&mut out, LOAD_CLEAR, &first);
+        } else {
+            writeln!(out, "{first}").unwrap();
+        }
     }
     if script.click_skips_effects {
         writeln!(out, "clickskip").unwrap();
