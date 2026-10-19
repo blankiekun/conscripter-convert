@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Motions of the original, frame by frame, against our engine's.
 
-    python3 -I research/tools/frame_diff.py ORIG.jsonl OURS.jsonl --map MAP [--tol-px N] [--tol-ms N] [--out F]
+    python3 -I research/tools/frame_diff.py ORIG.jsonl[,MORE.jsonl...] OURS.jsonl --map MAP [--tol-px N] [--tol-ms N]
+        [--groups N] [--out F]
     python3 -I research/tools/frame_diff.py --self-test
 
 ORIG: ntrace.sh --frames' trace ("obj" records: an object's x, y, alpha
@@ -184,14 +185,28 @@ def main():
     p.add_argument("--tol-px", type=int, default=4)
     p.add_argument("--tol-ms", type=int, default=50)
     p.add_argument("--out")
+    p.add_argument("--groups", type=int, default=0, help="the N largest groups of findings by kind and picture")
     a = p.parse_args()
-    op, oo = orig_side(a.orig)
     up, us = ours_side(a.ours, td.read_map(a.map))
-    pairs, finds = compare(op, oo, up, us, a.tol_px, a.tol_ms)
+    op, pairs, finds = [], [], []
+    for f in a.orig.split(","):  # several traces (scene_chain.py's segments): each paired with ours on its own
+        o_pages, oo = orig_side(f)
+        pp, ff = compare(o_pages, oo, up, us, a.tol_px, a.tol_ms)
+        op += o_pages
+        pairs += pp
+        finds += ff
     counts = {}
     for k, _, _ in finds:
         counts[k] = counts.get(k, 0) + 1
     print(f"{len(op)} original pages, {len(up)} ours, {len(pairs)} paired; " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
+    if a.groups:  # (kind, picture with its digits as N): what repeats
+        grp = {}
+        for k, pg, d in finds:
+            m = re.search(r"(cg[\\/][^ :,]+|color:[0-9a-f]+:\d+x\d+|system[\\/][^ :,]+|slot:\d+)", d)
+            fam = re.sub(r"\d+", "N", m.group(1).replace("\\", "/").lower()) if m else d.split(" ")[0]
+            grp.setdefault((k, fam), []).append(pg)
+        for (k, fam), pgs in sorted(grp.items(), key=lambda x: -len(x[1]))[:a.groups]:
+            print(f"  {len(pgs):5} {k:9} {fam}  e.g. {pgs[0]}")
     byp = {}
     for k, pg, d in finds:
         byp.setdefault(pg, []).append(f"{k} {d}")
