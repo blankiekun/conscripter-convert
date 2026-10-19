@@ -559,8 +559,8 @@ pub fn ending_ops(english: bool) -> Vec<Op> {
         if english {
             let en = format!("{l}_en");
             ops.push(Op::If { var: super::language::PREF, cmp: Compare::Eq, value: Operand::Const(1), label: en.clone() });
-            ops.extend([Op::Gosub(super::language::entry(false)), Op::Jump(script.clone()), Op::Label(en), Op::Gosub(super::language::entry(true))]);
-            ops.push(Op::Jump(script.replacen("tm_", "tm_en_", 1)));
+            // the plain label: the engine takes it to the English copy's (`tm_QA_nn@en`) once the language is English
+            ops.extend([Op::Gosub(super::language::entry(false)), Op::Jump(script.clone()), Op::Label(en), Op::Gosub(super::language::entry(true)), Op::Jump(script)]);
         } else {
             ops.push(Op::Jump(script));
         }
@@ -621,7 +621,7 @@ mod tests {
         let at = ja.iter().position(|o| *o == Op::Label("tm_replay_QA_25".into())).unwrap();
         assert_eq!(ja[at + 1], Op::Jump("tm_QA_25".into()));
         let en = ending_ops(true);
-        assert!(en.contains(&Op::Jump("tm_en_QA_12".into())) && en.contains(&Op::Gosub("tm_en_lang".into())));
+        assert!(en.iter().filter(|o| **o == Op::Jump("tm_QA_12".into())).count() == 2 && en.contains(&Op::Gosub("tm_en_lang".into())));
         // the check: 24 flags, then set and back
         assert_eq!(ja.iter().filter(|o| matches!(o, Op::If { .. })).count(), 24);
         assert_eq!(ja.last(), Some(&Op::Return));
