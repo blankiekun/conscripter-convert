@@ -232,3 +232,21 @@ fn motion_ms(cd: &CdScript, ins: &super::cd::Instr) -> u64 {
         _ => 0,
     }
 }
+
+/// An opcode's channel in `metrics.json`'s score (`opcode 0x40`: the
+/// opcodes' names in `convert.rs`).
+pub fn channel(kind: &str) -> crate::metrics::Channel {
+    use crate::metrics::Channel::*;
+    let Some(op) = kind.strip_prefix("opcode 0x").and_then(|h| u16::from_str_radix(h, 16).ok()) else { return Unclassed };
+    match op {
+        // flow, variables, chapters, the debug menu (0x30)
+        0x00..=0x3b | 0x62 | 0x67 | 0x93 | 0x94 | 0x96 | 0x99 | 0x9d => None,
+        0x40..=0x53 => Text,
+        0x54..=0x56 | 0x7a..=0x7d | 0x7f..=0x84 | 0x8b | 0x8e | 0x8f | 0x90 | 0x91 => Picture,
+        0x57..=0x5b => Sound,
+        0x66 | 0x68 | 0x69 | 0x71 | 0x87 | 0x8a | 0x8d => Timing,
+        0x6d..=0x70 | 0x72 | 0x74 | 0x76 | 0x77 | 0x86 | 0x88 | 0x8c => Motion,
+        0x97 => Movie,
+        _ => Unclassed,
+    }
+}

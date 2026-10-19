@@ -1983,6 +1983,13 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
     l.out
 }
 
+/// Keys whose effect the user chose to drop (findings rows), noted as such:
+/// done in the score "as decided", lost "as original".
+const USER_DROPPED: &[&str] = &[
+    // The dialog fades on the click instead of over `:Fade` (row SceneJumpDialogEnd).
+    "SceneJumpDialogEnd :Fade",
+];
+
 /// Arguments known not to matter: the start of their note, with
 /// " = <values>" when only that value is what we do, and why.
 const NOT_NEEDED: &[(&str, &str)] = &[
@@ -2047,6 +2054,22 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("CharacterDelete :fFade", "a typo"),
 ];
 
+/// A task type's channel in `metrics.json`'s score.
+pub fn channel(kind: &str) -> crate::metrics::Channel {
+    use crate::metrics::Channel::*;
+    match kind {
+        "Message" | "BacklogMessage" | "Window" | "SetSceneName" | "SceneJumpDialog" | "SceneJumpDialogEnd" => Text,
+        "BgmPlay" | "BgmStop" | "SePlay" | "SeStop" => Sound,
+        "CharacterOpen" | "CharacterOpenBS" | "CharacterDelete" | "CharacterPriority" | "Sprite" | "SpriteBG" | "SpriteBS" | "SpriteDelete" | "SpriteDeleteBG" | "SpritePriority" | "EyeCatch" | "EyeCatchEnd" => Picture,
+        "CharacterAction" | "CharacterActionEnd" | "CharacterMove" | "CharacterStop" | "EffectStart" | "EffectEnd" | "EffectQuake" | "EffectQuakeEnd" | "FadeIn" | "FadeOut" | "Flash" | "InOut" | "InOut_Act"
+        | "SpriteMove" | "SpriteMoveEnd" | "SpriteQuake" => Motion,
+        "TimeWait" | "CharacterWait" => Timing,
+        "MoviePlay" | "MovieStop" => Movie,
+        "Achievement" | "End" | "FlagOperation" | "FlagSwitch_Tag" | "GlobalFlagOperation" | "GlobalFlagSwitch_Tag" | "Jump_Tag" | "MessageSwitch_Tag" | "NextScene" | "Tag" => None,
+        _ => Unclassed,
+    }
+}
+
 /// Notes each argument of `b` (and its sub-blocks) the converter never
 /// read: "<Task> :<Key> ignored", or "… argument <i> ignored" for one
 /// value of several.
@@ -2062,6 +2085,7 @@ fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>)
             None => what.starts_with(&format!("{row} ")),
         };
         if !NOT_NEEDED.iter().any(|(row, _)| covered(row)) {
+            let what = if USER_DROPPED.iter().any(|row| covered(row)) { format!("{}{what}", crate::metrics::DROPPED) } else { what };
             *notes.entry(what).or_default() += 1;
         }
     }
@@ -2171,6 +2195,12 @@ mod tests {
             ignored(ty, "", &blocks[0], &mut notes);
             assert!(notes.is_empty(), "{notes:?}");
         }
+        // A key the user chose to drop is noted as such.
+        let blocks = parse("[Task3]\n{\n:Tasktype \"SceneJumpDialogEnd\"\n:Fade 18\n}\n").unwrap();
+        blocks[0].task_type();
+        let mut notes = BTreeMap::new();
+        ignored("SceneJumpDialogEnd", "", &blocks[0], &mut notes);
+        assert_eq!(notes.keys().collect::<Vec<_>>(), ["user dropped: SceneJumpDialogEnd :Fade ignored"]);
     }
 
     #[test]

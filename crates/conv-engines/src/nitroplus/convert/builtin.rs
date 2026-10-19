@@ -1,6 +1,7 @@
 //! NSS's built-in functions, as the compiler runs them ([`Compiler::builtin`]).
 
 use std::cell::Cell;
+use crate::metrics::Channel;
 
 use super::*;
 
@@ -1152,6 +1153,22 @@ impl Compiler<'_, '_> {
 /// folder in this build, such as the snapshot's dry run) unmeasured.
 fn missing_movie(call: &str, have_movies: bool) -> String {
     if have_movies { format!("{call} of a missing movie") } else { format!("{call}: no movies in this build") }
+}
+
+/// A built-in's channel in `metrics.json`'s score (Muramasa's and
+/// Django's kinds; a port's `port X` as X).
+pub fn channel(kind: &str) -> Channel {
+    match kind.strip_prefix("port ").unwrap_or(kind) {
+        "LoadText" | "CreateText" | "CreateChoice" | "SetChoice" | "SetBacklog" | "CreateName" | "SetFont" | "LoadFont" | "ShowVOICESEText" | "Print" | "SetNextFocus" => Channel::Text,
+        "CreateSound" | "SetVolume" | "SetFrequency" | "SetLoop" | "SetLoopPoint" | "SetPan" => Channel::Sound,
+        "CreateTexture" | "CreateTextureadd" | "CreateTextureEX" | "CreateTextureSP" | "CreateColor" | "CreateColorSaddP" | "LoadColor" | "Delete" | "DeleteFw" | "CreateWindow" | "LoadImage" | "CreateMask" | "CreateStencil"
+        | "CreateSurface" | "SetSurface" | "SetTone" | "SetShade" | "SetVertex" | "SetBlur" | "Position" | "ImageHorizon" | "ImageVertical" | "CreateCamera" | "Draw" | "Boxframe" | "Request" | "LockVideo" => Channel::Picture,
+        "Fade" | "Move" | "BezierMove" | "Zoom" | "Rotate" | "Shake" | "ShakeOne" | "DrawTransition" | "DrawEffect" | "CreateEffect" | "CreateProcess" | "MoveCamera" => Channel::Motion,
+        "Wait" | "WaitAction" | "WaitFade" | "WaitKey" | "Waitkey" | "WaitPlay" | "WaitZoom" | "WaitMove" | "WaitText" => Channel::Timing,
+        "CreateMovie" | "MoviePlay" => Channel::Movie,
+        "SetAlias" | "Strstr" | "Random" | "RandomMeimetsu" | "ModuleFileName" | "Save" | "ClearBacklog" | "ClearScore" | "Time" | "Conquest" | "ReConquest" | "PassageTime" | "RemainTime" | "CursorPosition" | "MoveCursor" => Channel::None,
+        _ => Channel::Unclassed,
+    }
 }
 
 fn tone(name: &str) -> Option<Vec<SpriteFilter>> {
