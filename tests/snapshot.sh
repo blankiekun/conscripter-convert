@@ -29,7 +29,8 @@
 # Exit status 1 when a snapshot differs, a command is unknown, or a lint
 # count rose; 2 when a game's gaps or left_out total rose against its
 # metrics snapshot, or a channel of its `score` (or the total) fell by
-# more than 0.01 (each printed per game), unless --accept-gaps.
+# more than 0.01 (each printed per game), unless --accept-gaps; 3 when
+# its timing count rose (below).
 #
 # How often each command is used (cmdcheck.py --counts) is kept as
 # <game>.cmds.json: a command whose count moved over 5 %, appeared or went
@@ -47,7 +48,9 @@
 # are gone once it is squash-merged). Its "parity" line (timing parity:
 # per scene, the motion time the source asks for against the time 0.txt
 # animates there; the dry run's --parity-report lists every scene) is
-# ratcheted like the gaps: a rise of short_ms exits 2.
+# ratcheted like the gaps: a rise of short_ms exits 2. Its "timing" line
+# (calls noted with a reason that loses time, metrics.rs TIMING) exits 3
+# when it rises, which --accept-gaps doesn't pass: --update writes it.
 #
 # --diff REF also builds REF (a commit, branch or tag; origin/main for a
 # fresh base) in its own worktree out/snapshot-ref with its own target
@@ -62,7 +65,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
 bin=target/release/conscripter-convert
-update=0 accept=0 rose=0 ref= map=() cache=1
+update=0 accept=0 rose=0 timing=0 ref= map=() cache=1
 while [ $# -gt 0 ]; do
     case $1 in
         --update) update=1 ;;
@@ -261,6 +264,10 @@ $others"
         done
         # each score channel and the total: a fall over 0.01 counts as a rise in gaps
         python3 -I research/tools/score_fell.py "$msnap" "$out/metrics.json" "$id" || [ $accept = 1 ] || rose=1
+        tm() { sed -n 's/^"timing": {"calls": \([0-9]*\)}.*/\1/p' "$1"; }
+        o=$(tm "$msnap"); n=$(tm "$out/metrics.json")
+        [ "${o:-0}" = "${n:-0}" ] || echo "$id: timing ${o:-0} -> ${n:-0}"
+        [ "${n:-0}" -le "${o:-0}" ] || timing=1
     fi
 done
 # edition pairs: the English row reads its Japanese twin's install (f[1])
@@ -271,5 +278,6 @@ for id in "${ids[@]}"; do
         echo "${f[1]} : $id command counts off the pair's ratio (informative):"; echo "$off" | sed 's/^/    /'
     fi
 done
+[ $timing = 0 ] || { echo "timing rose (a timed action dropped, or one holding the script): fix it, or --update and say why in the PR (--accept-gaps doesn't pass it)"; exit 3; }
 [ $rose = 0 ] || { echo "gaps/left_out/short_ms rose, a score fell or command counts moved: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
 exit $changed

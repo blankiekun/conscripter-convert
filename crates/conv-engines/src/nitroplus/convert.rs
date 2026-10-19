@@ -92,6 +92,7 @@ const RUN_END: &str = "conv_run_end";
 const GAME_NAME_SET: &str = "$GameName (set)";
 mod builtin;
 pub use builtin::channel;
+pub mod probe;
 mod sync;
 mod muramasa;
 pub use muramasa::{MURAMASA, MURAMASA_EN};

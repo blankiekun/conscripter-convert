@@ -1,82 +1,10 @@
 use super::*;
+use super::probe::Placeholder;
 use crate::nitroplus::nss;
 
-#[derive(Default)]
-struct Fake;
-
-impl Assets for Fake {
-    fn image(&mut self, path: &str) -> Option<(String, u32, u32)> {
-        Some((path.to_lowercase(), 1024, 576))
-    }
-    fn sound(&mut self, path: &str) -> Option<String> {
-        Some(format!("{path}.ogg"))
-    }
-    fn color(&mut self, rgb: u32, w: u32, h: u32) -> String {
-        format!("color/{rgb:06x}_{w}x{h}.png")
-    }
-    fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)> {
-        let (_, x, y, _) = parts.first()?;
-        let names: Vec<String> = parts.iter().map(|(i, _, _, o)| format!("{i}@{o}")).collect();
-        Some((names.join("+"), *x, *y))
-    }
-    fn transparent(&mut self) -> String {
-        "none.png".into()
-    }
-    fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)> {
-        let (w, h) = (1024 * zx / 1000, 576 * zy / 1000);
-        let (x, y) = (at.0 + (at.2 - w) / 2, at.1 + (at.3 - h) / 2);
-        // Cut to the screen past 4096 px, as Assets::scaled.
-        if w.max(h) > 4096 {
-            return Some((format!("{image}@{zx}x{zy}_screen"), x.max(0), y.max(0), (x + w).min(1024).saturating_sub(x.max(0)) as u32, (y + h).min(576).saturating_sub(y.max(0)) as u32));
-        }
-        Some((format!("{image}@{zx}x{zy}"), x, y, w as u32, h as u32))
-    }
-    fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String> {
-        Some(format!("{image}~{}{}", if x { "x" } else { "" }, if y { "y" } else { "" }))
-    }
-    fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)> {
-        Some((parts.join("|"), 100 * parts.len() as u32, 100))
-    }
-    fn movie_info(&mut self, path: &str) -> Option<MovieInfo> {
-        let small = path.contains("k100");
-        Some(MovieInfo { w: if small { 400 } else { 1024 }, h: if small { 432 } else { 576 }, ms: 2000, sound: path.contains("OP") })
-    }
-    fn movie_file(&mut self, path: &str, sound: bool) -> Option<String> {
-        Some(format!("movie/{path}{}", if sound { "" } else { "-mute" }))
-    }
-    fn rgba(&mut self, _path: &str) -> Option<image::RgbaImage> {
-        None
-    }
-    fn frames_movie(&mut self, name: &str, _fps: u32, _frames: u32, _draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String> {
-        Some(format!("movie/{name}.mp4"))
-    }
-    fn frames_strip(&mut self, name: &str, _w: u32, _h: u32, _frames: u32, _draw: &mut dyn FnMut(u32, &mut image::RgbaImage)) -> Option<String> {
-        Some(format!("system/strip/{name}.png"))
-    }
-    fn font(&self) -> &[u8] {
-        include_bytes!("../../../../../conv-cli/fonts/ipag.ttf")
-    }
-    fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String> {
-        Some(format!("{path}+{delay_ms}.ogg"))
-    }
-    fn sound_ms(&mut self, _path: &str) -> Option<u32> {
-        Some(4000)
-    }
-    fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
-        Some(format!("{base}+{top}@{zoom}x{opacity}"))
-    }
-    fn stenciled(&mut self, image: &str, mask: &str, colour: bool, (dx, dy): (i64, i64), zoom: (i64, i64)) -> Option<String> {
-        Some(format!("{image}%{mask}{}@{dx},{dy}x{}", if colour { "*" } else { "" }, zoom.0))
-    }
-    fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
-        let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
-        let cells = if at.is_some() { 1 } else { 30 };
-        Some((format!("{path}@{at:?}{}", if dark { "d" } else { "" }), cells, w, h))
-    }
-    fn movie_sprite(&mut self, path: &str, alpha: bool, dark: bool) -> Option<(String, u32, u32)> {
-        let (w, h) = if alpha { (400, 216) } else { (1024, 576) };
-        Some((format!("{path}{}{}.mp4", if dark { "_dark" } else { "" }, if alpha { "_alpha" } else { "" }), w, h))
-    }
+/// The placeholder assets, with the font that draws `CreateText`.
+fn fake() -> Placeholder {
+    Placeholder { font: include_bytes!("../../../../../conv-cli/fonts/ipag.ttf") }
 }
 
 /// The boot script, a `function.nss` holding `library` and the `(name, source)` scripts.
@@ -91,7 +19,7 @@ fn nss_files(library: &str, scripts: &[(&str, &str)]) -> BTreeMap<String, NssFil
 }
 
 fn compile(story: &str, library: &str) -> Compiled {
-    compile_scene(&nss_files(library, &[("a.nss", story)]), "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap()
+    compile_scene(&nss_files(library, &[("a.nss", story)]), "a.nss", "a.nss", &Game::PLAIN, &mut fake()).unwrap()
 }
 
 const LIBRARY: &str = r#"

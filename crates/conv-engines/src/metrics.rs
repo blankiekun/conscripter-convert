@@ -109,6 +109,15 @@ pub struct Score {
     pub unmeasured: Vec<Channel>,
 }
 
+/// The reasons that lose time (NSS: the time ledger's and the cross-fade
+/// note, nitroplus/convert/sync.rs): counted again as `timing`, which
+/// tests/snapshot.sh ratchets apart from the gaps.
+pub const TIMING: &[&str] = &[
+    "timed action dropped by a sync",
+    "unwaited action held the script",
+    "move or zoom over time with a fade or a new picture drawn as a cross-fade",
+];
+
 #[derive(Debug, Default, Clone)]
 pub struct Metrics {
     pub kinds: BTreeMap<String, Kind>,
@@ -352,6 +361,11 @@ impl Metrics {
             );
         }
         s += &format!("\n}},\n\"outside_calls\": {}", top(&self.outside));
+        // (Calls noted with one, and notes outside calls; only when some, so other games' files stay as they were.)
+        let timing: usize = self.kinds.values().flat_map(|k| &k.reasons).chain(&self.outside).filter(|(r, _)| TIMING.contains(&r.as_str())).map(|(_, n)| n).sum();
+        if timing > 0 {
+            s += &format!(",\n\"timing\": {{\"calls\": {timing}}}");
+        }
         // Timing parity (tests/snapshot.sh ratchets short_ms), when the engine reports it.
         if !self.source_ms.is_empty() {
             let p = self.parity();
@@ -490,7 +504,19 @@ mod tests {
         let json = m.json("g", "e", "doc", "abc", "2026-10-16");
         assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8, \"credit\": 2.8, \"score\": "), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
-        assert!(!json.contains("parity"), "{json}");
+        assert!(!json.contains("parity") && !json.contains("\n\"timing\""), "{json}");
+    }
+
+    #[test]
+    fn timing_counts_the_reasons_that_lose_time() {
+        let mut m = Metrics::default();
+        m.begin("Wait");
+        m.note(super::TIMING[1]);
+        m.note(super::TIMING[1]);
+        m.end(1);
+        m.note(super::TIMING[0]);
+        let json = m.json("g", "e", "d", "c", "d");
+        assert!(json.contains("\n\"timing\": {\"calls\": 2}"), "{json}");
     }
 
     #[test]

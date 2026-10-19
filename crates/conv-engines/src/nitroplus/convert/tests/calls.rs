@@ -40,7 +40,7 @@ scene a.nss
 }
 "#;
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
+    let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut fake()).unwrap().window.unwrap();
     assert!(!w.vertical);
     assert_eq!(w.image, "cg/sys/adv/en/textwindow.png@1000");
     assert_eq!((w.x, w.y, w.text_x, w.text_y, w.columns, w.rows), (360, 51, 375, 192, 14, 12));
@@ -72,7 +72,7 @@ scene ma01_009.nss
 }
 "#;
     let files = nss_files(LIBRARY, &[("ma01_009.nss", story)]);
-    let c = compile_scene(&files, "ma01_009.nss", "ma01_009.nss", &MURAMASA_EN, &mut Fake).unwrap();
+    let c = compile_scene(&files, "ma01_009.nss", "ma01_009.nss", &MURAMASA_EN, &mut fake()).unwrap();
     let mut xs = vec![c.window.unwrap().x];
     xs.extend(c.ops.iter().filter_map(|op| if let Op::SetWindow(w) = op { Some(w.x) } else { None }));
     assert_eq!(xs, [690, 616]);
@@ -99,7 +99,7 @@ scene a.nss
 }
 "#;
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
+    let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut fake()).unwrap().window.unwrap();
     assert_eq!(w.text_x, 118);
 }
 
@@ -121,7 +121,7 @@ scene a.nss
 }
 "#;
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
+    let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut fake()).unwrap().window.unwrap();
     assert!(!w.vertical);
     assert_eq!(w.image, "cg/sys/adv/en/thtextwindow_fw.png@1000");
     assert_eq!((w.text_x, w.text_y), (238, 428));
@@ -157,7 +157,7 @@ scene a.nss
 }
 "#;
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut fake()).unwrap();
     let face = c.window.unwrap().image;
     assert_ne!(face, "cg/sys/adv/en/textwindow.png@1000");
     let windows: Vec<_> = c.ops.iter().filter_map(|op| if let Op::SetWindow(w) = op { Some(w.image.as_str()) } else { None }).collect();
@@ -239,7 +239,7 @@ fn the_choice_screen_s_own_calls_are_left_out() {
     let select = "function SetChoiceBase()\n{\n\tCreateChoice(\"c\");\n\tSetNextFocus(\"a\", \"b\", DOWN);\n\tCreateText(\"c/txt\", 1, 0, 0, auto, auto, \"x\");\n\tSave(9999);\n}\n";
     files.insert("function_select.nss".to_string(), nss::parse(select).unwrap());
     files.insert("a.nss".to_string(), nss::parse("scene a.nss\n{\n\tSetChoiceBase();\n\tSetNextFocus(\"a\", \"b\", UP);\n}\n").unwrap());
-    let c = compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut fake()).unwrap();
     let k = |name: &str| c.metrics.kinds[name].clone();
     assert_eq!([k("CreateChoice").left_out, k("CreateText").left_out, k("Save").left_out], [1, 1, 1]);
     // Outside function_select.nss it stays a gap.
@@ -308,7 +308,7 @@ scene a.nss
 fn boot_logos_end_label_is_not_conv_cons_boot_guard() {
     static GAME: Game = Game { boot_logos: ("a.nss", "function BootLogos() { Wait(10); }"), ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", "scene a.nss\n{\n\tWait(100);\n}")]);
-    let c = compile_story(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_story(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     let labels: Vec<_> = c.ops.iter().filter_map(|o| if let Op::Label(l) = o { Some(l.as_str()) } else { None }).collect();
     assert!(labels.contains(&BOOT_LABEL), "{labels:?}");
     // conv-cons defines `*conv_boot_end` after the boot guard.

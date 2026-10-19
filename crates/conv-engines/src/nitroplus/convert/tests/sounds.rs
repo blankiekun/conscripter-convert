@@ -22,7 +22,7 @@ fn delete_all_in_a_chapter_keeps_what_was_made_before_it() {
 }"#;
     files.insert("a.nss".into(), nss::parse(a).unwrap());
     files.insert("b.nss".into(), nss::parse(b).unwrap());
-    let c = compile_story(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_story(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     assert!(c.ops.iter().any(|op| matches!(op, Op::BgmPlay { file, .. } if file == "sound/bgm/one.ogg")), "{:?}", c.ops);
     let removed = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_none())));
     assert!(removed, "{:?}", c.ops);

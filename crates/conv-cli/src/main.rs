@@ -274,6 +274,7 @@ fn run(command: Command) -> Result<()> {
             NssCommand::Refs { dir } => nss_refs(&dir),
             NssCommand::Route { dir } => nss_route(&dir),
             NssCommand::Builtins { dir, names, top } => nss_builtins(&dir, &names, top),
+            NssCommand::Helpers { dir, probe } => nss_helpers(&dir, probe.as_deref()),
         },
         Command::Mages { command } => mages::run(command),
         Command::Typemoon { command } => tools::typemoon::run(command),

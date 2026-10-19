@@ -142,7 +142,7 @@ scene a.nss
 "#;
     static GAME: Game = Game { call: DJANGO.call, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     let at = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 3, frame_ms: 125, looped: false, .. }));
     assert!(at.is_some_and(|i| c.ops[i + 1..].iter().any(|op| matches!(op, Op::Wait { ms: 250 }))), "{:?}", c.ops);
 }
@@ -230,7 +230,7 @@ scene a.nss
 "#;
     static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
-    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
     let clips: Vec<_> = c.ops.iter().filter_map(|op| match op {
         Op::SpriteClip { rect, .. } => Some(*rect),
         _ => None,

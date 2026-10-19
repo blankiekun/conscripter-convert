@@ -232,7 +232,10 @@ through a file with `sed`.
   motions the source runs from the exe's tables, a `print` over many
   pictures) hides a loss, so it bites most in NSS (each picture's fade
   counted per picture) and least in TYPE-MOON (`_STMA` motions not
-  counted on the source side). CI also runs `dropped_lint.py` and `findings_lint.py`, each
+  counted on the source side). `metrics.json`'s `timing` (calls noted
+  with a reason that loses time: NSS's time ledger and cross-fade notes,
+  `metrics.rs` `TIMING`) exits 3 when it rises, and `--accept-gaps`
+  doesn't pass it: fix it, or `--update` and say why. CI also runs `dropped_lint.py` and `findings_lint.py`, each
   with a per-game ceiling that only goes down.
   The snapshot holds a sha256 per other file the dry run writes
   (`screens/*.lua`, `ons_args`), so it names the screen a shared change

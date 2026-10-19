@@ -2,8 +2,9 @@
 //! content without an error message: jumps to labels that don't exist,
 //! effect numbers past 255, half-width characters in vertical text (the
 //! engine exits), files the script names that aren't there, labels
-//! defined twice (the engine keeps the first) and strings left open at
-//! the end of a line (the next lines show as text).
+//! defined twice (the engine keeps the first), strings left open at
+//! the end of a line (the next lines show as text) and sprites changed
+//! while their `spmotion` still runs ([`Motions`]).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -61,10 +62,17 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
         }
     }
     let labels: HashSet<String> = defined.into_keys().collect();
+    let mut motions = Motions::default();
     let mut vertical = false;
     let mut checked_files = HashSet::new();
     for (i, line) in lines.iter().enumerate() {
-        if line.starts_with('*') || line.starts_with(';') || line.trim().is_empty() {
+        if line.starts_with(';') || line.trim().is_empty() {
+            continue;
+        }
+        if line.starts_with('*') || is_text(line) {
+            motions.reset();
+        }
+        if line.starts_with('*') {
             continue;
         }
         if is_text(line) {
@@ -80,8 +88,14 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
         if open {
             report.add("string runs past the end of its line (the engine ends it there; the next lines show as text)", i, short(line));
         }
+        if !label_refs(&code).is_empty() {
+            motions.reset();
+        }
         for cmd in code.split(':') {
             let cmd = cmd.trim();
+            if let Some((slot, left)) = motions.step(cmd) {
+                report.add("sprite changed while its spmotion runs (no wait for it between)", i, format!("sprite {slot}, {left} ms left: {}", short(cmd)));
+            }
             if cmd.starts_with("tateyoko") {
                 vertical = cmd.trim_start_matches("tateyoko").trim() == "1";
             }
@@ -107,6 +121,76 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
         }
     }
     report
+}
+
+/// Each sprite's `spmotion` end on a clock that only timed commands move
+/// (`wait`, `delay`, a `print` with a timed effect, `spmotionwait`); a
+/// click wait, a label or a jump makes it unknown, and nothing is judged
+/// across it. `lsp`, `csp`, `msp`, `amsp` or another `spmotion` on a sprite
+/// before its end cuts the motion short (COMMANDS.md: they finish it at its
+/// last key), unless it loops; `spmotion n[,2]` stops it on purpose.
+#[derive(Default)]
+struct Motions {
+    clock: u64,
+    ends: HashMap<u32, u64>,
+    effects: HashMap<u32, u64>,
+}
+
+impl Motions {
+    fn reset(&mut self) {
+        self.ends.clear();
+    }
+
+    /// One command: the sprite cut short and the ms its motion had left.
+    fn step(&mut self, cmd: &str) -> Option<(u32, u64)> {
+        let (name, rest) = cmd.split_once(' ').unwrap_or((cmd, ""));
+        let args: Vec<&str> = rest.split(',').map(str::trim).collect();
+        let num = |i: usize| args.get(i).and_then(|a| a.parse::<u64>().ok());
+        let slot = num(0).map(|n| n as u32);
+        match name {
+            "effect" => {
+                if let (Some(n), Some(ms)) = (slot, num(2)) {
+                    self.effects.insert(n, ms);
+                }
+                None
+            }
+            "wait" | "delay" => {
+                self.clock += num(0).unwrap_or(0);
+                None
+            }
+            "print" => {
+                self.clock += num(1).or_else(|| slot.and_then(|n| self.effects.get(&n).copied())).unwrap_or(0);
+                None
+            }
+            "click" | "lrclick" | "btnwait" | "btnwait2" | "textbtnwait" | "select" | "csel" | "mpegplay" => {
+                self.reset();
+                None
+            }
+            "spmotionwait" => {
+                if let Some(end) = slot.and_then(|n| self.ends.remove(&n)) {
+                    self.clock = self.clock.max(end);
+                }
+                None
+            }
+            "spmotion" if args.len() <= 2 => {
+                slot.map(|n| self.ends.remove(&n));
+                None
+            }
+            "lsp" | "lsp2" | "csp" | "msp" | "amsp" | "spmotion" => {
+                let n = slot?;
+                let cut = self.ends.remove(&n).filter(|&e| e > self.clock).map(|e| (n, e - self.clock));
+                // (Once, kept or removed at its end: loop 0, 2, 3 or -n; 1 and 4 loop.)
+                if name == "spmotion" && !matches!(args.get(1), Some(&"1" | &"4")) {
+                    // Keys of 8 after the slot and loop: time, x, y, zoom x, y, angle, alpha, curve.
+                    if let Some(t) = args.len().checked_sub(8).and_then(|i| args.get(i)).and_then(|a| a.parse::<u64>().ok()) {
+                        self.ends.insert(n, self.clock + t);
+                    }
+                }
+                cut
+            }
+            _ => None,
+        }
+    }
 }
 
 /// A text line: NScripter reads a line that starts with a non-ASCII
@@ -204,6 +288,11 @@ select \"a\",*start,\"b\",*gone
 mov %1,%2*%3
 mov %1,(%1+1)%3:goto *start
 lsp 1,\":a;cg\\a.png\",0,0
+spmotion 1,2,0,0,0,100,100,0,256,0,500,10,0,100,100,0,256,0
+wait 200
+csp 1
+spmotion 1,2,0,0,0,100,100,0,256,0,500,10,0,100,100,0,256,0:spmotionwait 1
+csp 1
 lsp 2,\":c;cg\\b.jpg\",0,0
 add $1,\".bmp\"
 *start
@@ -229,6 +318,7 @@ tateyoko 0:setwindow 1,1,1,1,1,1,1,0,1,0,1,#000000
                 ("half-width character in vertical text (the engine exits)", 1),
                 ("jump to a label that doesn't exist", 2),
                 ("label defined twice (the engine keeps the first)", 1),
+                ("sprite changed while its spmotion runs (no wait for it between)", 1),
                 ("string runs past the end of its line (the engine ends it there; the next lines show as text)", 1),
             ],
             "{r}"

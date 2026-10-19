@@ -56,6 +56,19 @@ pub enum NssCommand {
         #[arg(long, default_value_t = 8)]
         top: usize,
     },
+    /// List the game's functions that chain two or more timed built-ins
+    /// (a helper census), most called first; with --probe, compile each
+    /// one that takes an object after the scheduler's fixed contexts with
+    /// the game's own library, and show the time ledger's notes and whether
+    /// the context's 16 s move is still drawn. Holds the game's own names:
+    /// keep the output local (`out/`)
+    Helpers {
+        /// Directory with all the game's *.nss files (as extracted from nss.npa)
+        dir: PathBuf,
+        /// Probe with this game's compiler rules (Muramasa.exe, Django.exe)
+        #[arg(long)]
+        probe: Option<String>,
+    },
     /// Print the route map: each story file's next files and the
     /// conditions or choices that lead there
     Route {
@@ -262,6 +275,33 @@ pub(crate) fn nss_builtins(dir: &Path, names: &[String], top: usize) -> Result<(
         }
         if b.args.len() > MAX_POSITIONS {
             println!("  … {} more positions", b.args.len() - MAX_POSITIONS);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn nss_helpers(dir: &Path, probe: Option<&str>) -> Result<()> {
+    use conv_engines::nitroplus::{build::GAMES, convert::probe};
+    let mut files = nss_corpus(dir)?;
+    let game = match probe {
+        Some(exe) => Some(GAMES.iter().find(|(e, _)| e.eq_ignore_ascii_case(exe)).map(|(_, g)| *g).with_context(|| format!("no NSS game {exe}"))?),
+        None => None,
+    };
+    let helpers = probe::census(&files);
+    for h in helpers {
+        println!("{:6}  {} ({}): {}", h.calls, h.name, h.file, h.timed.join(", "));
+        let Some(game) = game.filter(|_| h.takes_name && h.calls > 0) else { continue };
+        // shortcut: every argument after the object is 1000 (a time, a value or a wait in ms); helpers whose other parameters are names or flags probe wrong
+        let args: Vec<String> = std::iter::once("\"p\"".to_string()).chain((1..h.params).map(|_| "1000".to_string())).collect();
+        let call = format!("{}({});", h.name, args.join(", "));
+        for (what, context) in probe::CONTEXTS {
+            match probe::probe(&mut files, game, context, &call) {
+                Ok((notes, kept)) => {
+                    let notes: Vec<String> = notes.iter().map(|(n, c)| format!("{n} ×{c}")).collect();
+                    println!("          {what}: move {}{}", if kept { "kept" } else { "LOST" }, if notes.is_empty() { String::new() } else { format!("; {}", notes.join("; ")) });
+                }
+                Err(e) => println!("          {what}: {e}"),
+            }
         }
     }
     Ok(())
