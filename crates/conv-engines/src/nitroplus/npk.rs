@@ -99,14 +99,16 @@ impl Npk {
         }
         let r = Reader(&head);
         let count = r.u32(24)? as usize;
-        let mut index = vec![0; r.u32(28)? as usize & !15];
+        let index_len = r.u32(28)? as usize & !15;
+        crate::read::in_file(&file, 32, index_len)?;
+        let mut index = vec![0; index_len];
         file.read_exact(&mut index)?;
         let iv: [u8; 16] = head[8..24].try_into().unwrap();
         let cipher = Aes256::new(&KEY.into());
         decrypt(&cipher, &iv, &mut index);
 
         let r = Reader(&index);
-        let (mut pos, mut entries) = (0, Vec::with_capacity(count));
+        let (mut pos, mut entries) = (0, Vec::new());
         for _ in 0..count {
             let len = r.u16(pos + 1)? as usize;
             let name = String::from_utf8_lossy(r.slice(pos + 3, len)?).into_owned();
@@ -114,7 +116,7 @@ impl Npk {
             let size = r.u32(pos)? as usize;
             let nseg = r.u32(pos + 36)? as usize;
             pos += 40;
-            let mut segments = Vec::with_capacity(nseg);
+            let mut segments = Vec::new();
             for _ in 0..nseg {
                 let offset = u64::from(r.u32(pos)?) | u64::from(r.u32(pos + 4)?) << 32;
                 let stored = r.u32(pos + 8)? as usize;
@@ -134,11 +136,14 @@ impl Npk {
     }
 
     pub fn data(&self, entry: &Entry) -> Result<Vec<u8>, NpkError> {
-        let mut out = Vec::with_capacity(entry.size);
+        // the counts and sizes are the index's: nothing is sized from them unchecked
+        let mut out = Vec::new();
         for s in &entry.segments {
-            let mut buf = vec![0; s.stored];
+            let mut buf;
             {
                 let mut f = self.file.lock().unwrap();
+                crate::read::in_file(&f, s.offset, s.stored)?;
+                buf = vec![0; s.stored];
                 f.seek(SeekFrom::Start(s.offset))?;
                 f.read_exact(&mut buf)?;
             }
@@ -156,5 +161,22 @@ impl Npk {
             return Err(NpkError::Size { name: entry.name.clone(), got: out.len(), want: entry.size });
         }
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_index_past_the_end_is_refused_unread() {
+        let path = std::env::temp_dir().join(format!("conv-npk-test-{}", std::process::id()));
+        let mut head = [0; 32];
+        head[..4].copy_from_slice(b"NPK3");
+        head[28..].copy_from_slice(&0xFFFF_FFF0u32.to_le_bytes());
+        std::fs::write(&path, head).unwrap();
+        let r = Npk::open(File::open(&path).unwrap());
+        std::fs::remove_file(&path).unwrap();
+        assert!(matches!(r, Err(NpkError::Io(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof));
     }
 }

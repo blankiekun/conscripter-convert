@@ -10,6 +10,16 @@ pub struct Truncated {
     pub len: usize,
 }
 
+/// `Err` unless `len` bytes at `offset` lie inside `file`: a size read
+/// from a header, checked before a buffer is made of it.
+pub(crate) fn in_file(file: &std::fs::File, offset: u64, len: usize) -> std::io::Result<()> {
+    let file_len = file.metadata()?.len();
+    if offset.checked_add(len as u64).is_some_and(|end| end <= file_len) {
+        return Ok(());
+    }
+    Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, format!("{len} bytes at {offset} are past the file's end ({file_len})")))
+}
+
 pub(crate) struct Reader<'a>(pub &'a [u8]);
 
 impl<'a> Reader<'a> {

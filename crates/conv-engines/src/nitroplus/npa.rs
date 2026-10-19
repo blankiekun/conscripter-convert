@@ -175,6 +175,7 @@ impl<'a> Npa<'a> {
         let mut index = vec![0; HEADER_LEN];
         file.read_exact(&mut index)?;
         let index_len = Reader(&index).u32(37)? as usize;
+        crate::read::in_file(&file, HEADER_LEN as u64, index_len)?;
         index.resize(HEADER_LEN + index_len, 0);
         file.read_exact(&mut index[HEADER_LEN..])?;
         Npa::parse_index(&index, key, Source::File(Mutex::new(file)))
@@ -226,7 +227,9 @@ impl<'a> Npa<'a> {
             Source::Bytes(bytes) => Reader(bytes).slice(self.data_start + e.offset, e.stored)?.to_vec(),
             Source::File(file) => {
                 let mut file = file.lock().unwrap_or_else(|e| e.into_inner());
-                file.seek(SeekFrom::Start((self.data_start + e.offset) as u64))?;
+                let at = (self.data_start + e.offset) as u64;
+                crate::read::in_file(&file, at, e.stored)?;
+                file.seek(SeekFrom::Start(at))?;
                 let mut b = vec![0; e.stored];
                 file.read_exact(&mut b)?;
                 b
@@ -244,7 +247,8 @@ impl<'a> Npa<'a> {
             }
         }
         if self.compressed {
-            let mut out = Vec::with_capacity(e.size);
+            // not sized from the index: checked after
+            let mut out = Vec::new();
             flate2::read::ZlibDecoder::new(&b[..])
                 .read_to_end(&mut out)
                 .map_err(|source| NpaError::Inflate { name: e.name.clone(), source })?;
@@ -264,5 +268,17 @@ mod tests {
     #[test]
     fn django_table_is_a_permutation() {
         assert!(Key::for_exe("Django.exe", &[]).is_ok());
+    }
+
+    #[test]
+    fn an_index_past_the_end_is_refused_unread() {
+        let path = std::env::temp_dir().join(format!("conv-npa-test-{}", std::process::id()));
+        let mut head = vec![0; HEADER_LEN];
+        head[..3].copy_from_slice(b"NPA");
+        head[37..41].copy_from_slice(&0xFFFF_FFF0u32.to_le_bytes());
+        std::fs::write(&path, &head).unwrap();
+        let r = Npa::open(File::open(&path).unwrap(), Key::for_exe("Django.exe", &[]).unwrap());
+        std::fs::remove_file(&path).unwrap();
+        assert!(matches!(r, Err(NpaError::Io(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof));
     }
 }
