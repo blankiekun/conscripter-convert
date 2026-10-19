@@ -960,9 +960,9 @@ impl Lowering<'_> {
                         (chara_key(c, c.int("Number").unwrap_or(-1)), own)
                     })
                     .collect();
-                // Without a list (`:SpriteMax 0`, 962 of 1414 uses) every
-                // character leaves.
-                if listed.is_empty() {
+                // Without a list (`:SpriteMax 0`, 962 of 1414 uses), or a
+                // `:SpriteMax` out of 1-10, every character leaves (case 0x1c).
+                if !(1..=10).contains(&t.int("SpriteMax").unwrap_or(0)) || listed.is_empty() {
                     let mut all: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c')).cloned().collect();
                     all.sort();
                     self.hide_all(&all, fade);
@@ -1987,6 +1987,8 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
 /// " = <values>" when only that value is what we do, and why.
 const NOT_NEEDED: &[(&str, &str)] = &[
     ("FadeIn :Color", "always the colour of the FadeOut before it (579 of 579)"),
+    ("CharacterMove :SpriteMax", "scene_load case 0x1e moves every Chara0-9 with a :Number whatever it says (findings row CharacterMove)"),
+    ("CharacterAction :SpriteMax", "case 0x20 the same (findings row CharacterAction)"),
     ("CharacterDelete :FadeOut", "with a :Fade always 1 (fade), which :Fade times"),
     ("CharacterActionEnd :Character argument", "scene_load (0x8102840a) case 0x21 reads only its first value"),
     ("EffectQuakeEnd :EndWait = 0", "stop at once, as ours does"),
@@ -2161,6 +2163,14 @@ mod tests {
         let mut notes = BTreeMap::new();
         ignored("MoviePlay", "", &blocks[0], &mut notes);
         assert!(notes.is_empty());
+        // The exe ignores `:SpriteMax` on a move or an action too.
+        for ty in ["CharacterMove", "CharacterAction"] {
+            let blocks = parse(&format!("[Task3]\n{{\n:Tasktype \"{ty}\"\n:SpriteMax 2\n}}\n")).unwrap();
+            blocks[0].task_type();
+            let mut notes = BTreeMap::new();
+            ignored(ty, "", &blocks[0], &mut notes);
+            assert!(notes.is_empty(), "{notes:?}");
+        }
     }
 
     #[test]

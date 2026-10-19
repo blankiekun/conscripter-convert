@@ -96,7 +96,7 @@ spzoom	whole percents: under 10 % coarse, under 1 % placed at 1 %	933	-	#344	see
 _ATSV	copies the save record (0x3aa8 bytes) into the auto-save buffer; nothing during a load's replay; argument bit 3 read	398	script_command case A "TSV", autosave_copy	nothing	inferred	open: an auto-save; the user decides (a CONscripter slot or left out)
 _WTSV	after _SELA/_ATSV: waits for the auto-save (inferred); W's second letter goes through a jump table (0x450c0a), not found by its constant	28	script_command case W	nothing	unknown	open: find the "TSV" entry of the W table
 _FADE	type 0-41 (ms*60/1000): flashes and colour fades (FUN_0012e260), 40 sets screen filter mode 4 (0x898) with level 127+arg 1 and arg 2, 41 clears it; types 40, 41 used	61	cmd_FADE	nothing	seen	open: what filter mode 4 draws (readers of 0x898)
-_FANX	no case in script_command (F: ADE ADS CCL CLN CSP LNT LOP LSP)	2741	script_command	nothing	seen	left_out (add to LEFT_OUT)
+_FANX	no case in script_command (F: ADE ADS CCL CLN CSP LNT LOP LSP)	2741	script_command	nothing	seen	left_out
 _FCLN	argument 5 starts full-screen effect n (state 0x19a9); arguments 0-4 never read	26	cmd_FCLN, screen_effect_set	nothing	seen	open: what effects 4-33 draw (table 0x45261c)
 _FCSP	ends the full-screen effect over ms*60/1000 frames (none: at once)	31	cmd_FCSP, screen_effect_set	nothing	seen	open: with _FCLN
 _IFNX	no case in the Switch exe: never jumps	234	script_command	nothing (falls through)	seen	done
@@ -140,13 +140,13 @@ _STCG	sets the picture's CG flag (bitset 07a8, < 0xc80) for the gallery	39	scrip
 _STCL	(?, layer, x0, y0, x1, y1, ms, ease): stops the motion and moves the layer (x*640/1280, y*480/720)	9	cmd_STCL	nothing	seen	open
 _STNS	(layer, n 0-12): +0x1b0 = n, +0x1b1 = 1 if n > 2 else 3	196	cmd_STNS	nothing	unknown	open: what +0x1b0 draws
 _STPV	(layer, x, y): x*1.875/0.46875/3 (by FUN_0012dfd0 for a layer with a picture), y*362/1080 to live +0x64/+0x68 (the motion's 0x0E/0x10)	734	cmd_STPV	nothing	seen	open: what +0x64 does in the draw (FUN_001884f0), a centre inferred
-_STQK	no case in script_command	3	script_command	nothing	seen	left_out (add to LEFT_OUT)
+_STQK	no case in script_command	3	script_command	nothing	seen	left_out
 _STRA	(layer, < 0 all; v; ms): +0x238 to v over ms*60/1000 frames	569	cmd_STRA	nothing	unknown	open: what +0x238 draws
 _STRR	(layer, angle 1/100 deg, -99999 off) to 0xbe4 (the _STCH argument 19 field)	448	cmd_STRR	nothing	seen	open: what 0xbe4 draws (frame_update)
 _STTR	(layer, n, x): the layer's rule 0x8ec = n-1 with x << 12 (n < 1: none), set_rule_mask n-1	110	script_command, set_rule_mask	nothing	inferred	open: the layer's fades through rule n
 _TOMP	(n): overlay_open slot 0 kind 0, movie table 0x50B890 entry n (4 prologue, 5-6 openings, 8-0x22 day cards, 0x23-0x25 endings, 0x27-0x2D credits); stops skip and auto (n 7 aside: kept while skipping, no script uses it); a press skips 4-6 and 0x23-0x25 only once their seen bit (FUN_001923c0 at the end) is set	48	FUN_0016ef30, FUN_001402a0, FUN_00140480	skipoff:autooff, mpegplay (click by the seen global %1904+bit)	seen	done; left out: fade in/out and the hold to the end frame (day cards 420, credits 618)
 _TOMW	waits while state +0x48 is set	48	script_command	nothing (our _TOMP blocks)	seen	done
-_TRPY	no case in script_command (trophies)	2	script_command	nothing	seen	left_out (add to LEFT_OUT)
+_TRPY	no case in script_command (trophies)	2	script_command	nothing	seen	left_out
 _VCWT	with a voice playing, wait flag 4: the frame loop holds the script until the voice ends	75	script_command, voice_state, frame_update	nothing	seen	open: wait for the voice
 _VPL2	as _VPLY, then plays the voice at once (FUN_001aa970) when not skipping and the character's voice is on	16	script_command case V "PL2"	nothing	seen	open: play the voice now
 _WKOR	(var, v): var = var OR v (F, G and _ variables)	21	script_command case W "KOR"	nothing	seen	open: OR on a variable
