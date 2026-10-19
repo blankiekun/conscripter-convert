@@ -252,6 +252,9 @@ take that state from one short run and step the exe's own code on it:
    `research/tools/dumppack.py`. Faster than playing the route: a save
    at each scene start, all loaded one after another in one run
    (docs/games/muramasa.md, "Per-scene snapshots": 881 scenes in 41 min).
+   `research/tools/scene_check.py` then compares each scene's objects
+   at its first page with our engine's sprites there, through a
+   per-game adapter (Muramasa's: `research/nitroplus/scene_objects.py`).
 3. **load_dump**: `exe_call.py`'s `Exe.load_dump(prefix)` maps a dump
    over the image. It puts the exe's code and import slots back from the
    file, so imports stay stubs. Win32 stubs pop their stdcall arguments,

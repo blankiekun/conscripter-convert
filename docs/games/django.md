@@ -442,10 +442,28 @@ file slots (u32 1 before a text), blocks 0x400 apart.
 
 `research/tools/nitroplus_save.py` dumps and round-trips these files
 and writes variables and texts (checked on the original's `9999` and
-`common`); its `scene` option is Muramasa's only. For Django it would
-cut the scene file after the current page, the chapter file after the
-scene file's `call_chapter`, and `main_root` after the chapter's
-`call_chapter`, going on from the target's line (Status).
+`common`). Its `scene` option sends a save to any scene file (2026-10-18).
+The template stands on the **last page** of its scene. In the chapter file
+that called the scene (or, if no call follows there, `main_root` in
+dja000), the calls after the scene's become one `call_chapter` of the
+target, blanked with spaces to the same length in bytes. After the load,
+the scene ends and the target starts. Cutting the scene after an earlier
+page, as Muramasa's writer does, hangs the load: the scene file's
+compiled records reach past the resume point.
+
+A script `Save(n)` under wine writes empty files for every slot but
+`9999`. `save_slot` (`00452410`) opens the files and then makes the
+thumbnail (`FUN_0044a8f0`, a capture of the screen), which fails under
+wine, and it gives up there. Slot `9999` (the choice save) skips the
+thumbnail, so `Save(9999);` after a scene's last `</PRE>` makes a
+template (here `dja001_フランコ馬車を襲う_01_革命とは`, `@text021`).
+
+Per-scene snapshots as for 装甲悪鬼村正 (docs/games/muramasa.md,
+"Per-scene snapshots"): `scene_saves.py` with this exe and that template,
+then `scene_chain.py` (`--stall 60`). The run gets past the wine hang on
+timed actions by starting again from the next scene. 2026-10-18: all 159
+story scene files (`dja\d{3}_…_\d\d…`) in 15 min and 5 segments, 145 MB
+packed.
 
 ## Milestones
 
@@ -484,11 +502,9 @@ Open:
 
 - `--original-archives` (`docs/original-archives.md`) plays the whole
   story; the web player's side (picking the files) is phase 2.
-- Save tool: `nitroplus_save.py write` can't yet send a save to another
-  scene ("Save format" has the plan). Untried because the original
-  hangs under wine when a script `Save` runs from a process (the files
-  stay empty) and on timed actions; a template saved on a page from the
-  menu is needed first.
+- Per-scene snapshots: all 159 scenes dumped from saves ("Save format").
+  Next: the scene-start check against ours (as Muramasa's), then the
+  interpreter under Unicorn from those dumps.
 - `spgrab` (engine #32, merged) could draw a move that changes picture
   as a copy fading out over the moved picture: not used yet.
 - `RemainTime` on a sound returns its whole length, not the rest

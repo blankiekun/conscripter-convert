@@ -37,7 +37,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 TOL_XY, TOL_A = 2, 8
-NOT_ERRORS = ("inherited", "effect", "occluded")  # counted, but not a difference
+NOT_ERRORS = ("inherited", "effect", "occluded", "no-dump")  # counted, but not a difference
 
 
 def key(pic):
@@ -118,7 +118,10 @@ def ours_page(scratch, label):
 def one(job):
     adapter, exe, page_dump, start_dump, label, scratch, scene = job
     a = importlib.import_module(adapter)
-    orig = a.objects(exe, page_dump)
+    try:
+        orig = a.objects(exe, page_dump)
+    except (OSError, ValueError) as e:  # a dump that isn't there (a segment cut short)
+        return scene, [("no-dump", f"{page_dump}: {e}")]
     inh = {key(o["pic"]) for o in a.objects(exe, start_dump) if o["alpha"] > 0} if start_dump else set()
     ours, bg = ours_page(scratch, label) if label else (None, None)
     if ours is None:
