@@ -686,6 +686,16 @@ flags (the template's are kept; `write` can set `vars`). So the oracle's
 cases start at scene starts; a case that needs state in flight starts
 from a played dump (`ntrace.sh --dumps` and a probe).
 
+### Per-frame state trace
+
+`ntrace.sh --frames` works here as for 続・殺戮のジャンゴ (docs/games/django.md,
+"Per-frame state trace"; 2026-10-19). It hooks the frame thread's call of
+the object stepper (`0x44b465` → `0x44b850`, which calls each object's
+slots +0x123c..+0x1258) and reads the render record (+0x1200: x/y +0xc/+0x10,
+alpha +0x18, texture +0x24 with zoom +0xcc and rotation +0xc0). The probe
+shows CreateTexture at 123,45, the Fade to 178, Zoom 1500/2500, Rotate 33
+and the Move to 133,65 frame by frame.
+
 ### Scene-start check
 
 The original's objects at each scene's first text block against our

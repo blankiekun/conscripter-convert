@@ -56,12 +56,14 @@
  *                 s0000 is whole, the base; each later one holds only the
  *                 4 KB pages whose hash differs from the base's ("P" lines
  *                 of its .map; "base s0000" first). load_dump rebuilds it.
- *   NTRACE_FRAMES  1: Django writes a "obj" record per frame for each shown
+ *   NTRACE_FRAMES  1: a "obj" record per frame (Django, 装甲悪鬼村正) for each shown
  *                 object whose state changed: name, x, y, alpha (0-255), zoom
  *                 zx/zy (per mille) and rotation rx/ry/rz (degrees) as drawn that
- *                 frame (the texture record at render +0x20: +0xb4/+0xb8,
- *                 +0xa8..+0xb0, as the Zoom and Rotate frame callbacks 0x43eec0,
- *                 0x43f190 write them); "call", the call that made it, on its
+ *                 frame (the render record's x/y; Django: alpha render +0x14,
+ *                 texture record render +0x20, zoom +0xb4, rotation +0xa8, as
+ *                 its Zoom/Rotate frame callbacks 0x43eec0, 0x43f190 write them;
+ *                 Muramasa: render +0x1200, alpha +0x18, texture +0x24, zoom
+ *                 +0xcc, rotation +0xc0); "call", the call that made it, on its
  *                 first record; "gone" when it goes.
  *                 "f" counts the frames.
  *   NTRACE_SCENE_AT  "page": the scene dumps are taken instead as a file's
@@ -87,6 +89,8 @@
 #define D_ENTER 0x43e080
 #define D_CALL_STEP 0x435d4b /* the frame thread (0x435cb0) calls step_objects 0x436040 once a frame */
 #define D_STEP 0x436040
+#define CALL_STEP 0x44b465 /* Muramasa: the frame thread calls its object stepper 0x44b850 */
+#define STEP 0x44b850
 /* the file records: context + base + index * size; the index at process + idx */
 static int file_base = 0x1130, file_size = 0x158, file_idx = 0x20, file_text = 0x11c;
 #define FILE_REC(ctx, th) ((unsigned char *)(ctx) + file_base + *(int *)((th) + file_idx) * file_size)
@@ -466,20 +470,25 @@ static struct ost *ost_of(void *o) {
     return NULL;
 }
 
+/* where each exe keeps an object's drawn state: the object list and its
+ * selector, the render record (x, y at +0xc/+0x10 both), its alpha byte, the
+ * texture record (zoom x/y per mille, rotation x/y/z degrees) */
+static struct { unsigned list, sel, render, alpha, tex, zoom, rot; } fr = {0x50fb1c, 0x529370, 0x804, 0x14, 0x20, 0xb4, 0xa8};
+
 void __cdecl nt_frame(void) {
     EnterCriticalSection(&lock);
     frame_n++;
-    unsigned char *node = *(unsigned char **)(0x50fb1c + 4 * 7 * (*(int *)0x529370 == 400));
+    unsigned char *node = *(unsigned char **)(fr.list + 4 * 7 * (*(int *)fr.sel == 400));
     long t = ms();
     for (int k = 0; node && *(unsigned char **)(node + 0xc) && k < 4000; k++, node = *(unsigned char **)(node + 0x18)) {
-        unsigned char *o = *(unsigned char **)(node + 0xc), *r = *(unsigned char **)(o + 0x804), *v = *(unsigned char **)(o + 0x7f8);
+        unsigned char *o = *(unsigned char **)(node + 0xc), *r = *(unsigned char **)(o + fr.render);
         if (!r) continue;
         struct ost *s = ost_of(o), n = {o};
         if (!s) break;
-        n.x = *(int *)(o + 0x3ec), n.y = *(int *)(o + 0x3f0), n.a = r[0x14];
-        (void)v;
-        unsigned char *tx = *(unsigned char **)(r + 0x20);  /* the texture record the frame callbacks draw from */
-        if (tx) n.zx = *(int *)(tx + 0xb4), n.zy = *(int *)(tx + 0xb8), n.rx = *(int *)(tx + 0xa8), n.ry = *(int *)(tx + 0xac), n.rz = *(int *)(tx + 0xb0);
+        n.x = *(int *)(r + 0xc), n.y = *(int *)(r + 0x10), n.a = r[fr.alpha];
+        unsigned char *tx = *(unsigned char **)(r + fr.tex);  /* the texture record the frame callbacks draw from */
+        if (tx) n.zx = *(int *)(tx + fr.zoom), n.zy = *(int *)(tx + fr.zoom + 4), n.rx = *(int *)(tx + fr.rot),
+                n.ry = *(int *)(tx + fr.rot + 4), n.rz = *(int *)(tx + fr.rot + 8);
         lstrcpynA(n.name, (const char *)o, sizeof n.name);
         n.seen = frame_n;
         if (s->o != o || memcmp(&s->x, &n.x, 8 * sizeof(int)) || strcmp(s->name, n.name)) {
@@ -691,6 +700,11 @@ static void install(void) {
         return;
     }
     redirect_call(CALL_DISPATCH, (void *)nt_dispatch_stub);
+    if ((p = getenv("NTRACE_FRAMES")) && atoi(p) && *(unsigned char *)CALL_STEP == 0xe8) {
+        fr.list = 0x55e74c, fr.sel = 0x5d4040, fr.render = 0x1200, fr.alpha = 0x18, fr.tex = 0x24, fr.zoom = 0xcc, fr.rot = 0xc0;
+        nt_step = (void *)STEP;
+        redirect_call(CALL_STEP, (void *)nt_step_stub);
+    }
     redirect_call(CALL_BLOCK, (void *)nt_block_stub);
     speed_install();
     fflush(out);
