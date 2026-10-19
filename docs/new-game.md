@@ -237,8 +237,8 @@ to step frames.
 | Windows x86-32 (Xuse, Nitroplus NSS) | PE | yes (cdecl, stdcall, thiscall, fastcall; FS block, CRT TLS) | trace DLL under wine: `ntrace.sh --dumps`/`--scene-dumps` (NSS) | `ntrace.sh --frames` (Django, Muramasa), `xtrace.sh --frames` (Saihate) |
 | Windows x86-64 | PE32+ | no (not read yet) | not yet | not yet |
 | Linux x86-64 | ELF | yes (System V; RELA relocations) | not yet (no game yet) | not yet |
-| PS Vita (ARM) | decrypted eboot ELF | yes (AAPCS; SCE relocations not read) | not yet: Vita3K's GDB stub | not yet |
-| Switch (AArch64) | NSO | yes (relocations applied) | not yet: Ryujinx's GDB stub | not yet |
+| PS Vita (ARM) | decrypted eboot ELF | yes (AAPCS; SCE relocations not read) | Vita3K's GDB stub: `gdbdump.py --scan` (docs/games/oretsuba.md) | not yet |
+| Switch (AArch64) | NSO | yes (relocations applied) | Ryubing's GDB stub, modules only: `gdbdump.py --get-info`; its heap hangs the stub (docs/games/tsukihime.md) | not yet |
 
 ### Snapshot oracle
 
