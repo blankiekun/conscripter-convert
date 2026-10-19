@@ -766,10 +766,11 @@ write-ups, the route-run table and the old queue are in "History"
 (`metrics.json`, unread arguments by role): 99.90; picture 99.67, movie unmeasured (no
 movie folder in a dry run).
 
-Japanese and English in one build (in progress, `docs/string-tables.md`):
-the `--english` build is the Japanese game plus the English code and
-text per language, English pictures in `layer\en\`. Next:
-`layer\uncensored\`, language and pictures rows, EN font.
+Japanese and English in one build (`docs/string-tables.md`): English
+code and text per language, pictures in `layer\en\`, differing event
+CGs in `layer\uncensored\` (unchecked on a censored CG), Language and
+Pictures rows; a language change restarts. Next: EN font; later, a live
+switch ("islands", `docs/string-tables.md`).
 
 Testing notes: other agents stop engines with `pkill -x conscripter`; run
 ours through a symlink with another name (`--engine out/conscripter-mura`).

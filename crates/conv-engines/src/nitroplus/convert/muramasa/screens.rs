@@ -125,7 +125,9 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         // the free band under the columns, left of the middle (user 2026-10-18); colours: the text's, 002-入's, 003-入's
         let look = RowLook { size: 16.0, ink: [30, 25, 20], hover: [156, 101, 0], chosen: [108, 36, 36], label_x: 290, on_x: 340, off_x: 420 };
         for (y, label, option, on, off) in [(494, "言語", PairOption::English, "English", "日本語"), (516, "画像", PairOption::Uncensored, "無修正", "修正あり")] {
-            let (l, pair, picked) = text_row(a, &look, label, option, (on, off), y)?;
+            let (l, mut pair, picked) = text_row(a, &look, label, option, (on, off), y)?;
+            // the Language default is the edition's own language
+            pair.default_on = option != PairOption::English;
             fixed.push(l);
             pairs.push(pair);
             chosen.push(picked);

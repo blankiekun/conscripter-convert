@@ -95,9 +95,20 @@ same for every variant.
 Two rows beside each other (the settings screens are the engine's
 `screen`s, `crates/conv-cons/src/switches.rs`):
 
-- **Language: 日本語 / English** — sets a global variable and runs
-  `language "ja"`/`language "en"`; at startup the script runs the saved
-  choice. Saves and read marks stay valid across a switch.
+- **Language: 日本語 / English** — sets a global variable; the define
+  section runs `language` from it (`picture_settings::define_language`).
+  With two editions' code in one script (Muramasa) picking another
+  language restarts the game (`definereset`): only a line both editions
+  share may switch. A save remembers its language (`%conv_save_lang`)
+  and a load goes on in it.
+  Later, a live mid-game switch through per-language labels (`X@en`,
+  the engine resolving a plain name at call time) needs "islands": in 3
+  scenes 1,696 differing blocks (6,808 lines) sit inside story code,
+  holding labels and gotos, so each must become `goto *blk` with
+  `*blk@ja`/`*blk@en` and its labels renamed; same-named labels must mean
+  the same place in both editions (generated `*if0_else` don't promise
+  it), and a switch must re-run the per-language start-up state
+  (`setwindow3`, wait icon, title).
 - **Pictures: censored / uncensored** — a global variable and
   `assetlayer "uncensored",0/1`, run again at startup. Default: follow
   the edition the player owns (uncensored when the build has the

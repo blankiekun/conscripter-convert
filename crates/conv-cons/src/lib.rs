@@ -411,7 +411,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     writeln!(out, "{}", names_define()).unwrap();
     writeln!(out, "{}", links_define()).unwrap();
     if let Some(s) = &script.picture_settings {
-        picture_settings::define(&mut out, s);
+        picture_settings::define(&mut out, s, &script.language);
     }
     let in_front = script.ops.iter().any(|op| matches!(op, Op::SpriteInFront { front: true, .. }));
     if script.system_menu.is_some() {
@@ -505,6 +505,9 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     if !script.language.is_empty() {
         writeln!(out, "language \"{}\"", script.language).unwrap();
     }
+    if script.picture_settings.as_ref().is_some_and(picture_settings::has_language) {
+        picture_settings::define_language(&mut out, LOAD_CLEAR);
+    }
     if script.click_skips_effects {
         writeln!(out, "clickskip").unwrap();
     }
@@ -520,7 +523,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
         menu::settings_init(&mut out, s);
     }
     if let Some(s) = &script.picture_settings {
-        picture_settings::init(&mut out, s);
+        picture_settings::init(&mut out, s, &script.language);
     }
     if let Some(m) = &script.menu_sounds {
         writeln!(out, "mov {MENU_HOVER},\"{}\":selectvoice \"\",{MENU_HOVER},\"\"", m.hover.as_deref().map(path).unwrap_or_default()).unwrap();
