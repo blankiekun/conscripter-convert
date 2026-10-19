@@ -68,9 +68,6 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
         Some((a, b, c, d, e)) => (Some(a), b, c, d, e),
         None => (None, None, None, None, None),
     };
-    for e in &assets.out.errors {
-        println!("  asset error: {e}");
-    }
     let ir = Script {
         title: title.to_string(),
         language: "ja".into(),
@@ -98,8 +95,11 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
         audio(&assets.audio, output, audio_format)?;
         movies(&assets.movies, output)?;
     }
+    for e in &assets.out.errors {
+        println!("  asset error: {e}");
+    }
     println!("{} scenes -> {}", if scenes.is_empty() { g.scenes.len() } else { scenes.len() }, output.join("0.txt").display());
-    Ok(Built { ir, notes: compiled.notes, metrics: compiled.metrics, engine: "mages", engine_doc: "mages", picture_dirs: &PICTURE_DIRS, audio_dirs: &[], package: package(game), translation: None })
+    Ok(Built { ir, notes: compiled.notes, metrics: compiled.metrics, engine: "mages", engine_doc: "mages", picture_dirs: &PICTURE_DIRS, audio_dirs: &[], package: package(game), translation: None, asset_errors: assets.out.errors.len() })
 }
 
 /// Converts the queued sounds with ffmpeg, in parallel: music to Ogg
