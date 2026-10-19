@@ -209,10 +209,9 @@ cdecl/stdcall/thiscall/fastcall, ARM hard-float AAPCS, AArch64), then
 prints the return value and any buffers; calls into imports, or into
 addresses given with `--stub`, return 0 or a chosen value and are
 listed. Seconds, no game, no wine. Its Python API (`Exe(path).call`)
-runs thousands of calls for a sweep. Setup, once per machine (pip
-refuses `--user` on a system Python):
-`python3 -m venv research/tools/.venv && research/tools/.venv/bin/pip
-install unicorn==2.1.4`. Examples: `research/nitroplus/en_tempo_exe.py`
+runs thousands of calls for a sweep. Setup, once per machine:
+`research/tools/setup-venv.sh` (a venv, as pip refuses `--user` on a
+system Python; it ends with exe_call's self-test). Examples: `research/nitroplus/en_tempo_exe.py`
 (every tempo curve of the English Muramasa's table, checked by a test
 in `muramasa.rs`), and 俺たちに翼はない's sprite quad with a negative
 scale (`docs/games/oretsuba.findings.tsv`). Limits: no OS, so a
