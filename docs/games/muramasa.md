@@ -711,7 +711,10 @@ sound room), movies, processes, `Random` and the effects are done; their
 write-ups, the route-run table and the old queue are in "History"
 ("Status as it stood before the 2026-10-18 prune"). Dry-run counts
 (2026-10-17): 1,162,127 source calls, 1,131,605 converted fully, 21,928
-with gaps, 8,594 left out on purpose.
+with gaps, 8,594 left out on purpose. `metrics.json` also gives each
+kind a `credit` (approximations 0.5, unconverted built-ins 0; dry run
+2026-10-18: 1,151,769 of 1,153,532.6 weighted) and counts the 64 movie
+calls of a build without its movie folder as `unmeasured`.
 
 Japanese and English in one build (in progress, `docs/string-tables.md`):
 every build writes its text in tables; the `--english` build compiles
