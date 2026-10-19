@@ -48,7 +48,7 @@
 # it runs in wine's virtual desktop (windowed; full screen draws twice)
 # with the pointer nudged; ntrace.dll feeds its message loop and keeps
 # SuspendThread from hanging it (ntrace.c); where it still stops for 60 s,
-# a click goes on (logged in $NTRACE_HOME/clicks.log).
+# a click goes on (idle_click; Muramasa too, e.g. at its ending).
 #
 # GAME = the folder holding Muramasa.exe or Django.exe (1.01 files over the
 # install) and the *.npa (required).
@@ -170,21 +170,24 @@ alive() { kill -0 $wpid 2>/dev/null || { [ $EXE_NAME = Django.exe ] && pgrep -x 
 export NTRACE_OUT='C:\ntrace\trace.jsonl' NTRACE_PAGES=$PAGES TRACE_SPEED=${SPEED:-1}
 [ -n "$DUMPS" ] && { mkdir -p "$DUMPS"; export NTRACE_DUMPS="Z:${DUMPS//\//\\}"; }
 [ -n "$SDUMPS" ] && { mkdir -p "$SDUMPS"; export NTRACE_SCENE_DUMPS="Z:${SDUMPS//\//\\}"; }
+# a click after 60 s without a record (a text block's pages are all logged
+# as it starts, so a long one is quiet), should the game still stop or wait
+# at an ending (logged in $NTRACE_HOME/clicks.log)
+idle_click() { (T="$C/ntrace/trace.jsonl"; sleep 10; while alive; do
+     sleep 2; [ -f "$T" ] && [ $(( $(date +%s) - $(stat -c %Y "$T") )) -ge 60 ] || continue
+     [ $EXE_NAME = Django.exe ] || { w=$(game_window); [ -z "$w" ] || xdotool mousemove --window "$w" 500 300; }
+     xdotool mousedown 1; sleep 0.15; xdotool mouseup 1; echo "click at $(wc -l < "$T") records" >> "$H/clicks.log"; sleep 10
+   done) >/dev/null 2>&1 & }
 if [ $EXE_NAME = Django.exe ]; then
   (cd "$M" && wine explorer /desktop=ntrace,1024x768 'C:\ntrace\xlaunch.exe' 'C:\game\Django.exe' 'C:\ntrace\ntrace.dll') > "$H/wine.log" 2>&1 &
   wpid=$!
   # the pointer nudged over the window: auto mode stops without input
   (sleep 5; xdotool mousemove 512 600; while alive; do xdotool mousemove_relative -- 1 0; sleep 0.015; xdotool mousemove_relative -- -1 0; sleep 0.015; done) >/dev/null 2>&1 &
-  # and should it still stop: a click after 60 s without a record (a text
-  # block's pages are all logged as it starts, so a long one is quiet)
-  (T="$C/ntrace/trace.jsonl"; sleep 10; while alive; do
-     sleep 2; [ -f "$T" ] && [ $(( $(date +%s) - $(stat -c %Y "$T") )) -ge 60 ] || continue
-     xdotool mousedown 1; sleep 0.15; xdotool mouseup 1; echo "click at $(wc -l < "$T") records" >> "$H/clicks.log"; sleep 10
-   done) >/dev/null 2>&1 &
 else
   wine 'C:\ntrace\xlaunch.exe' 'C:\game\Muramasa.exe' 'C:\ntrace\ntrace.dll' > "$H/wine.log" 2>&1 &
   wpid=$!
 fi
+idle_click
 if [ -n "$SHOTS" ]; then  # the shots the DLL asks for (ntrace.c, NTRACE_SHOT_REQ)
   (REQ=$C/ntrace/shot.req wait=$(awk "BEGIN{print $DELAY/1000/${SPEED:-1}}")
    while alive; do
