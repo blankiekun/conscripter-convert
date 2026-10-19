@@ -1968,8 +1968,8 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
                 *l.out.notes.entry(what).or_default() += n;
             }
             // shortcut: a key never read counts as one value lost however many it has.
-            l.out.metrics.call(&kind, t.values(), reasons);
             l.out.metrics.motion(name, motion_ms(t));
+            l.out.metrics.call(&kind, t.values(), reasons);
         }
         if l.staging {
             l.out.ops.push(Op::EndTransition);

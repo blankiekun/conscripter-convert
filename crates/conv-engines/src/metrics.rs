@@ -33,6 +33,13 @@ pub struct Kind {
     pub decided: f64,
     /// Left-out calls the user chose to drop: lost "as original".
     pub dropped: usize,
+    /// The motion time its measured calls ask for, each capped at
+    /// [`CAP_MS`] ([`Metrics::motion`]), and that time times each call's
+    /// [`credit`], and its credit "as decided": in motion and timing,
+    /// `score` weighs a call by its time.
+    pub ms: u64,
+    pub credit_ms: f64,
+    pub decided_ms: f64,
 }
 
 /// A reason's prefix for what the user chose to drop: done "as decided"
@@ -107,6 +114,8 @@ pub struct Score {
     pub channels: Vec<(Channel, f64)>,
     /// Channels with calls this build can't judge, or with none measured.
     pub unmeasured: Vec<Channel>,
+    /// The parity factor motion and timing were weighed by, if any.
+    pub parity: Option<f64>,
 }
 
 /// The reasons that lose time (NSS: the time ledger's and the cross-fade
@@ -121,11 +130,18 @@ pub const TIMING: &[&str] = &[
 #[derive(Debug, Default, Clone)]
 pub struct Metrics {
     pub kinds: BTreeMap<String, Kind>,
-    /// Notes made outside any call (a statement's, a text tag's), with
-    /// counts: not in the totals.
+    /// Notes made outside any call (a statement's), with counts: not in
+    /// the totals.
     pub outside: BTreeMap<String, usize>,
-    /// Calls being converted, innermost last: kind, reasons noted so far.
-    open: Vec<(String, Vec<String>)>,
+    /// The pages of story text ([`page`](Self::page)) where they are no
+    /// source call of their own (NSS `<PRE>` blocks, Tsukihime's lines):
+    /// in `score`'s text channel, not in the calls.
+    pub text: Kind,
+    /// Calls being converted, innermost last: kind, reasons noted so far,
+    /// motion ms asked for.
+    open: Vec<(String, Vec<String>, u64)>,
+    /// Motion ms asked for outside an open call: the next call's.
+    pending_ms: u64,
     /// Timing parity: per scene (a script file), the motion time in ms
     /// its source calls ask for (every timed move, fade, zoom, turn and
     /// shake: [`motion`](Self::motion)); every scene that made a call is
@@ -134,6 +150,28 @@ pub struct Metrics {
     /// Per scene, the time our `0.txt` animates there (the dry run fills
     /// it in from the emitted script and its source map).
     pub ours_ms: BTreeMap<String, u64>,
+    /// [`source_ms`](Self::source_ms) with each call's ms capped at
+    /// [`CAP_MS`]: what the parity factor in `score` weighs.
+    capped_ms: BTreeMap<String, u64>,
+}
+
+/// The most a call's motion time counts for the parity factor: a looping
+/// or endless motion (Muramasa's `mc03_013.nss` asks for 31,729 s) would
+/// make one scene outweigh the game.
+const CAP_MS: u64 = 60_000;
+
+/// What a call weighs in motion and timing besides its own time: a call
+/// with none (a setter, a wait, a motion whose time the reader doesn't
+/// decode, such as Tsukihime's `_SQK2` shakes) still counts, as a short
+/// motion would.
+const CALL_MS: f64 = 500.0;
+
+/// Whether an engine's source side of the timing parity counts every
+/// motion the game plays: only then does `score` weigh motion and timing
+/// by it (Oretsuba's and Tsukihime's ask for a fraction of what ours
+/// animates: 4.7x and 18x short of it).
+fn parity_complete(engine: &str) -> bool {
+    matches!(engine, "nitroplus" | "xuse")
 }
 
 /// How many reasons and outside notes the JSON keeps per list.
@@ -144,14 +182,36 @@ const PARITY_WORST: usize = 10;
 impl Metrics {
     /// A source call in `scene` that asks for `ms` of motion (0: none, but
     /// the scene is known: its own `0.txt` lines are told apart from those
-    /// of the files it calls into).
+    /// of the files it calls into): the innermost open call's, or with
+    /// none the next call's.
     pub fn motion(&mut self, scene: &str, ms: u64) {
-        match self.source_ms.get_mut(scene) {
-            Some(t) => *t += ms,
-            None => {
-                self.source_ms.insert(scene.to_string(), ms);
+        match self.open.last_mut() {
+            Some(o) => o.2 += ms.min(CAP_MS),
+            None => self.pending_ms += ms.min(CAP_MS),
+        }
+        for (map, ms) in [(&mut self.source_ms, ms), (&mut self.capped_ms, ms.min(CAP_MS))] {
+            match map.get_mut(scene) {
+                Some(t) => *t += ms,
+                None => {
+                    map.insert(scene.to_string(), ms);
+                }
             }
         }
+    }
+
+    /// The timing parity factor, 0 to 1: per scene, 1 less the part of its
+    /// motion time (capped per call) ours lacks, the scenes weighed by
+    /// their time; `None` without both sides (a full build, no source map).
+    pub fn parity_factor(&self) -> Option<f64> {
+        if self.source_ms.is_empty() || self.ours_ms.is_empty() {
+            return None;
+        }
+        let (mut src, mut short) = (0, 0);
+        for (s, &ms) in &self.capped_ms {
+            src += ms;
+            short += ms.saturating_sub(self.ours_ms.get(s).copied().unwrap_or(0));
+        }
+        (src > 0).then(|| 1.0 - short as f64 / src as f64)
     }
 
     /// Per scene: (scene, source ms, ours, short: what ours lacks), the
@@ -171,7 +231,7 @@ impl Metrics {
 
     /// A call starts: notes until its [`end`](Self::end) are its gaps.
     pub fn begin(&mut self, kind: &str) {
-        self.open.push((kind.to_string(), Vec::new()));
+        self.open.push((kind.to_string(), Vec::new(), 0));
     }
 
     /// The innermost call ends; it was given `args` arguments.
@@ -183,14 +243,17 @@ impl Metrics {
 
     /// The innermost call ends but isn't counted yet: its kind and reasons,
     /// for an engine that notes more about it later, then calls [`call`](Self::call).
+    /// Its motion time goes to the next call counted.
     pub fn pop(&mut self) -> Option<(String, Vec<String>)> {
-        self.open.pop()
+        let (kind, reasons, ms) = self.open.pop()?;
+        self.pending_ms += ms;
+        Some((kind, reasons))
     }
 
     /// A note, on the innermost open call (or outside any).
     pub fn note(&mut self, reason: &str) {
         match self.open.last_mut() {
-            Some((_, reasons)) => reasons.push(reason.to_string()),
+            Some((_, reasons, _)) => reasons.push(reason.to_string()),
             None => *self.outside.entry(reason.to_string()).or_default() += 1,
         }
     }
@@ -198,29 +261,21 @@ impl Metrics {
     /// One whole call given `args` arguments (options counted as
     /// arguments of their own), with the reasons noted on it (none: fully
     /// converted).
-    pub fn call(&mut self, kind: &str, args: usize, mut reasons: Vec<String>) {
-        let k = self.kinds.entry(kind.to_string()).or_default();
-        k.calls += 1;
-        reasons.sort();
-        reasons.dedup();
-        k.weighted += share(args, &reasons);
-        match credit(args, &reasons) {
-            Some(c) => {
-                k.credit += c;
-                let chosen: Vec<String> = reasons.iter().filter(|r| !r.starts_with(DROPPED)).cloned().collect();
-                k.decided += credit(args, &chosen).unwrap_or(c);
-            }
-            None => k.unmeasured += 1,
-        }
-        k.gaps += usize::from(!reasons.is_empty());
-        for r in reasons {
-            *k.reasons.entry(r).or_default() += 1;
-        }
+    pub fn call(&mut self, kind: &str, args: usize, reasons: Vec<String>) {
+        let ms = std::mem::take(&mut self.pending_ms);
+        count(self.kinds.entry(kind.to_string()).or_default(), args, reasons, ms);
+    }
+
+    /// A page of story text shown, with the reasons noted on it (a text
+    /// tag or code dropped): counted in [`text`](Self::text).
+    pub fn page(&mut self, reasons: Vec<String>) {
+        count(&mut self.text, 1, reasons, 0);
     }
 
     /// One whole call left out on purpose (unreachable, such as a debug
     /// menu), with why: done for the completion figure, not a gap.
     pub fn left_out(&mut self, kind: &str, why: &str) {
+        self.pending_ms = 0;
         let k = self.kinds.entry(kind.to_string()).or_default();
         k.calls += 1;
         k.left_out += 1;
@@ -233,8 +288,15 @@ impl Metrics {
         for (s, ms) in other.source_ms {
             *self.source_ms.entry(s).or_default() += ms;
         }
-        for (name, o) in other.kinds {
-            let k = self.kinds.entry(name).or_default();
+        for (s, ms) in other.capped_ms {
+            *self.capped_ms.entry(s).or_default() += ms;
+        }
+        let kinds = other.kinds.into_iter().map(|(name, o)| (Some(name), o)).chain([(None, other.text)]);
+        for (name, o) in kinds {
+            let k = match name {
+                Some(name) => self.kinds.entry(name).or_default(),
+                None => &mut self.text,
+            };
             k.calls += o.calls;
             k.gaps += o.gaps;
             k.left_out += o.left_out;
@@ -243,6 +305,9 @@ impl Metrics {
             k.unmeasured += o.unmeasured;
             k.decided += o.decided;
             k.dropped += o.dropped;
+            k.ms += o.ms;
+            k.credit_ms += o.credit_ms;
+            k.decided_ms += o.decided_ms;
             for (r, n) in o.reasons {
                 *k.reasons.entry(r).or_default() += n;
             }
@@ -286,33 +351,43 @@ impl Metrics {
         self.kinds.values().map(|k| k.left_out).sum()
     }
 
-    /// The [`Score`], each kind in the channel `channel` gives it.
-    pub fn score(&self, channel: fn(&str) -> Channel) -> Score {
-        // per channel: decided, original, calls measured, dropped left-out calls, unmeasured calls
-        let mut sums = [(0.0, 0.0, 0usize, 0usize, 0usize); 7];
-        for (name, k) in &self.kinds {
-            let Some(i) = Channel::SCORED.iter().position(|&c| c == channel(name)) else { continue };
+    /// The [`Score`], each kind in the channel `channel` gives it; with
+    /// `parity` (the engine's source side complete), motion and timing
+    /// times the [`parity_factor`](Self::parity_factor).
+    pub fn score(&self, channel: fn(&str) -> Channel, parity: bool) -> Score {
+        let factor = if parity { self.parity_factor() } else { None };
+        // per channel: decided, original, calls measured, dropped left-out calls (motion
+        // and timing: each call by CALL_MS and its time), unmeasured calls
+        let mut sums = [(0.0, 0.0, 0.0, 0.0, 0usize); 7];
+        for (c, k) in self.kinds.iter().map(|(name, k)| (channel(name), k)).chain([(Channel::Text, &self.text)]) {
+            let Some(i) = Channel::SCORED.iter().position(|&x| x == c) else { continue };
+            let measured = (k.calls - k.left_out - k.unmeasured) as f64;
+            let (d, o, n, dropped) = match c {
+                Channel::Motion | Channel::Timing => (k.decided_ms + CALL_MS * k.decided, k.credit_ms + CALL_MS * k.credit, k.ms as f64 + CALL_MS * measured, CALL_MS * k.dropped as f64),
+                _ => (k.decided, k.credit, measured, k.dropped as f64),
+            };
             let s = &mut sums[i];
-            (s.0, s.1) = (s.0 + k.decided, s.1 + k.credit);
-            s.2 += k.calls - k.left_out - k.unmeasured;
-            (s.3, s.4) = (s.3 + k.dropped, s.4 + k.unmeasured);
+            (s.0, s.1, s.2, s.3, s.4) = (s.0 + d, s.1 + o, s.2 + n, s.3 + dropped, s.4 + k.unmeasured);
         }
         let (mut channels, mut unmeasured) = (Vec::new(), Vec::new());
         let (mut w, mut decided, mut original) = (0.0, 0.0, 0.0);
         for (&c, &(d, o, n, dropped, um)) in Channel::SCORED.iter().zip(&sums) {
-            if um > 0 || (n == 0 && c != Channel::Unclassed) {
+            if um > 0 || (n == 0.0 && c != Channel::Unclassed) {
                 unmeasured.push(c);
             }
-            if n == 0 {
+            if n == 0.0 {
                 continue;
             }
-            let (d, o) = (100.0 * d / n as f64, 100.0 * o / (n + dropped) as f64);
+            let (mut d, mut o) = (100.0 * d / n, 100.0 * o / (n + dropped));
+            if let (Some(f), Channel::Motion | Channel::Timing) = (factor, c) {
+                (d, o) = (d * f, o * f);
+            }
             channels.push((c, d));
             w += c.weight();
             (decided, original) = (decided + c.weight() * d, original + c.weight() * o);
         }
         let total = |x: f64| if w > 0.0 { x / w } else { 100.0 };
-        Score { total: total(decided), as_original: total(original), channels, unmeasured }
+        Score { total: total(decided), as_original: total(original), channels, unmeasured, parity: factor }
     }
 
     /// The JSON the dry run writes: `commit` and `commit_date` each on a
@@ -320,14 +395,15 @@ impl Metrics {
     /// kinds by gaps, each with its [`TOP`] reasons.
     pub fn json(&self, game: &str, engine: &str, engine_doc: &str, commit: &str, commit_date: &str) -> String {
         let channel = channels(engine);
-        let score = self.score(channel);
+        let complete = parity_complete(engine);
+        let score = self.score(channel, complete);
         let (calls, gaps) = self.totals();
         let left_out = self.left_out_total();
         // "left_out" only when there are some, so other games' files stay as they were.
         let lo = |n: usize| if n > 0 { format!(", \"left_out\": {n}") } else { String::new() };
         let um = |n: usize| if n > 0 { format!(", \"unmeasured\": {n}") } else { String::new() };
         let mut s = format!(
-            "{{\n\"game\": {},\n\"engine\": {},\n\"engine_doc\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}, \"credit\": {:.1}{}, \"score\": {{\"total\": {:.2}, \"as_original\": {:.2}, \"channels\": {{{}}}, \"unmeasured\": [{}]}}}},\n\"kinds\": {{",
+            "{{\n\"game\": {},\n\"engine\": {},\n\"engine_doc\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}, \"credit\": {:.1}{}, \"score\": {{\"total\": {:.2}, \"as_original\": {:.2}, \"channels\": {{{}}}, \"unmeasured\": [{}]{}}}}},\n\"kinds\": {{",
             q(game),
             q(engine),
             q(engine_doc),
@@ -341,13 +417,15 @@ impl Metrics {
             score.total,
             score.as_original,
             score.channels.iter().map(|(c, v)| format!("{}: {v:.2}", q(c.name()))).collect::<Vec<_>>().join(", "),
-            score.unmeasured.iter().map(|c| q(c.name())).collect::<Vec<_>>().join(", ")
+            score.unmeasured.iter().map(|c| q(c.name())).collect::<Vec<_>>().join(", "),
+            // only with a parity (the dry run's), so other files stay as they were
+            if self.source_ms.is_empty() { String::new() } else { format!(", \"parity_complete\": {complete}{}", score.parity.map_or(String::new(), |f| format!(", \"parity_factor\": {:.2}", 100.0 * f))) }
         );
         let mut kinds: Vec<_> = self.kinds.iter().collect();
         kinds.sort_by(|a, b| b.1.gaps.cmp(&a.1.gaps).then(b.1.calls.cmp(&a.1.calls)).then(a.0.cmp(b.0)));
         for (i, (name, k)) in kinds.iter().enumerate() {
             s += &format!(
-                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}, \"credit\": {:.1}{}, \"channel\": {}}}",
+                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}, \"credit\": {:.1}{}{}, \"channel\": {}}}",
                 if i > 0 { "," } else { "" },
                 q(name),
                 k.calls,
@@ -357,10 +435,16 @@ impl Metrics {
                 k.weighted,
                 k.credit,
                 um(k.unmeasured),
+                // "seconds of motion converted": only for kinds with a time, so other lines stay as they were
+                if k.ms > 0 { format!(", \"ms\": {}, \"credit_ms\": {:.0}", k.ms, k.credit_ms) } else { String::new() },
                 q(channel(name).name())
             );
         }
         s += &format!("\n}},\n\"outside_calls\": {}", top(&self.outside));
+        let t = &self.text;
+        if t.calls > 0 {
+            s += &format!(",\n\"text\": {{\"pages\": {}, \"gaps\": {}, \"credit\": {:.1}, \"reasons\": {}}}", t.calls, t.gaps, t.credit, top(&t.reasons));
+        }
         // (Calls noted with one, and notes outside calls; only when some, so other games' files stay as they were.)
         let timing: usize = self.kinds.values().flat_map(|k| &k.reasons).chain(&self.outside).filter(|(r, _)| TIMING.contains(&r.as_str())).map(|(_, n)| n).sum();
         if timing > 0 {
@@ -381,6 +465,29 @@ impl Metrics {
             );
         }
         s + "\n}\n"
+    }
+}
+
+/// Counts one call of `k` given `args` arguments, with its reasons and
+/// motion time.
+fn count(k: &mut Kind, args: usize, mut reasons: Vec<String>, ms: u64) {
+    k.calls += 1;
+    reasons.sort();
+    reasons.dedup();
+    k.weighted += share(args, &reasons);
+    match credit(args, &reasons) {
+        Some(c) => {
+            let chosen: Vec<String> = reasons.iter().filter(|r| !r.starts_with(DROPPED)).cloned().collect();
+            let d = credit(args, &chosen).unwrap_or(c);
+            (k.credit, k.decided) = (k.credit + c, k.decided + d);
+            k.ms += ms;
+            (k.credit_ms, k.decided_ms) = (k.credit_ms + c * ms as f64, k.decided_ms + d * ms as f64);
+        }
+        None => k.unmeasured += 1,
+    }
+    k.gaps += usize::from(!reasons.is_empty());
+    for r in reasons {
+        *k.reasons.entry(r).or_default() += 1;
     }
 }
 
@@ -533,6 +640,63 @@ mod tests {
     }
 
     #[test]
+    fn parity_weighs_motion_and_timing_when_complete() {
+        let mut m = Metrics::default();
+        m.call("Fade", 2, vec![]);
+        m.call("Wait", 1, vec![]);
+        m.call("LoadText", 1, vec![]);
+        m.motion("a.nss", 4000);
+        m.motion("b.nss", 100_000); // capped at 60 s: ours' 60 s is not short
+        m.motion("c.nss", 0);
+        m.ours_ms = [("a.nss".to_string(), 3000), ("b.nss".to_string(), 60_000)].into();
+        // (4 + 60 - 1) / 64 of the capped time
+        assert_eq!(m.parity_factor(), Some(63.0 / 64.0));
+        let s = m.score(crate::nitroplus::convert::channel, true);
+        assert_eq!(s.channels, [(super::Channel::Text, 100.0), (super::Channel::Motion, 100.0 * 63.0 / 64.0), (super::Channel::Timing, 100.0 * 63.0 / 64.0)]);
+        assert!(m.json("g", "nitroplus", "d", "c", "d").contains(", \"parity_complete\": true, \"parity_factor\": 98.44}}"));
+        // an incomplete source side: not weighed
+        assert!(m.json("g", "mages", "d", "c", "d").contains(", \"parity_complete\": false}}"));
+        assert_eq!(m.score(crate::nitroplus::convert::channel, false).channels[1], (super::Channel::Motion, 100.0));
+        m.ours_ms.clear();
+        assert_eq!(m.parity_factor(), None);
+    }
+
+    #[test]
+    fn motion_weighs_calls_by_their_time() {
+        use super::Channel::*;
+        let mut m = Metrics::default();
+        // a 1.5 s fade lost half: (0.5 x 2000) of 2000; a setter (0 ms) whole: 500 of 500
+        m.begin("Fade");
+        m.motion("a.nss", 1500);
+        m.note("Fade with a curve");
+        m.end(2);
+        m.motion("a.nss", 0); // before its call, as Tsukihime's and Saihate's readers report it
+        m.call("Move", 3, vec![]);
+        m.motion("a.nss", 9000);
+        m.left_out("Shake", "unreachable"); // its time is no one else's
+        m.call("Wait", 1, vec![]);
+        assert_eq!((m.kinds["Fade"].ms, m.kinds["Fade"].credit_ms, m.kinds["Wait"].ms), (1500, 750.0, 0));
+        let s = m.score(crate::nitroplus::convert::channel, false);
+        assert_eq!(s.channels, [(Motion, 100.0 * 1500.0 / 2500.0), (Timing, 100.0)]);
+        assert!(m.json("g", "nitroplus", "d", "c", "d").contains("\"credit\": 0.5, \"ms\": 1500, \"credit_ms\": 750, \"channel\": \"motion\"}"));
+    }
+
+    #[test]
+    fn pages_are_text_not_calls() {
+        let mut m = Metrics::default();
+        m.call("LoadText", 1, vec![]);
+        m.page(vec!["text tag <x>".into()]);
+        m.page(vec![]);
+        let mut other = Metrics::default();
+        other.page(vec![]);
+        m.merge(other);
+        assert_eq!(m.totals(), (1, 0));
+        // (1 + 0.5 + 1 + 1) / 4
+        assert_eq!(m.score(crate::nitroplus::convert::channel, false).channels, [(super::Channel::Text, 87.5)]);
+        assert!(m.json("g", "nitroplus", "d", "c", "d").contains("\n\"text\": {\"pages\": 3, \"gaps\": 1, \"credit\": 2.5, \"reasons\": [[\"text tag <x>\", 1]]}"));
+    }
+
+    #[test]
     fn left_out_calls_are_neither_full_nor_gaps() {
         let mut m = Metrics::default();
         m.call("opcode 0x30", 2, vec![]);
@@ -563,7 +727,7 @@ mod tests {
         m.call("LoadText", 1, vec!["approximated".into()]);
         m.call("CreateMovie", 7, vec!["CreateMovie: no movies in this build".into()]);
         m.call("SetAlias", 2, vec!["not converted".into()]);
-        let s = m.score(crate::nitroplus::convert::channel);
+        let s = m.score(crate::nitroplus::convert::channel, false);
         assert_eq!(s.channels, [(Text, 50.0), (Motion, 100.0)]);
         assert_eq!(s.unmeasured, [Sound, Picture, Timing, Movie]);
         // (0.30 x 50 + 0.12 x 100) / 0.42; as original motion is (1 + 0.5 + 0) / 3.

@@ -252,7 +252,11 @@ impl<'a> Compiler<'a, '_> {
         let Some(Object { kind: Kind::Text(t), x, y, .. }) = self.objects.get(name) else { return };
         let (t, x, y) = (t.clone(), *x, *y);
         self.sync(0);
+        // the text tags dropped, on the block's first page shown (`metrics.json`'s "text")
+        // shortcut: a block's tag notes all go on its first page; per page when a page's credit matters
+        self.metrics.begin("text");
         let pages = self.pages(t.block);
+        let mut notes = self.metrics.pop().map(|(_, r)| r).unwrap_or_default();
         for page in &pages {
             // (the page's code is its <PRE> file's, wherever it is shown)
             // shortcut: statements nested in it (an `if`'s) are marked with the showing file
@@ -264,6 +268,7 @@ impl<'a> Compiler<'a, '_> {
             if page.text.is_empty() && !page.goes_on {
                 continue;
             }
+            self.metrics.page(std::mem::take(&mut notes));
             self.sync(0);
             // Code before the page may have changed the face window.
             let mut window = self.text_window(&t, x, y, page.face_off);
@@ -366,6 +371,8 @@ impl<'a> Compiler<'a, '_> {
             }
             self.texts_shown += 1;
         }
+        // (no page shown: the notes stay the showing call's, as before)
+        notes.iter().for_each(|r| self.metrics.note(r));
         self.window_visible = true;
     }
 
