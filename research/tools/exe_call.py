@@ -6,8 +6,11 @@
         [--stub ADDR=VALUE ...] [--dump ADDR:LEN ...] [--arm] [--trace]
 
 <exe>: a PE (x86-32, loaded at its ImageBase; imports go to unmapped stubs),
-an ELF (the Vita's decrypted eboot, type 0xfe04, ARM, loaded at its own
-addresses, which its code is linked for) or an NSO (Switch AArch64, loaded at
+an x86-64 ELF (Linux: an ET_DYN one at 0x100000 as Ghidra loads it, its
+RELA relocations applied, an undefined symbol a named stub; System V
+calls; `Exe.symbol(name)` gives a symbol's address), an ELF (the Vita's
+decrypted eboot, type 0xfe04, ARM, loaded at its own addresses, which its
+code is linked for) or an NSO (Switch AArch64, loaded at
 0x100000 as Ghidra loads nso2elf.py's ELF, with its relocations applied).
 <addr>: the function's address, or `*EXPR` to read it from a pointer table
 (`*0x5e40a0+4*17`). ARM code is Thumb unless --arm.
@@ -32,7 +35,7 @@ import struct
 import sys
 import os
 
-from unicorn import (Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_ARCH_ARM, UC_MODE_THUMB, UC_MODE_ARM,
+from unicorn import (Uc, UcError, UC_ARCH_X86, UC_MODE_32, UC_MODE_64, UC_ARCH_ARM, UC_MODE_THUMB, UC_MODE_ARM,
                      UC_ARCH_ARM64, UC_MODE_ARM as UC_MODE_LE, UC_HOOK_CODE, UC_PROT_ALL)
 from unicorn import x86_const as X, arm_const as A, arm64_const as A64
 
@@ -90,6 +93,10 @@ class Exe:
             self.arch = "x86"
             self.uc = Uc(UC_ARCH_X86, UC_MODE_32)
             self._pe(d)
+        elif d[:4] == b"\x7fELF" and d[4] == 2 and struct.unpack_from("<H", d, 0x12)[0] == 0x3e:
+            self.arch = "x64"  # an x86-64 ELF (Linux): System V calls
+            self.uc = Uc(UC_ARCH_X86, UC_MODE_64)
+            self._elf64(d)
         elif d[:4] == b"\x7fELF":
             self.arch = "arm"
             self.uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB if thumb else UC_MODE_ARM)
@@ -108,6 +115,9 @@ class Exe:
         self.uc.mem_map(STACK, STACK_SIZE)
         self.uc.mem_map(HEAP, 0x100000)
         self.uc.mem_map(RET, PAGE)
+        if self.arch == "x64":  # FS: a zeroed TLS block (gcc's stack protector reads fs:0x28)
+            self.uc.mem_map(TIB, PAGE)
+            self.uc.reg_write(X.UC_X86_REG_FS_BASE, TIB)
         if self.arch == "x86":  # at the return: fstp qword [RET+0x100] (st0 if a float came back)
             self.uc.mem_write(RET, b"\xdd\x1d" + struct.pack("<I", RET + 0x100))
             # a thread block at FS (MSVC's SEH prologs read fs:[0]): an empty SEH chain, the stack's bounds, itself
@@ -184,6 +194,63 @@ class Exe:
         # shortcut: the SCE relocations and import stubs are not read: right at the ELF's own
         # addresses, and an import's stub runs as the file has it; read them if a call needs it
         self.range = (lo, hi)
+
+    def _elf64(self, d):
+        """an x86-64 ELF's PT_LOAD segments (an ET_DYN one at 0x100000, as Ghidra loads it) and its
+        RELA relocations: RELATIVE, and symbols (an undefined one becomes a named stub)"""
+        etype, phoff, phes, phn = struct.unpack_from("<H", d, 0x10)[0], struct.unpack_from("<Q", d, 0x20)[0], *struct.unpack_from("<HH", d, 0x36)
+        base = NSO_BASE if etype == 3 else 0
+        lo, hi, dyn = 1 << 64, 0, None
+        img = {}
+        for k in range(phn):
+            t, _, off, va, _, fs, ms, _ = struct.unpack_from("<IIQQQQQQ", d, phoff + phes * k)
+            if t == 1:
+                self._map(base + va, d[off:off + fs], ms)
+                lo, hi = min(lo, base + va), max(hi, base + va + ms)
+            elif t == 2:
+                dyn = (off, fs)
+        self.range = (lo, hi)
+        self._syms = {}  # every named symbol of .symtab/.dynsym, by name
+        shoff, shes, shn = struct.unpack_from("<Q", d, 0x28)[0], *struct.unpack_from("<HH", d, 0x3a)
+        secs = [struct.unpack_from("<IIQQQQIIQQ", d, shoff + shes * k) for k in range(shn)] if shoff else []
+        for _, t, _, _, off, size, link, _, _, es in secs:
+            if t in (2, 11) and es:
+                stro = secs[link][4]
+                for i in range(off, off + size, es):
+                    st_name, _, _, shndx, value, _ = struct.unpack_from("<IBBHQQ", d, i)
+                    if st_name and shndx:
+                        self._syms.setdefault(d[stro + st_name:d.index(b"\0", stro + st_name)].decode(errors="replace"), base + value)
+        if not dyn:
+            return
+        tags = {}
+        for i in range(dyn[0], dyn[0] + dyn[1], 16):
+            tag, val = struct.unpack_from("<qQ", d, i)
+            if tag == 0:
+                break
+            tags.setdefault(tag, val)
+        rd = lambda va, n: self.read(base + va, n)  # noqa: E731
+        sym = lambda i: struct.unpack("<IBBHQQ", rd(tags[6] + 24 * i, 24))  # noqa: E731
+        name = lambda o: rd(tags[5] + o, 256).split(b"\0")[0].decode()  # noqa: E731
+        for at, size in ((tags.get(7), tags.get(8)), (tags.get(23), tags.get(2))):  # DT_RELA, DT_JMPREL
+            for i in range(0, size or 0, 24):
+                off, info, add = struct.unpack("<QQq", rd(at + i, 24))
+                kind, si = info & 0xffffffff, info >> 32
+                if kind == 8:  # R_X86_64_RELATIVE
+                    v = base + add
+                elif kind in (1, 6, 7):  # 64, GLOB_DAT, JUMP_SLOT
+                    st_name, _, _, shndx, value, _ = sym(si)
+                    if shndx:
+                        v = base + value + (add if kind == 1 else 0)
+                    else:
+                        v = STUBS + 8 * len(self.imports)
+                        self.imports[v] = name(st_name)
+                else:
+                    continue
+                self.uc.mem_write(base + off, struct.pack("<Q", v & (2 ** 64 - 1)))
+
+    def symbol(self, name):
+        """an ELF's exported symbol's address (an x86-64 ELF only: from its dynamic table)"""
+        return self._syms[name]
 
     def _nso(self, d):
         flags = struct.unpack_from("<I", d, 0xc)[0]
@@ -271,7 +338,8 @@ class Exe:
         return bytes(self.uc.mem_read(addr, n))
 
     def ptr(self, addr):
-        return struct.unpack("<Q" if self.arch == "arm64" else "<I", self.read(addr, 8 if self.arch == "arm64" else 4))[0]
+        wide = self.arch in ("arm64", "x64")
+        return struct.unpack("<Q" if wide else "<I", self.read(addr, 8 if wide else 4))[0]
 
     def call(self, addr, args=(), cc="cdecl", ret="int", limit=10_000_000, regs=None):
         """Call addr with args (int, float, ('d', x) a double, ('&', fmt, x) a pointer to one,
@@ -279,7 +347,8 @@ class Exe:
         code takes unset); return (value, [buffer addresses])."""
         uc, heap, bufs = self.uc, HEAP, []
         for r, v in (regs or {}).items():
-            uc.reg_write(getattr({"x86": X, "arm": A, "arm64": A64}[self.arch], f"UC_{self.arch.upper()}_REG_{r.upper()}"), v)
+            mod, pre = {"x86": (X, "X86"), "x64": (X, "X86"), "arm": (A, "ARM"), "arm64": (A64, "ARM64")}[self.arch]
+            uc.reg_write(getattr(mod, f"UC_{pre}_REG_{r.upper()}"), v)
         vals = []
         for a in args:  # pointers first, into the heap
             if isinstance(a, tuple) and a[0] in ("&", "buf"):
@@ -291,7 +360,24 @@ class Exe:
                 heap += up(len(data) + 1)
             else:
                 vals.append(a)
-        if self.arch == "x86":
+        if self.arch == "x64":  # System V: rdi rsi rdx rcx r8 r9, xmm0-7, then the stack
+            iregs = [X.UC_X86_REG_RDI, X.UC_X86_REG_RSI, X.UC_X86_REG_RDX, X.UC_X86_REG_RCX, X.UC_X86_REG_R8, X.UC_X86_REG_R9]
+            nx, stack = 0, b""
+            for v in vals:
+                if isinstance(v, (float, tuple)):
+                    x = v[1] if isinstance(v, tuple) else v
+                    uc.reg_write(getattr(X, f"UC_X86_REG_XMM{nx}"), int.from_bytes(struct.pack("<d" if isinstance(v, tuple) else "<f", x), "little"))
+                    nx += 1
+                elif iregs:
+                    uc.reg_write(iregs.pop(0), v & (2 ** 64 - 1))
+                else:
+                    stack += struct.pack("<Q", v & (2 ** 64 - 1))
+            sp = (STACK + STACK_SIZE - 0x1000 - len(stack)) & ~15
+            uc.mem_write(sp - 8, struct.pack("<Q", RET) + stack)
+            uc.reg_write(X.UC_X86_REG_RSP, sp - 8)
+            uc.reg_write(X.UC_X86_REG_RAX, nx)
+            end = RET
+        elif self.arch == "x86":
             regs = {"thiscall": [X.UC_X86_REG_ECX], "fastcall": [X.UC_X86_REG_ECX, X.UC_X86_REG_EDX]}.get(cc, [])
             stack = b""
             for v in vals:
@@ -378,10 +464,10 @@ class Exe:
         if key not in self.stubs:  # a stub taken away since
             return
         back = self._stub(address, self.stubs[key], "stubbed")
-        uc.reg_write({"x86": X.UC_X86_REG_EIP, "arm": A.UC_ARM_REG_PC, "arm64": A64.UC_ARM64_REG_PC}[self.arch], back)
+        uc.reg_write({"x86": X.UC_X86_REG_EIP, "x64": X.UC_X86_REG_RIP, "arm": A.UC_ARM_REG_PC, "arm64": A64.UC_ARM64_REG_PC}[self.arch], back)
 
     def _pc(self):
-        return self.uc.reg_read({"x86": X.UC_X86_REG_EIP, "arm": A.UC_ARM_REG_PC, "arm64": A64.UC_ARM64_REG_PC}[self.arch])
+        return self.uc.reg_read({"x86": X.UC_X86_REG_EIP, "x64": X.UC_X86_REG_RIP, "arm": A.UC_ARM_REG_PC, "arm64": A64.UC_ARM64_REG_PC}[self.arch])
 
     def _stub(self, pc, value, why):
         """Return value from a call that reached pc; the address to go on from."""
@@ -401,6 +487,13 @@ class Exe:
             uc.reg_write(X.UC_X86_REG_ESP, sp + 4 + pop)
             uc.reg_write(X.UC_X86_REG_EAX, value & 0xffffffff)
             return struct.unpack("<I", self.read(sp, 4))[0]
+        if self.arch == "x64":
+            sp = uc.reg_read(X.UC_X86_REG_RSP)
+            if callable(value):
+                value = value(self, None)
+            uc.reg_write(X.UC_X86_REG_RSP, sp + 8)
+            uc.reg_write(X.UC_X86_REG_RAX, value & (2 ** 64 - 1))
+            return struct.unpack("<Q", self.read(sp, 8))[0]
         if callable(value):
             value = value(self, None)
         if self.arch == "arm":
@@ -411,6 +504,11 @@ class Exe:
 
     def _ret(self, kind):
         uc = self.uc
+        if self.arch == "x64":
+            if kind == "int":
+                return uc.reg_read(X.UC_X86_REG_RAX)
+            x0 = uc.reg_read(X.UC_X86_REG_XMM0).to_bytes(16, "little")
+            return struct.unpack("<f", x0[:4])[0] if kind == "float" else struct.unpack("<d", x0[:8])[0]
         if self.arch == "x86":
             if kind == "int":
                 return uc.reg_read(X.UC_X86_REG_EAX)
