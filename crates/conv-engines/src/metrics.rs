@@ -33,6 +33,13 @@ pub struct Kind {
     pub decided: f64,
     /// Left-out calls the user chose to drop: lost "as original".
     pub dropped: usize,
+    /// The motion time its measured calls ask for, each capped at
+    /// [`CAP_MS`] ([`Metrics::motion`]), and that time times each call's
+    /// [`credit`], and its credit "as decided": in motion and timing,
+    /// `score` weighs a call by its time.
+    pub ms: u64,
+    pub credit_ms: f64,
+    pub decided_ms: f64,
 }
 
 /// A reason's prefix for what the user chose to drop: done "as decided"
@@ -126,8 +133,11 @@ pub struct Metrics {
     /// Notes made outside any call (a statement's, a text tag's), with
     /// counts: not in the totals.
     pub outside: BTreeMap<String, usize>,
-    /// Calls being converted, innermost last: kind, reasons noted so far.
-    open: Vec<(String, Vec<String>)>,
+    /// Calls being converted, innermost last: kind, reasons noted so far,
+    /// motion ms asked for.
+    open: Vec<(String, Vec<String>, u64)>,
+    /// Motion ms asked for outside an open call: the next call's.
+    pending_ms: u64,
     /// Timing parity: per scene (a script file), the motion time in ms
     /// its source calls ask for (every timed move, fade, zoom, turn and
     /// shake: [`motion`](Self::motion)); every scene that made a call is
@@ -146,6 +156,12 @@ pub struct Metrics {
 /// make one scene outweigh the game.
 const CAP_MS: u64 = 60_000;
 
+/// What a call weighs in motion and timing besides its own time: a call
+/// with none (a setter, a wait, a motion whose time the reader doesn't
+/// decode, such as Tsukihime's `_SQK2` shakes) still counts, as a short
+/// motion would.
+const CALL_MS: f64 = 500.0;
+
 /// Whether an engine's source side of the timing parity counts every
 /// motion the game plays: only then does `score` weigh motion and timing
 /// by it (Oretsuba's and Tsukihime's ask for a fraction of what ours
@@ -162,8 +178,13 @@ const PARITY_WORST: usize = 10;
 impl Metrics {
     /// A source call in `scene` that asks for `ms` of motion (0: none, but
     /// the scene is known: its own `0.txt` lines are told apart from those
-    /// of the files it calls into).
+    /// of the files it calls into): the innermost open call's, or with
+    /// none the next call's.
     pub fn motion(&mut self, scene: &str, ms: u64) {
+        match self.open.last_mut() {
+            Some(o) => o.2 += ms.min(CAP_MS),
+            None => self.pending_ms += ms.min(CAP_MS),
+        }
         for (map, ms) in [(&mut self.source_ms, ms), (&mut self.capped_ms, ms.min(CAP_MS))] {
             match map.get_mut(scene) {
                 Some(t) => *t += ms,
@@ -206,7 +227,7 @@ impl Metrics {
 
     /// A call starts: notes until its [`end`](Self::end) are its gaps.
     pub fn begin(&mut self, kind: &str) {
-        self.open.push((kind.to_string(), Vec::new()));
+        self.open.push((kind.to_string(), Vec::new(), 0));
     }
 
     /// The innermost call ends; it was given `args` arguments.
@@ -218,14 +239,17 @@ impl Metrics {
 
     /// The innermost call ends but isn't counted yet: its kind and reasons,
     /// for an engine that notes more about it later, then calls [`call`](Self::call).
+    /// Its motion time goes to the next call counted.
     pub fn pop(&mut self) -> Option<(String, Vec<String>)> {
-        self.open.pop()
+        let (kind, reasons, ms) = self.open.pop()?;
+        self.pending_ms += ms;
+        Some((kind, reasons))
     }
 
     /// A note, on the innermost open call (or outside any).
     pub fn note(&mut self, reason: &str) {
         match self.open.last_mut() {
-            Some((_, reasons)) => reasons.push(reason.to_string()),
+            Some((_, reasons, _)) => reasons.push(reason.to_string()),
             None => *self.outside.entry(reason.to_string()).or_default() += 1,
         }
     }
@@ -236,14 +260,17 @@ impl Metrics {
     pub fn call(&mut self, kind: &str, args: usize, mut reasons: Vec<String>) {
         let k = self.kinds.entry(kind.to_string()).or_default();
         k.calls += 1;
+        let ms = std::mem::take(&mut self.pending_ms);
         reasons.sort();
         reasons.dedup();
         k.weighted += share(args, &reasons);
         match credit(args, &reasons) {
             Some(c) => {
-                k.credit += c;
                 let chosen: Vec<String> = reasons.iter().filter(|r| !r.starts_with(DROPPED)).cloned().collect();
-                k.decided += credit(args, &chosen).unwrap_or(c);
+                let d = credit(args, &chosen).unwrap_or(c);
+                (k.credit, k.decided) = (k.credit + c, k.decided + d);
+                k.ms += ms;
+                (k.credit_ms, k.decided_ms) = (k.credit_ms + c * ms as f64, k.decided_ms + d * ms as f64);
             }
             None => k.unmeasured += 1,
         }
@@ -256,6 +283,7 @@ impl Metrics {
     /// One whole call left out on purpose (unreachable, such as a debug
     /// menu), with why: done for the completion figure, not a gap.
     pub fn left_out(&mut self, kind: &str, why: &str) {
+        self.pending_ms = 0;
         let k = self.kinds.entry(kind.to_string()).or_default();
         k.calls += 1;
         k.left_out += 1;
@@ -281,6 +309,9 @@ impl Metrics {
             k.unmeasured += o.unmeasured;
             k.decided += o.decided;
             k.dropped += o.dropped;
+            k.ms += o.ms;
+            k.credit_ms += o.credit_ms;
+            k.decided_ms += o.decided_ms;
             for (r, n) in o.reasons {
                 *k.reasons.entry(r).or_default() += n;
             }
@@ -329,25 +360,30 @@ impl Metrics {
     /// times the [`parity_factor`](Self::parity_factor).
     pub fn score(&self, channel: fn(&str) -> Channel, parity: bool) -> Score {
         let factor = if parity { self.parity_factor() } else { None };
-        // per channel: decided, original, calls measured, dropped left-out calls, unmeasured calls
-        let mut sums = [(0.0, 0.0, 0usize, 0usize, 0usize); 7];
+        // per channel: decided, original, calls measured, dropped left-out calls (motion
+        // and timing: each call by CALL_MS and its time), unmeasured calls
+        let mut sums = [(0.0, 0.0, 0.0, 0.0, 0usize); 7];
         for (name, k) in &self.kinds {
-            let Some(i) = Channel::SCORED.iter().position(|&c| c == channel(name)) else { continue };
+            let c = channel(name);
+            let Some(i) = Channel::SCORED.iter().position(|&x| x == c) else { continue };
+            let measured = (k.calls - k.left_out - k.unmeasured) as f64;
+            let (d, o, n, dropped) = match c {
+                Channel::Motion | Channel::Timing => (k.decided_ms + CALL_MS * k.decided, k.credit_ms + CALL_MS * k.credit, k.ms as f64 + CALL_MS * measured, CALL_MS * k.dropped as f64),
+                _ => (k.decided, k.credit, measured, k.dropped as f64),
+            };
             let s = &mut sums[i];
-            (s.0, s.1) = (s.0 + k.decided, s.1 + k.credit);
-            s.2 += k.calls - k.left_out - k.unmeasured;
-            (s.3, s.4) = (s.3 + k.dropped, s.4 + k.unmeasured);
+            (s.0, s.1, s.2, s.3, s.4) = (s.0 + d, s.1 + o, s.2 + n, s.3 + dropped, s.4 + k.unmeasured);
         }
         let (mut channels, mut unmeasured) = (Vec::new(), Vec::new());
         let (mut w, mut decided, mut original) = (0.0, 0.0, 0.0);
         for (&c, &(d, o, n, dropped, um)) in Channel::SCORED.iter().zip(&sums) {
-            if um > 0 || (n == 0 && c != Channel::Unclassed) {
+            if um > 0 || (n == 0.0 && c != Channel::Unclassed) {
                 unmeasured.push(c);
             }
-            if n == 0 {
+            if n == 0.0 {
                 continue;
             }
-            let (mut d, mut o) = (100.0 * d / n as f64, 100.0 * o / (n + dropped) as f64);
+            let (mut d, mut o) = (100.0 * d / n, 100.0 * o / (n + dropped));
             if let (Some(f), Channel::Motion | Channel::Timing) = (factor, c) {
                 (d, o) = (d * f, o * f);
             }
@@ -394,7 +430,7 @@ impl Metrics {
         kinds.sort_by(|a, b| b.1.gaps.cmp(&a.1.gaps).then(b.1.calls.cmp(&a.1.calls)).then(a.0.cmp(b.0)));
         for (i, (name, k)) in kinds.iter().enumerate() {
             s += &format!(
-                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}, \"credit\": {:.1}{}, \"channel\": {}}}",
+                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}, \"credit\": {:.1}{}{}, \"channel\": {}}}",
                 if i > 0 { "," } else { "" },
                 q(name),
                 k.calls,
@@ -404,6 +440,8 @@ impl Metrics {
                 k.weighted,
                 k.credit,
                 um(k.unmeasured),
+                // "seconds of motion converted": only for kinds with a time, so other lines stay as they were
+                if k.ms > 0 { format!(", \"ms\": {}, \"credit_ms\": {:.0}", k.ms, k.credit_ms) } else { String::new() },
                 q(channel(name).name())
             );
         }
@@ -599,6 +637,26 @@ mod tests {
         assert_eq!(m.score(crate::nitroplus::convert::channel, false).channels[1], (super::Channel::Motion, 100.0));
         m.ours_ms.clear();
         assert_eq!(m.parity_factor(), None);
+    }
+
+    #[test]
+    fn motion_weighs_calls_by_their_time() {
+        use super::Channel::*;
+        let mut m = Metrics::default();
+        // a 1.5 s fade lost half: (0.5 x 2000) of 2000; a setter (0 ms) whole: 500 of 500
+        m.begin("Fade");
+        m.motion("a.nss", 1500);
+        m.note("Fade with a curve");
+        m.end(2);
+        m.motion("a.nss", 0); // before its call, as Tsukihime's and Saihate's readers report it
+        m.call("Move", 3, vec![]);
+        m.motion("a.nss", 9000);
+        m.left_out("Shake", "unreachable"); // its time is no one else's
+        m.call("Wait", 1, vec![]);
+        assert_eq!((m.kinds["Fade"].ms, m.kinds["Fade"].credit_ms, m.kinds["Wait"].ms), (1500, 750.0, 0));
+        let s = m.score(crate::nitroplus::convert::channel, false);
+        assert_eq!(s.channels, [(Motion, 100.0 * 1500.0 / 2500.0), (Timing, 100.0)]);
+        assert!(m.json("g", "nitroplus", "d", "c", "d").contains("\"credit\": 0.5, \"ms\": 1500, \"credit_ms\": 750, \"channel\": \"motion\"}"));
     }
 
     #[test]
