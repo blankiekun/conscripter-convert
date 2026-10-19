@@ -114,10 +114,8 @@ original), add the feature to CONscripter instead of approximating it:
 1. Implement it in `engine/src/cons/` as a new command or option, in the
    style of the surrounding ONScripter code, so it works on every platform
    the fork builds for (the web build especially).
-2. Don't make it opt-in (the user, 2026-10-14): a new behaviour applies
-   to every script, with no command or flag to turn it on, as bug fixes
-   do; a new command takes effect where a script uses it. Check that it
-   doesn't change the other games' builds for the worse.
+2. Don't make it opt-in (`CLAUDE.md`, "Rules"). Check that it doesn't
+   change the other games' builds for the worse.
 3. Document it in the engine's `COMMANDS.md`.
 4. Open the engine PR first, then the converter PR that uses it (the
    steps are in `CLAUDE.md`, "Rules").
