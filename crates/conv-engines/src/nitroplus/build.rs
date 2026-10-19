@@ -211,7 +211,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     }
     // the IR of a compile, its menus filled
     let script_of = |c: &mut convert::Compiled, g: &Game, files: &BTreeMap<String, nss::NssFile>, english: bool, assets: &mut NpaAssets| -> Script {
-        let story = convert::Story { flags: &c.flags, voice_classes: &c.voice_classes, files };
+        let story = convert::Story { flags: &c.flags, voice_classes: &c.voice_classes, files, both_editions: run.english.is_some() };
         let boot_label = c.ops.iter().any(|op| matches!(op, Op::Label(l) if l == convert::BOOT_LABEL)).then(|| convert::BOOT_LABEL.to_string());
         let boot = boot_label.map(|l| BootStep { gosub: Some(l), ..Default::default() }).into_iter().collect();
         let mut ir = Script {

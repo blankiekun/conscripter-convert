@@ -83,6 +83,8 @@ fn pair_name(p: PairOption) -> &'static str {
         PairOption::ConfirmSave => "confirm_save",
         PairOption::ConfirmLoad => "confirm_load",
         PairOption::ClickStopsAuto => "click_stops_auto",
+        PairOption::English => "english",
+        PairOption::Uncensored => "uncensored",
     }
 }
 
@@ -108,6 +110,7 @@ fn done(s: &PictureSettings) -> u8 {
 fn added_in(o: PairOption) -> u8 {
     match o {
         PairOption::ClickStopsAuto => 2,
+        PairOption::English | PairOption::Uncensored => 3,
         _ => 1,
     }
 }
@@ -204,6 +207,8 @@ fn values(out: &mut String, s: &PictureSettings) {
             PairOption::ConfirmSave => w(format!("mov {},1-{v}", menu::switch_off(Switch::ConfirmSave))),
             PairOption::ConfirmLoad => w(format!("mov {},1-{v}", menu::switch_off(Switch::ConfirmLoad))),
             PairOption::ClickStopsAuto => w(format!("consset \"clickautostop\",{v}")),
+            PairOption::English => w(format!("if {v} == 1 language \"en\"\nif {v} == 0 language \"ja\"")),
+            PairOption::Uncensored => w(format!("assetlayer \"uncensored\",{v}")),
         }
     }
     if mute.iter().any(Option::is_some) {

@@ -432,6 +432,9 @@ pub struct Story<'a> {
     /// The game's scripts (the system screens' own, `sys_*` and `extra_*`,
     /// hold their lists).
     pub files: &'a BTreeMap<String, NssFile>,
+    /// A build of both editions (`--english`): the settings get the
+    /// language and pictures rows.
+    pub both_editions: bool,
 }
 
 /// A story file played on its own from a gosub to `label`, its
