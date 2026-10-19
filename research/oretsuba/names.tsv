@@ -140,7 +140,7 @@
 81022f9a	task_inout_act	task_run case 0x83 InOut_Act: :Type 0-8 effects (classes in 81041812)
 810265b4	task_scene_jump_dialog	SceneJumpDialog handler: :CharaIcon (up to 10 faces), :Text, :NextTag, :JumpNextTag, :UnreadTag
 810370d4	se_play_start	SePlay (0x37): :SE, :Div n >= 1 fades in over n frames (x1000/60 ms), -1 none, :Wait 1 waits for the end, :Loop
-81037794	se_stop	SeStop (0x38): :SE (none: all), :Div fade-out, :Wait 1 waits for it
+81037794	channel_fade_stop	sound channel c: Stop with a fade-out of div x 1000/60 ms on its own CRI player (its fader), marks it fading (+0x88 = 1); SeStop (0x38) and BgmStop/BgmPlay use it
 8103cf20	sprite_move_curve	SpriteMove :Curve c bows the path by c/2 of its length; negative the other way
 8103d53c	sprite_move_roll	SpriteMove :Roll (radians, kept): +0x24 -> sprite +0x38, GPU
 81044b74	movie_play_a	MoviePlay :Skip (> 0 skippable, 0 not, < 0 only once seen; global seen table 0x814e8a58)
@@ -152,7 +152,7 @@
 81087114	sprite_quake	SpriteQuake (0x2c): :Param 0, 1 percent of the pattern, 2-5 swing; :Time; :Fade 1 dying (mode 8), 0 full (7), negative :Time a loop (9); :Wait 1 default
 8108ca08	cfg_find	key lookup by name, case-sensitive; typos (:Prioriry, :TIme, ...) not read
 8108cc48	cfg_parser_key_node	parser: makes the key node at the name's end; a key with no value is 0
-8111ee38	bgm_start	BgmPlay start (0x35): :BGM id, :Div fade-in frames (1 and 0: none); also sets the music-room heard flag 814e8a76 + id
+8111ee38	bgm_start	BgmPlay start (0x35): :BGM id, :Div fade-in frames (1 and 0: none); also sets the music-room heard flag 814e8a76 + id; plays on BGM channel 5 if 4 is active, else 4; the other channel: left alone when fading out (it fades on under the new), faded out over :Div frames when playing and :Div > 0, else cut
 81120894	sprite_quake_record	SpriteQuake record (0x2c); read in scene_load
 81120910	bgm_stop	BgmStop (0x36): :Div fade-out frames; :Wait 1 waits (only with div > 0); 0 under skip
 81120abc	window_number	Window :WindowNumber -1 (all), 0: extra text box n
@@ -180,3 +180,12 @@
 81027618	trophy_unlock_wrapper	Achievement (0x56) / all_endings_check: forwards to 0x8108b476
 8108b476	trophy_unlock_thread	starts "Trophy Unlock Thread" for a trophy ID
 8112a03c	movie_stop_new	MovieStop (0x49) record: :EndWait 1 sets +0xc, else +8
+814e907c	sound_channels	the sound manager: a list of channels, each its own CRI AtomEx player with a fader (BGM: channels 4 and 5, used in turn)
+81036ee2	channel_play	sound channel c plays cue/id n on its player (restarts whatever it held)
+81037820	channel_status	sound channel c's player status (criAtomExPlayer_GetStatus: 1 prep, 2 playing, 3 end, 4 error)
+81037a6c	channel_active	1 when channel c's player is preparing or playing (a fading one included)
+81037b10	channel_fading	1 when channel c is playing and fading out (channel_fade_stop's +0x88)
+810375b4	channel_stop_now	sound channel c: fade-out time 0, Stop: a cut
+8109df04	cri_player_set_fade_out_time	criAtomExPlayer_SetFadeOutTime (fader +0x98 = ms; "Attach the fader" warning)
+810a173e	cri_player_stop	criAtomExPlayer_Stop (with a fader: fades out over its fade-out time)
+810a01d6	cri_player_get_status	criAtomExPlayer_GetStatus

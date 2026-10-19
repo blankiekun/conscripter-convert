@@ -6,7 +6,7 @@
 001649e0	cmd_MPLY	_MPLY(n,...): reads the backquote options, plays music n through FUN_0019c470 (fade-in from option 001), sets heard-music flag bit n+0xC80 for n < 0x418
 00154040	script_arg_short	Parses the current argument as a short (guess)
 001006f0	music_sound_id	Music number n to the sound library's item ID: table of 132 u32 at 0x433F90 (0, then 0x01000000+n-1)
-0019c470	music_play	Plays music n (sound n-1 of knife1.bfsar) with volume and start offset
+0019c470	music_play	Plays music n (sound n-1 of knife1.bfsar) with volume and start offset: a playing (state 1) current slot gets a 1-frame fade-out (416.67/frame), then the slot flips and n starts in the other one
 00102b24	script_split_args	Splits a command's arguments: up to 20 (start, end) pairs
 00102c38	script_has_arg	True if argument i is present and not empty
 00102d3c	script_arg_eval	Evaluates argument i as an expression
@@ -94,3 +94,17 @@
 00192a60	choice_flow_flags	_SELD argument 1 (choice 1-0x52): sets its global flags (table 0x4594d0, words 400+)
 001527f0	autosave_copy	_ATSV: copies the 0x3aa8-byte save record into the auto-save buffer
 0015f3b0	state_snapshot	first change after a text: copies the scene state (0x19b8 bytes) for the save
+0019b4d0	music_slot	music slot record (2 x 0x3c bytes at PTR_DAT_00be0be0): -1 the current one; +0 state (0 idle, 1 playing, 2 fading out, stopped at volume 0), +8 music n, +0xc volume, +0x10 target, +0x14 step per frame
+0019b550	music_slot_flip	current music slot (DAT_0163684c) = the other one: a new music never replaces the one fading, it plays on the other sound player
+0019b590	music_slot_current	index of the current music slot = its sound player (0 or 1)
+0019b7f0	sound_update	per frame (argument: frames): steps both music slots' volumes toward their targets on their own players (0 and 1) and stops a fading slot at volume 0; then the 20 SE channels
+0019c460	music_current	music number playing (DAT_00bc0688; -1 after a fade-out or stop)
+0019c610	music_stop_now	stops the current slot's sound player at once (Stop(0)); cmd_MPLY calls it before music_play when no fade-in option is given and the current player is active
+0019c650	music_fadeout_quick	current slot to state 2 with a 1-frame step (_RTM_)
+0019c6d0	music_play_fade	_MPLY with option 1: flips the slot (stopping whatever still plays there), starts n at volume 0 rising to its volume at the given step
+0019c9b0	music_fadeout	current slot to state 2, target 0, step = volume x 1000/60 / ms per frame (_MFAD; _MPLY with option 1 for the old music, its option 11 or else 1 ms)
+0019ca00	music_volume_to	current slot's target volume and step (_MVOL)
+0019ca50	music_player_active	3 when the current slot's sound player holds a sound (playing or fading), else 0
+001ee200	snd_player_start	sound player p starts item id (nn::atk-style handle per player)
+001ee4e0	snd_player_stop	sound player p: Stop(fade frames) on its handle and marks it free (+0x18 = -1)
+001ee590	snd_player_active	sound player p holds a sound (+0x18 >= 0)

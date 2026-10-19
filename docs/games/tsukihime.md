@@ -255,6 +255,20 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   (default 100), 49 a flag passed on (default 1), 69 a start offset
   (in samples, to the sound library). An option's number is its three
   digits read as decimal. `n < 0` stops the music.
+- **Two music slots** (2026-10-19, `research/typemoon/names.tsv`
+  `music_*`): music plays on two sound players, one per 0x3c-byte slot
+  record (state 0 idle, 1 playing, 2 fading out; volume, target, step
+  per frame). `sound_update` (0x19b7f0) steps both every frame and stops
+  a fading slot at volume 0. `_MFAD` (`music_fadeout` 0x19c9b0) only sets
+  the current slot fading. A new `_MPLY` flips to the other slot
+  (`music_slot_flip` 0x19b550), so a fading track could play on under
+  it, but `cmd_MPLY` decides first (decompile lines 203-218): **without
+  option 1** it stops the current player at once when it holds a sound
+  (`music_player_active` 0x19ca50 = 3 → `music_stop_now` 0x19c610,
+  `Stop(0)`), fading or not: a cut. **With option 1** it re-fades the old
+  slot over option 11's ms (else option 1's; `_MFAD`'s rate is replaced)
+  while the new one fades in on the other player (`music_play_fade`
+  0x19c6d0): a cross-fade.
 - **Music number → sound**: `FUN_0019c470` calls `FUN_001006f0(n)`,
   which reads a table of 132 u32 at 0x433F90: entry 0 is 0, entry `n`
   is `0x01000000 + n − 1`, the sound library's item ID of sound
