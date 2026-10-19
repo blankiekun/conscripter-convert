@@ -13,7 +13,7 @@ one, else from --range (hex start:length; for an emulator whose stub has no
 map), or --scan (hex lo:hi:step: one byte read every step, the readable
 stretches kept; Vita3K's stub, which has no map), or with --get-info from Ryujinx's `monitor get info` (the modules, and
 the heap from its start as far as it reads; the text goes to <prefix>.info). Each region is read with `m` packets of --chunk bytes (default: what the
-stub's PacketSize allows, at most 0x7000); a chunk the stub refuses (`E..`) is
+stub's PacketSize allows, at most 0x1000: Ryujinx's stub reads 4 KB at 1.2 MB/s, 28 KB at 0.5); a chunk the stub refuses (`E..`) is
 left out, so a region may split. The registers of the stopped thread (`g`) go
 to <prefix>.regs as hex. The target stops while it is read (as gdb's attach
 does); the dump ends with a detach (`D`), which lets it run on.
@@ -183,7 +183,7 @@ def main(argv):
     if b"QStartNoAckMode+" in sup and g.send(b"QStartNoAckMode") == b"OK":
         g.ack = False
     m = re.search(rb"PacketSize=([0-9a-fA-F]+)", sup)
-    chunk = int(argv[argv.index("--chunk") + 1], 0) if "--chunk" in argv else min(0x7000, (int(m.group(1), 16) - 16) // 2 if m else 0x400)
+    chunk = int(argv[argv.index("--chunk") + 1], 0) if "--chunk" in argv else min(0x1000, (int(m.group(1), 16) - 16) // 2 if m else 0x400)
     stop = g.send(b"?")
     info = ""
     if not ranges and "--get-info" in argv:
