@@ -474,6 +474,18 @@ findings mean nothing (ours ran without `--real-time`).
 `routes.py` reads START's story menu as the button screens it now is
 (it looked for a `select`).
 
+The whole route (2026-10-18): the same commands with 32400 for 7200
+(9 hours; about 1.4 hours of it paused) give **23327 pages, S01_01 to
+S02_17A**, the route's end. Diffed with `--pages 23332` (ours goes on
+into a new game after page 23332) against the ours trace from before
+#505, using #505's `vpatch.py`: **no text finding**; 1 extra
+(S03C_03C:7700); 5 page (our `*_jump` pages at S01_02E:2990,
+S02_03B:4050, S02_05E:3310, S02_06B:1580, S02_06F:3230); 721 missing:
+0x21 (CharacterActionEnd) 643, SeStop 56, 0x27 4, EyeCatch 0x3e/0x3f
+3 each, 0x2d 3, CharacterDelete 3, SpriteDeleteBG 2, CharacterAction
+2, SpriteDelete 1, 0x1b 1; 733 quiet. The 0x21 count predates #505's
+CharacterActionEnd wait. Ours needs a fresh trace on main to count it again.
+
 ## Milestones
 
 The date each phase was reached, and its PR (`-`: none yet, or made
@@ -511,10 +523,9 @@ build tested headless. Output 960×544.
   catch's speed, the wave transition's size, the particles' motion,
   the skip dialog's and text's font sizes, CONFIG's lit cells (ours cut
   1-3 pixels short of the eboot's 90/180-wide cells at 0x8107145c).
-  Full-route reference trace (Testing, step 3): 6216 pages of
-  日和子's route (to S02_05H); text clean; to look at: SeStop gives
-  none of ours 12 times, EyeCatch 6. The rest of the route: a further
-  run from a save at S02_05H.
+  Full-route reference trace (Testing, step 3): all 23327 pages, text
+  clean; to look at: SeStop none of ours 56 times, EyeCatch 6, five
+  `*_jump` pages, an extra at S03C_03C:7700; re-run ours on main.
 - A missing `:Position` with no picture to replace: the eboot puts
   Sprite at (640, 560) and SpriteBG at (640 - w/2, 360 - h/2); ours
   centres it (no script relies on it). The characters' has-a-place
