@@ -19,8 +19,10 @@
   milestone (story playable, extras done, finished), before a release,
   or when the user names a focus. At most one at a time, and not the
   same focus twice in a week (check `out/lead-scratch/ideas/`). Its list
-  lands in `out/lead-scratch/ideas/`; give the user the top 3 with your
-  opinion and queue only what they approve.
+  lands in `out/lead-scratch/ideas/`; give the user every idea on it
+  (title, one line, effort) except those you advise against, which you
+  name with a one-line reason (the user, 2026-10-18); queue only what
+  they approve.
 - **A new game**: `docs/lead-new-game.md` (ask the user's plan first).
 - **Offer an idea agent when an issue needs one**: a bug of a kind
   that keeps coming back (two lints this week found real bugs nobody
