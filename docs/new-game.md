@@ -100,9 +100,9 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
      models. It is public: no local paths (write `<install>` or
      `<game>`), only commands anyone with the game can run. Keep the
      "Status" current in the same commits as the work, and keep it to
-     the open state: when an item is done, move its write-up to a
-     **"History"** section after "Status" (the document's last two
-     sections), so a session reads only what is open. There are no
+     the open state: when an item is done, move its write-up to
+     `docs/history/<game>.md` (the document's last section, "History",
+     links to it), so a session reads only what is open. There are no
      git-ignored handoff files; where the user keeps the game goes in
      your memory.
    - A worktree per game (`../conscripter-convert-<name>`), with one

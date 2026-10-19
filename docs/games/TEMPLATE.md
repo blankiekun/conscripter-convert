@@ -76,7 +76,7 @@ can be compared with this one.
 
 Only the open state: a table of the areas (✅ done, 🟡 partly, ❌ not
 started), then "Next", in order. About 60 lines at most. When an item
-is done, its write-up moves to "History".
+is done, its write-up moves to `docs/history/<game>.md`.
 
 ### Next
 
@@ -84,4 +84,4 @@ is done, its write-up moves to "History".
 
 ## History
 
-Finished work, newest first, each with its date.
+A link to `docs/history/<game>.md`, which holds finished work, newest first, each with its date.
