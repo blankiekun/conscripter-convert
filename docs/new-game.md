@@ -201,11 +201,13 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
 When a value comes out of a small function (a curve, a table lookup,
 the corners of a sprite quad), run that function rather than reading
 its maths: `research/tools/exe_call.py` maps the exe into the Unicorn
-CPU emulator (a PE x86-32 at its ImageBase, a Vita eboot ELF at its own
-addresses, a Switch NSO at 0x100000 with its relocations: Ghidra's
-addresses throughout)
+CPU emulator (a PE x86-32 at its ImageBase, an x86-64 Linux ELF at
+0x100000 with its relocations, a Vita eboot ELF at its own addresses, a
+Switch NSO at 0x100000 with its relocations: Ghidra's addresses
+throughout)
 and calls one address with int, float and pointer arguments (x86
-cdecl/stdcall/thiscall/fastcall, ARM hard-float AAPCS, AArch64), then
+cdecl/stdcall/thiscall/fastcall, x86-64 System V, ARM hard-float AAPCS,
+AArch64), then
 prints the return value and any buffers; calls into imports, or into
 addresses given with `--stub`, return 0 or a chosen value and are
 listed. Seconds, no game, no wine. Its Python API (`Exe(path).call`)
@@ -217,8 +219,9 @@ in `muramasa.rs`), and 俺たちに翼はない's sprite quad with a negative
 scale (`docs/games/oretsuba.findings.tsv`). Limits: no OS, so a
 function that allocates, does file or GPU work, or reads state the
 game set up needs that state written into memory first (fields of an
-object passed as a buffer); a stdcall import's stub leaves its
-arguments on the stack; the Vita's SCE relocations and import stubs
+object passed as a buffer); a stdcall import's stub pops as many
+arguments as the mingw-w64 import libraries give it (an unknown one
+pops none); the Vita's SCE relocations and import stubs
 are not read (the eboot runs at its own addresses, so only an import
 call is wrong: stub it). For state the game sets up, a trace DLL can dump
 the process's memory at chosen statements (Django's `ntrace.sh --dumps`,
@@ -226,6 +229,16 @@ docs/games/django.md "Running the original under wine"). `load_dump`
 then maps a dump, so the exe's own functions run on real objects. Stub
 the clock with a function (`stub_import("WINMM.dll!timeGetTime", …)`)
 to step frames.
+
+**What each platform has** (2026-10-19):
+
+| Platform | Executable | `exe_call` | Memory snapshots | Per-frame state |
+|---|---|---|---|---|
+| Windows x86-32 (Xuse, Nitroplus NSS) | PE | yes (cdecl, stdcall, thiscall, fastcall; FS block, CRT TLS) | trace DLL under wine: `ntrace.sh --dumps`/`--scene-dumps` (NSS) | `ntrace.sh --frames` (Django, Muramasa), `xtrace.sh --frames` (Saihate) |
+| Windows x86-64 | PE32+ | no (not read yet) | not yet | not yet |
+| Linux x86-64 | ELF | yes (System V; RELA relocations) | not yet (no game yet) | not yet |
+| PS Vita (ARM) | decrypted eboot ELF | yes (AAPCS; SCE relocations not read) | not yet: Vita3K's GDB stub | not yet |
+| Switch (AArch64) | NSO | yes (relocations applied) | not yet: Ryujinx's GDB stub | not yet |
 
 ### Snapshot oracle
 

@@ -91,7 +91,27 @@ def main():
             e.load_dump(pre + "s")
             assert e.call(BASE + 0x1030)[0] == 5678
     assert e.call(BASE + 0x1000, [40, 2])[0] == 42
+    x64_elf()
     print("exe_call self-test: ok")
+
+
+def x64_elf():
+    """an x86-64 ELF (a shared object gcc builds here): System V arguments, a double, an import stubbed"""
+    import shutil
+    import subprocess
+    if not shutil.which("gcc"):
+        return print("(no gcc: the x86-64 ELF part skipped)")
+    with tempfile.TemporaryDirectory() as d:
+        src, so = os.path.join(d, "t.c"), os.path.join(d, "t.so")
+        open(src, "w").write("int puts(const char *);\nint add(int a, int b) { return a + b; }\n"
+                             "double twice(double x) { return x * 2; }\nint callsym(int a) { return puts(\"x\") + a; }\n")
+        subprocess.run(["gcc", "-O1", "-fPIC", "-shared", "-fno-stack-protector", "-o", so, src], check=True)
+        e = Exe(so)
+    assert e.arch == "x64"
+    assert e.call(e.symbol("add"), [40, 2])[0] == 42
+    assert e.call(e.symbol("twice"), [("d", 1.25)], ret="double")[0] == 2.5
+    e.stubs[next(a for a, n in e.imports.items() if n == "puts")] = 100
+    assert e.call(e.symbol("callsym"), [7])[0] == 107
 
 
 if __name__ == "__main__":
