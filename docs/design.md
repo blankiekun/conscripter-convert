@@ -48,6 +48,16 @@ subcommand per engine (`crates/conv-cli/src/main.rs`).
 Only the output stage (`conv-cons`) knows about NScripter and CONscripter,
 so another output engine could be added later.
 
+| Path | Contents |
+|---|---|
+| `crates/conv-core` | The engine-neutral intermediate representation (IR) |
+| `crates/conv-engines` | Source engine readers, one module per engine (`xuse/`, ...) |
+| `crates/conv-cons` | CONscripter output: IR to `0.txt`, NSA archive writer |
+| `crates/conv-cli` | The `conscripter-convert` command |
+| `engine/` | CONscripter, the target engine (git submodule) |
+| `research/` | Scripts used while reverse-engineering formats (see `research/README.md`) |
+| `docs/games/` | One document per game: formats, opcodes, progression variables, status |
+
 ## The IR (core design decision)
 
 A small, engine-neutral list of instructions, grouped into labelled blocks,

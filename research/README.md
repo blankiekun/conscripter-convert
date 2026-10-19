@@ -22,6 +22,7 @@ game data. Run them with `python3 -I` from outside the game directory.
 | `decrypt_0cd.py <0.cd> <out>` | Decrypts 0.cd with the cipher found in the exe |
 | `gafkey.py` | GAF4 key generator and XOR from the exe |
 | `nstrace.py <0.txt> [steps] [--show]` | Runs the NScripter subset conscripter-convert emits (labels, goto, gosub/return, arithmetic, if) to find loops or trace the path to the first text page |
+| `smoke.py` | Runs a converted game headless in the built engine with scripted clicks and screenshots (see its docstring; it expects the title and menus `conv-cons` writes) |
 | `gaf_extract.py <outdir> <file.004…>` | Extracts the PNGs from GAF4 files (needs `gafkey.py`) |
 | `names.tsv` | Names for `Farthest2015.exe`'s functions and globals, for `ghidra_export.sh --names` |
 | `voice_align.py <game dir> <out.json>` | Statistically aligns voice ids to .xsa clips by text length vs clip length (needs numpy) |

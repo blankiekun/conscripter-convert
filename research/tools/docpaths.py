@@ -8,7 +8,7 @@ A path counts when it starts with a top-level folder of the repo
 (`crates/…`, `docs/…`, `research/…`); placeholders (`<game>`), globs
 and git-ignored paths (`local/`, build outputs) are skipped, and so is `engine/…`
 when the submodule isn't checked out. Prints file:line path for each
-missing one and exits 1 if there is any.
+missing one and exits 1 if there is any. With the submodule checked out it\nalso checks the relative links of engine/*.md.
 """
 import os
 import re
@@ -38,4 +38,17 @@ for f in files:
             if not os.path.exists(p) and subprocess.run(["git", "-C", repo, "check-ignore", "-q", rel], stderr=subprocess.DEVNULL).returncode:
                 print(f"{f}:{n} {p}")
                 bad += 1
+# The engine's own Markdown (a separate repo): relative [text](file.md#anchor) links must resolve inside engine/.
+if engine:
+    for f in subprocess.run(["git", "-C", "engine", "ls-files", "*.md"], capture_output=True, text=True, check=True).stdout.split():
+        if f.startswith(("thirdparty/", "src/")):
+            continue
+        for n, line in enumerate(open(os.path.join("engine", f), encoding="utf-8"), 1):
+            for link in re.findall(r"\]\(([^)\s]+)\)", line):
+                target = link.split("#")[0]
+                if not target or re.match(r"[a-z]+:", target):
+                    continue
+                if not os.path.exists(os.path.normpath(os.path.join("engine", os.path.dirname(f), target))):
+                    print(f"engine/{f}:{n} {link}")
+                    bad += 1
 sys.exit(1 if bad else 0)

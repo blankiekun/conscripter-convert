@@ -59,6 +59,7 @@ to download CONscripter.
 | 最果てのイマ COMPLETE | `Farthest2015.exe`, `HD/CDFiles/*.cd`, `CD/` | `convert-game`, title "Saihate no Ima COMPLETE", IPA Gothic | ffmpeg (movies) |
 | 装甲悪鬼村正 | `Muramasa.exe` and `nss.npa`, `cg.npa`, `sound.npa`, `voice.npa`, `system.npa` | `convert-nss --file ma00_000.nss --chain 2000`, title 装甲悪鬼村正, IPA Mincho | ffmpeg (movies) |
 | 俺たちに翼はない (PS Vita) | `media/SCRIPT.cpk`, `media/CG.cpk`, `sce_sys/param.sfo`; the CPK must be decrypted | `mages convert`, IPA Gothic | ffmpeg (sounds, movies) |
+| Full Metal Daemon Muramasa (English, Steam) | `muramasa_en.exe` and `script.npk`, `cg.npk`, `font.npk`; the Japanese 装甲悪鬼村正 install is also needed (an option takes its folder) | `build <folder> --japanese <装甲悪鬼村正>`, IPA Gothic | ffmpeg (the Japanese game's movies) |
 | 続・殺戮のジャンゴ | `Django.exe` and the `.npa` archives; the game updated to 1.01 | `convert-nss`, IPA Gothic | ffmpeg (movies) |
 | 月姫 -A piece of blue glass moon- (Switch) | the RomFS (`allscr.mrg`, `script_text.mrg`, `allui.mrg`, `knife1.bfsar`) with `exefs/main` beside it; 1.0.2 or the fan patch | `typemoon convert`, IPA Gothic | ffmpeg (movies, sounds) |
 

@@ -1130,8 +1130,8 @@ natively, at every milestone:
   system screens and extras working, the route and progression check
   (step 11, unlocks included) done, the remaining differences written down as optional
   leftovers in the game's document.
-- Update the game's document (status, leftovers), `README.md`'s support
-  table, CLAUDE.md's game table, `docs/lessons.md` (new lessons, stated
+- Update the game's document (status, leftovers), `README.md`'s games
+  table (the state word), `gui/README.md`'s games row, CLAUDE.md's game table, `docs/lessons.md` (new lessons, stated
   for any engine), and this playbook if the process changed.
 - **The game is in `crates/conv-engines/src/registry.rs`** (id, name,
   engine, marker files, command; `conscripter-convert games` lists it)
