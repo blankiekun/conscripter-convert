@@ -4,115 +4,33 @@ Done items moved out of [the game document](../games/muramasa.md)'s Status.
 
 ### New pictures zoomed from a size or on a path (2026-10-19)
 
-A picture shown with an unwaited `Zoom` from a size other than 0
-(ma04_018vs:365, from 1200) or a `BezierMove`/`FadeFR` path (mc04_008:138's
-`Plain` copy) was held at the next sync and drawn as a cross-fade. sync.rs's
-new-picture loop now gives both as an `spmotion` (the zoom faded in from 0
-when the fade takes as long; the path from minus its last key, keys via
-`along`, so FadeFR's `Random` jitter adds 29 runtime `rnd` forks). Holds
-1,525 -> 1,243. Tests `a_new_picture_zoomed_without_waiting_zooms_from_its_size`,
-`a_new_picture_on_a_path_without_waiting_runs_it`.
+An unwaited `Zoom` from a size other than 0 (ma04_018vs:365) or a `BezierMove`/`FadeFR` path (mc04_008:138) was held and cross-faded. sync.rs's new-picture loop now gives both as an `spmotion` (FadeFR's `Random` jitter adds 29 runtime `rnd` forks). Holds 1,525 -> 1,243.
 
 ### No hold under a cover (2026-10-19)
 
-A sync under an opaque `Plain` cover (nothing above it) waited for the
-unwaited actions still running under it, up to 1 s (127 of the 1,652
-holds): the cockpit gauges' processes (`CP_*Auto`/`*Move`, `CPW*`,
-about 100, mc03_020vs*, md05_007vs, ma03_025), the clouds of
-function.nss:4596, backgrounds panned or zoomed under the cover
-(mc01_019vsa:80's 80 s pan, mc02_027:60). Nothing under the cover is
-seen and the exe goes on, so the sync now waits only the script's own
-time. Test `an_unwaited_action_under_an_opaque_cover_doesnt_hold`.
-Left: such an action is still drawn at its end when the cover goes
-(the 80 s pan doesn't run on), for the background-motions item.
+A sync under an opaque `Plain` cover waited up to 1 s for unwaited actions running under it (127 of 1,652 holds: cockpit gauge processes, clouds, 80 s background pans). Nothing under the cover is seen and the exe goes on, so the sync waits only the script's own time. Left: such an action is still drawn at its end when the cover goes (background-motions item).
 
 ### `csp 49`-`58` once per load, not per `setwindow` (2026-10-18)
 
-Every `setwindow` was followed by `csp 49` to `csp 58`, which only
-cleared the name plate's and link words' old sprites in saves made
-before #222 and the link names: about 384k commands, 2.7 MB (9 %) of the
-`0.txt` (JP 28.8 → 26.1 MB, EN 27.1 → 24.5 MB). A load is the only way
-those sprites come back, so the `loadgosub` routine `conv_load_clear`
-(every game) clears them once and goes on to the game's own routine.
-Sprites 49-58 are used by nothing else in any game.
+Every `setwindow` was followed by `csp 49`-`58` (only to clear old sprites in saves from before #222): 2.7 MB (9 %) of `0.txt`. Now the `loadgosub` routine `conv_load_clear` (every game) clears them once. Sprites 49-58 are used by nothing else in any game.
 
 ### ma00_000 picture diff: what is left (2026-10-18)
 
-#457's 24 blocks, rerun with `--real-time`:
-
-- Pages 57, 66 (66 is 57 kept in a cover): `SetShade(…, MEDIUM)`
-  pictures are about 2.5/255 darker in the exe. Its passes of a 3×3
-  mean floor (`FUN_00465b10`: `sum / 9` on unsigned ints), about
-  0.4/255 lost a pass (4 passes on a frame of the game, simulated:
-  1.5/255); the engine's blur rounds. Invisible; a fix would darken
-  a shaded picture by its passes' loss.
-- Pages 55, 56, 62, 64, 76-79: inside the text window, which ours
-  moves to the same place (`SetTextEXR`/`EXL`, x 191 or 703): the
-  original's frame 1 s into the block is still typing (62: 3 of 4
-  columns), ours is typed out with the click-wait icon. 79: our
-  frame is 200 ms into the unwaited 300 ms `Move("@StC*", …, @+10,
-  @+5)` (the knight 4, 2 px short; the original's is done).
+#457's 24 blocks with `--real-time`: pages 57, 66 (`SetShade(…, MEDIUM)`) are about 2.5/255 darker in the exe (its 3×3 mean floors `sum / 9` per pass, `FUN_00465b10`; the engine's blur rounds); invisible, not fixed. Pages 55, 56, 62, 64, 76-79 differ only inside the text window (the original is still typing 1 s in; on 79 ours is 200 ms into an unwaited 300 ms `Move`).
 
 ### `DrawTransition` as the engine's `spfadeto` (2026-10-18)
 
-`DrawTransition` on a picture (image or strip) is now CONscripter's
-`spfadeto` (engine PR "spfadeto"): the sprite fades through its mask from
-`from` to `to` while the script goes on, the table made frame by frame as
-the exe makes it (transition_start 0044fe00, 00457bf0), the mask stretched
-over the screen. `from` is taken as given, whatever the picture showed
-(the exe's start doesn't read it): 620 of the 633 calls noted "from
-another opacity than the picture's" were pictures; the note now fires
-only for a `Plain` cover or other object, which keeps the masked print
-(13). Gaps 3,187 → 2,569. The `system/veil_*.png` pictures, the converter's copy of the table
-(`transition.rs`) and its `spmask` veils are gone; a waited call is an
-instant `print` and a `delay`. Checked headless on the full build: a
-full sweep (ma05 blind_01 in and out) matches the old `effectsoft` print
-at 25/50/75 % within 1.3 % of the pixels; a partial one (circle_01
-0 → 500 over 4 s) ends on the same frame as the old veil (AE 0).
+`DrawTransition` on a picture (image or strip) is CONscripter's `spfadeto` (engine PR "spfadeto"): the sprite fades through its mask from `from` to `to` while the script goes on, the table made as the exe does (transition_start 0044fe00, 00457bf0). `from` is taken as given (the exe's start doesn't read it); the "from another opacity" note fires only for a `Plain` cover or other object, which keeps the masked print (13). Gaps 3,187 -> 2,569. `system/veil_*.png`, `transition.rs` and the `spmask` veils are gone; a waited call is an instant `print` and a `delay`. Checked: full sweep matches the old `effectsoft` within 1.3 % of pixels, partial ends on the same frame.
 
 ### Plain covers as screen copies (2026-10-18)
 
-A `Plain` cover that is moved, zoomed, turned, blended (`Request`
-`AddRender`/`SubRender`/`MulRender`, the `CreatePlainEX*`/`SP*` helpers)
-or waved (`DrawEffect`) was not drawn at all, so md05_016vs's 空間歪曲
-flashes (`CreatePlainEXadd` + `CreatePlainEX`, faded to 500 as they zoom
-to 1500, a HighWave on one) showed nothing. Such a cover is now one
-sprite holding a copy of the screen under it (`spgrab n,-3`, new in the
-engine: the background and the sprites drawn before n), taken when it is
-first shown while the screen under it is still what it froze; the engine
-zooms it (`spzoom`, the zoom over time as `spmotion` keys from the start
-zoom), blends it (`spblend`), waves it (`spwave`), and a partial
-`DrawTransition`'s veil cuts it (`spmask`, laid on the screen,
-md05_016vs 1049-1050). 153 copies in Muramasa (55 scenes: ma04_013vs's
-additive zoomed flashes, mc01_020vsa's ghosted 1100/1300 copies, …);
-Django has no `Plain` covers. Wave notes on covers 10 → 3.
+A `Plain` cover that is moved, zoomed, turned, blended (`Request` `AddRender`/`SubRender`/`MulRender`, `CreatePlainEX*`/`SP*`) or waved (`DrawEffect`) was not drawn (md05_016vs's 空間歪曲 flashes showed nothing). Now it is one sprite holding a copy of the screen under it (`spgrab n,-3`, new in the engine), taken when first shown while the screen under it is still what it froze; the engine zooms (`spzoom`, `spmotion` keys), blends (`spblend`), waves (`spwave`) it and a partial `DrawTransition`'s veil cuts it (`spmask`). 153 copies in Muramasa; Django has no `Plain` covers.
 
-The same change fixes the order of a new picture's opacity and its
-motion: `msp` came after `spmotion`, and `msp` ends a kept motion, so a
-picture fading in to a partial opacity over longer than the wait jumped
-to its end (trace: `"ended":"cut short","ran":0`); `msp` now comes first
-(≈ 760 lines in Muramasa, 7 in Django). Checked in a scene build of
-md05_016vs with `--shot-at`: the flash's copy runs its motion (`"ran out",
-"ran":305`), the frame 200 ms in is the additive zoomed copy (RMSE 0.19
-against the frame before), 800 ms in the 50 % waved copy (0.06).
+Also fixed: `msp` now comes before `spmotion` for a new picture (`msp` ends a kept motion, so a picture fading in to a partial opacity jumped to its end; ≈ 760 lines in Muramasa).
 
 #### A Plain cover shown again (2026-10-18)
 
-A `CreateEffect("Plain")` cover keeps the screen as it was when it was
-made, and keeps it after it is faded out: ma00_000 makes one per
-fighter (`絵鷺沼側`, `絵垣見側`, the split screen `絵相対`), fades each
-out, deletes every picture under them and fades them in again (pages
-62, 64, 66, 76-78). Ours froze whatever was on screen at the fade-in,
-so the split screen stayed. The cover now remembers the pictures it
-froze; once it has been at 0 and the screen under it changed, it draws
-those (its shade or tone over them) at its own priority. 10 such
-fade-ins in 5 files by a scan of the scripts, more through
-`CreatePlainEX` (made at 0, faded in later: ma04_014vs's blurred
-copy, where the white flash above it no longer stays). A cover that is
-moved, zoomed, turned, shaken or blended (mc03_021vs's `SubRender`
-copy) or that froze a strip or movie (md04_037's rain) still keeps the
-screen as before. #457's picture diff of pages 62, 64, 76-78: 83-86 % of
-pixels differing before, only the text window after.
+A `CreateEffect("Plain")` cover keeps the screen as it was when made, even after it is faded out (ma00_000 makes one per fighter, deletes the pictures under them and fades them in again). The cover now remembers the pictures it froze; once at 0 and the screen under it changed, it draws those (its shade or tone over them) at its own priority. 10 such fade-ins in 5 files, more through `CreatePlainEX`. A cover moved, zoomed, turned, shaken, blended, or that froze a strip or movie (md04_037's rain) still keeps the screen as before. Pages 62, 64, 76-78: 83-86 % of pixels differing before, only the text window after.
 
 ### Status as it stood before the 2026-10-18 prune
 
@@ -120,1211 +38,195 @@ Moved whole from "Status"; its subsections are one level down.
 
 #### Web crash on the second start (2026-10-17)
 
-In the web build (v0.29.0) Muramasa trapped with "memory access out of
-bounds" (Firefox: "index out of bounds") on every start after the
-first: the engine read `kidoku.dat` through a 64 KB stack buffer, the
-whole of the web build's stack. Fixed for every game in CONscripter
-#148 (the submodule points at it); repro: the site's `cons/player.html`
-in headless Chromium with a persistent profile, opened twice.
+Web build v0.29.0 trapped "memory access out of bounds" on every start after the first: the engine read `kidoku.dat` through a 64 KB stack buffer, the web build's whole stack. Fixed for every game in CONscripter #148.
 
 #### Trace diff (2026-10-17)
 
-The original's trace (`ntrace.sh`, wine section) against our
-`--auto-play 60 --real-time` run, first 50 pages of `ma00_000`: every
-page pairs by its `<PRE>` line with the same text (ruby as its base).
-The unwaited moves are fixed (History, "Trace diff fixes"). The
-waited `Fade`s that end 30 to 60 ms after their time in the original's
-trace (150 ms, the box at function.nss:1158: 195 to 225 ms to the next
-statement; 100 ms: 145 to 162; 500: 530 to 545; 1000: 1008 to 1028)
-are wine's frames, not a rule to copy. Every timed effect of the exe
-(Fade, Move, Zoom, Rotate, Shake, transitions, volume: 14 sites)
-builds `floor(time * 60 / 1000)` steps (`cb_Fade_0044f020`: time × fps
-table 0x5dcb40[4] / 1000.0, `_ftol`) and advances one step per 16 ms
-of real time (`tempo_advance` 00449930: ms since the object's last
-frame / 0x5dcb0c[4] = 16, speed 1.0 at the default index 3), so its
-animation lasts `16 * floor(0.06 * time)` ms (144, 96, 480, 960), a
-little *less* than the time. It ends at the first render frame after
-that (`fade_step` 00456a20 checks the index before advancing), and the
-waiting script sees it at its next 16 ms poll (`wait_effect`
-004489e0). Measured from those 144/96/480/960, the trace's excess is
-the same 48 to 81 ms for every length (the box fade's 208/224 are 13
-and 14 polls), the latency of about two ~30 ms frames under wine plus
-the poll; at 60 Hz it would be 17 to 50 ms. Ours (time + 9 ms) is
-within two frames of the exe at 60 Hz, so nothing changed; making
-every timed effect 4 % shorter (the 16/16.67 ratio) is possible but
-not done (lead's call). Django.exe has the same rule
-(`init_speed_tables`, its advance 004348f0, its counts at 0x422d40 …
-the fps table 0x531a90 × 0.001). Reading the diff: the
-original's command ends when its next record starts, ours when its last
-`ev` is written (`trace_diff.py`), so the 4 to 161 ms after a page's box
-fade were the next command's time against the box fade's: not findings.
+Original's trace against our `--auto-play 60 --real-time` run, first 50 pages of `ma00_000`: every page pairs by its `<PRE>` line. Waited `Fade`s end 30 to 60 ms after their time in the original (wine's frames, not a rule to copy). Every timed effect of the exe (Fade, Move, Zoom, Rotate, Shake, transitions, volume: 14 sites) builds `floor(time * 60 / 1000)` steps (`cb_Fade_0044f020`) and advances one per 16 ms of real time (`tempo_advance` 00449930, speed 1.0 at the default index 3), so it lasts `16 * floor(0.06 * time)` ms (144, 96, 480, 960), a little less than the time; the waiting script sees it at its next 16 ms poll (`wait_effect` 004489e0). Ours (time + 9 ms) is within two frames of the exe at 60 Hz, so nothing changed; making every effect 4 % shorter is possible, not done (lead's call). Django.exe has the same rule (advance 004348f0, fps table 0x531a90). In `trace_diff.py` the original's command ends when its next record starts, ours at its last `ev`: so the 4 to 161 ms after a box fade were not findings.
 
 #### Exe mapping redone (2026-10-17)
 
-`docs/games/muramasa.findings.tsv`: one row per built-in and branch the
-dry run sees, marked seen/inferred/unknown with the exe address
-(Muramasa.exe, sha256 `1d67e4771a72…`; `research/nitroplus/names.tsv`,
-43 more callbacks from the export loop, step 2). Fixed from it: unread
-arguments that change nothing (#366), a shake growing from 0 px (#374),
-`SetVertex` in lower case only (#380), the colour names (#383),
-`DrawTransition`'s softness and fade-out direction (#386, engine #138).
-Open: `SetFrequency` on music
-(1,486); `CreateSurface`/`SetSurface`, `Position`, `CreateMovie`'s
-arguments, `Delete`'s 1-2 unknown. Names were carried from Django.exe by
-hand (SetPan, Fade, SetVertex, colours), not by a version-tracking match
-(step 21).
+`docs/games/muramasa.findings.tsv`: one row per built-in and branch the dry run sees, marked seen/inferred/unknown with the exe address (Muramasa.exe sha256 `1d67e4771a72…`; `research/nitroplus/names.tsv`). Fixed from it: unread arguments (#366), a shake growing from 0 px (#374), `SetVertex` lower case only (#380), colour names (#383), `DrawTransition`'s softness and fade-out direction (#386, engine #138). Open: `SetFrequency` on music (1,486); `CreateSurface`/`SetSurface`, `Position`, `CreateMovie`'s arguments, `Delete`'s 1-2 unknown. Names were carried from Django.exe by hand, not by a version-tracking match (step 21).
 
-Findings audit (2026-10-18, `docs/new-game.md` step 17, seed 20261018):
-10 "seen" rows and the 3 `left_out` kinds (no such function, `Conquest`,
-the choice screen's calls) re-derived from the decompile and the
-disassembly: 12 of 13 confirmed, one wrong. `CreateWindow`'s argument 6
-is not inert: anything but `true` clears the window's +0x9d4
-(`create_window` 00443500, the value in EAX), so `true` windows place
-their children from the window's place (`init_object_place` 0044c8c0,
-`parse_object_place` 00458d50), as in Django; ours places them from the
-screen (74 `true` calls; 絵演窓上's children 50 px off). Row corrected;
-fixed (2026-10-18): a `true` window's children are placed from its place,
-their named places (`Center`, `InBottom`) count in its rectangle, and
-they move with it (`Compiler::places_children`, `frame`; Django.exe's
-FUN_004403a0 does the same, so 続・殺戮のジャンゴ's `中窓` busts too). `Shake`'s flip step is truncated in the exe,
-rounded in ours (≤ 1 ms); `DrawTransition`'s table is stored truncated
-(fldcw 0xc00 at 00457dee), as the engine's `effectsoft` does.
+Findings audit (2026-10-18, `docs/new-game.md` step 17): 12 of 13 re-derived rows confirmed. `CreateWindow`'s argument 6 is not inert: anything but `true` clears the window's +0x9d4 (`create_window` 00443500), so `true` windows place children from the window's place (`init_object_place` 0044c8c0, `parse_object_place` 00458d50). Fixed: children placed from its place, their named places (`Center`, `InBottom`) count in its rectangle, they move with it (`Compiler::places_children`; Django's `中窓` busts too). `Shake`'s flip step is truncated in the exe, rounded in ours (≤ 1 ms); `DrawTransition`'s table is stored truncated (fldcw 0xc00 at 00457dee), as `effectsoft` does.
 
 #### Accuracy (2026-10-17)
 
-Every hand-typed value of the Nitroplus converter that stands for the
-original (`convert/muramasa/`, the shared NSS compiler) carries a
-`// src:`, `// guess:` or `// ours` comment; most are the scripts'
-own numbers (`sys_*.nss`, `extra_*.nss`, `0_boot.nss`), the rest the
-exe or a shot. Open guesses a frame of the original could settle:
+Every hand-typed value of the Nitroplus converter carries a `// src:`, `// guess:` or `// ours` comment. Open guesses a frame of the original could settle: the click-wait flame's frame times (53 ms × 19, 77 ms × 13, a 500 ms pause); a choice's text 40 px down its plate, red under the pointer; the title's glow (the exe's `SetBlur(…, 2, …)` is a trail of the last frames' copies, `FUN_00456810`; ours a 3 px blur); looped and paper `Shake`s turn every 1000 ÷ (n × 0.06) ms in the exe (`queue_shake` 004462d0), every 100 ms in ours.
 
-- the click-wait flame's frame times (53 ms × 19, 77 ms × 13, a 500 ms
-  pause: watched, the film redraws once a second);
-- a choice's text 40 px down its plate, and red under the pointer;
-- the title's glow: the exe's `SetBlur(…, 2, …)` is a trail of the last
-  frames' copies (`FUN_00456810`), sharp at rest; ours a 3 px blur;
-- looped and paper `Shake`s turning every 100 ms (the exe: every
-  1000 ÷ (n × 0.06) ms, `queue_shake` 004462d0; they don't read n).
-
-Settled from the exe (2026-10-17): the tones (`0043fcc0` builds grey
-tables of r 28, g 151, b 77 per 256, red and blue the other way round
-since the exe reads BGRA as RGB; `004401d0` Monochrome is that grey,
-`004403d0` Sepia adds 30 to green and red, `004405e0` KitanoBlue 20 to
-green and 80 to blue; CONscripter's `spfilter` kind 11 then an added
-colour); a camera's depth rule (`FUN_00489570` at `00489a52`: a picture
-under a camera scales by z ÷ (1000 − priority) about the screen's
-centre, 512, 288, as measured in 続・殺戮のジャンゴ). Where the exe
-draws only the innermost camera of nested ones, ours multiplies them;
-not checked whether a script nests them.
+Settled from the exe: tones (`0043fcc0` builds grey tables of r 28, g 151, b 77 per 256, red and blue swapped since the exe reads BGRA as RGB; `004401d0` Monochrome is that grey, `004403d0` Sepia adds 30 to green and red, `004405e0` KitanoBlue 20 to green and 80 to blue; `spfilter` kind 11 then an added colour); a camera's depth rule (`FUN_00489570` at `00489a52`: a picture under a camera scales by z ÷ (1000 − priority) about (512, 288)). The exe draws only the innermost of nested cameras, ours multiplies them; not checked whether a script nests them.
 
 #### Save and load drawn by the engine (2026-10-17)
 
-記録/読込 are CONscripter's `screen "save"`/`"load"`
-(`conv-cons/src/save_grid_screen.rs`, from `SaveGrid` with
-`engine_screen`; engine #87): the page's picture, the slots down the
-columns (`down`), the frames over the thumbnails (`over`), the slot
-under the pointer's details (`hover`: hover frame, large thumbnail,
-date, play time, chapter and last line in columns), 前頁/次頁 going round
-with a 300 ms cross-fade, 削除 a toggle whose mode picks the slots'
-action (`when`), the game's own questions (`save_ask_save`, `_load`,
-`_delete`) and 記録しました after a save (`save_saved`). A save's text is
-"|play time|chapter|last line" (the date is the file's), so saves of the
-routine ("date|…") show the same. Checked on Xvfb against main's routine
-(`compare -metric AE -fuzz 2%`, 12 frames from open to delete and the
-load screen): 0 pixels in 8, the rest only the play time's last digit
-and 3 px of 削除. Open:
-
-- the play time is read when the screen opens (the routine read it at
-  the click); S and L no longer close the save and load screens (a
-  right-click and 退出 do).
-- Muramasa EN's save screen is the engine's too (popup, locks, tabs,
-  quick page: docs/games/muramasa-en.md).
+記録/読込 are CONscripter's `screen "save"`/`"load"` (`conv-cons/src/save_grid_screen.rs`, `SaveGrid` with `engine_screen`; engine #87): slots down the columns, frames over thumbnails, hover details, 前頁/次頁 with a 300 ms cross-fade, 削除 a toggle, the game's questions (`save_ask_*`), 記録しました. A save's text is "|play time|chapter|last line" (date is the file's). Checked on Xvfb against main's routine: 0 pixels in 8 of 12 frames, the rest only the play time's last digit and 3 px of 削除. Open: the play time is read when the screen opens; S and L no longer close the screens (right-click and 退出 do). EN's save screen is the engine's too (docs/games/muramasa-en.md).
 
 #### Backlog drawn by the engine (2026-10-17)
 
-ログ表示 is CONscripter's `screen "backlog"` (`conv-cons/src/line_log_screen.rs`,
-from `LineLog` with `engine_screen`; engine #88): `*conv_backlog` lays
-the history out with `logrows` and opens the screen; a list of rows
-(`source = "rows"`, `%170` rows back from the newest) with each voiced
-page's voice button, 逆/進 and the wheel a row (wheel-down past the newest
-closes), the knob a picture slider on `%170`, 退出, 300 ms fades. Checked
-on Xvfb against main's routine after 20 prologue pages
-(`compare -metric AE -fuzz 2%`): at open, after wheel-ups and 逆, at the
-newest and the oldest rows, a voice icon hovered and clicked, closed by
-the wheel: 0 pixels. Again after the rebase onto engine master (#88,
-#100, #101): 0 pixels at open, the rest only the knob (1 px) and 逆 at the
-oldest row. Open:
-
-- the knob sits up to 1 px from the routine's after a wheel or a drag
-  (the slider rounds its place, the routine truncated); a press on the
-  knob's sweep away from the knob jumps it there (the routine only
-  dragged the knob).
-- 逆 at the oldest row and 進 at the newest are not buttons (the screen
-  turns off a scroll that can't move), so they don't light under the
-  pointer; the routine's did.
-- A row's voice button follows the voice switches when the backlog opens
-  (below, "History", "The backlog's voices and the voice switches");
-  `SetBacklog`'s speaker 鈴川 in ma01_021, voiced in no earlier file, has
-  no switch there (the other 52 voiced `SetBacklog` lines have one).
+ログ表示 is `screen "backlog"` (`conv-cons/src/line_log_screen.rs`, `LineLog`; engine #88, #100, #101): `*conv_backlog` lays the history out with `logrows`; rows (`source = "rows"`, `%170` rows back from the newest) with each voiced page's voice button, 逆/進 and the wheel a row (wheel-down past the newest closes), the knob a picture slider on `%170`, 退出, 300 ms fades. Against main's routine: 0 pixels at open, the rest only the knob (1 px) and 逆 at the oldest row. Open: the knob sits up to 1 px off after a wheel or drag (the slider rounds, the routine truncated), and a press on the sweep away from the knob jumps it there; 逆 at the oldest row and 進 at the newest are not buttons, so they don't light; a row's voice button follows the voice switches when the backlog opens (below, "History", "The backlog's voices and the voice switches"); `SetBacklog`'s speaker 鈴川 in ma01_021 has no switch (the other 52 voiced lines have one).
 
 #### Extras' menu drawn by the engine (2026-10-17)
 
-特別付加目録's menu is CONscripter's `screen "extras"`
-(`conv-cons/src/picture_extras.rs`, `PictureExtras` with `engine_screen`;
-engine #93): the picture and its buttons (a locked one at 51/255 and not a
-button), fading in over 500 ms. It closes with the mode chosen holding
-its frame (`hold`), so the mode (the gallery's pages, the
-recollection's list and the sound room screens, the 3D viewer still a
-script routine) and the title cross-fade straight
-from it. Checked on Xvfb against main's routine (this build and the
-English one, which shares it): open, a button hovered, the gallery, back
-to the menu, back to the title: 0 pixels; frames mid cross-fade show no
-fade to black; again after the rebase onto engine master 1f90e0f: 0 pixels
-in the six frames, mid cross-fades not black. Open: the four modes' screens.
+特別付加目録's menu is `screen "extras"` (`conv-cons/src/picture_extras.rs`, `PictureExtras`; engine #93): picture and buttons (a locked one at 51/255 and not a button), 500 ms fade-in. It closes holding its frame (`hold`), so the chosen mode and the title cross-fade straight from it. 0 pixels against main's routine (JP and EN builds). Open: the four modes' screens.
 
 #### CG gallery drawn by the engine (2026-10-17)
 
-画像映写機's pages are CONscripter's `screen "gallery"`
-(`conv-cons/src/gallery_screen.rs`, `PictureGallery` with
-`engine_screen`): each category's pages are the screen's pages (19), a
-slot its first seen CG's thumbnail (128/255 while some are unseen,
-空白アイコン while none is) under the cursor button, the 2D/3D/BG
-buttons tabs (their pressed cell while open), 前/次 round inside the
-category, 300 ms cross-fades. A slot closes the screen holding its frame
-and the script's viewer runs as before (cross-fades, scrolling, unseen
-pictures); back from it the screen opens on the same page over 300 ms.
-Checked on Xvfb against main's routine: open, a slot hovered, the next
-page, each category, the viewer, back, the menu: 0 pixels (1 px on an
-arrow). Again after the rebase onto engine master e585b68 (Japanese and
-English builds): the same, the cross-fade into it not black. Open: the viewer is still the script's.
+画像映写機 is `screen "gallery"` (`conv-cons/src/gallery_screen.rs`, `PictureGallery`): each category's pages are the screen's pages (19), a slot its first seen CG's thumbnail (128/255 while some are unseen, 空白アイコン while none is), 2D/3D/BG tabs, 前/次 round inside the category, 300 ms cross-fades. A slot closes the screen holding its frame and the script's viewer runs; back from it the screen reopens on the same page. 0 pixels (1 px on an arrow). Open: the viewer is still the script's.
 
 #### Scene replay's list drawn by the engine (2026-10-17)
 
-回想映写機's list is CONscripter's `screen "replay"`
-(`conv-cons/src/picture_replay.rs`, `PictureReplay` with
-`engine_screen`; engine #100): the picture, each scene's thumbnail
-(空白アイコン while locked) under its cursor button, 退出, fading in over
-500 ms. A scene closes the screen holding its frame; `spgrab 999,-2`
-copies that frame so the freeze (`screenzoom` at 100 %) holds the list
-over the scene's first pictures as before; at the scene's end the list
-fades in again from black. Checked on Xvfb against main's routine: open,
-hover, the frozen list 0.4 and 0.8 s after the click, the scene at 3 and
-6 s, the way back to the menu: 0 pixels (1 px at 6 s). Again after the
-rebase onto engine master 4f1e1bb (Japanese and English builds): open,
-hover, the frozen list, the scene at 3 and 6 s: 0 pixels.
+回想映写機 is `screen "replay"` (`conv-cons/src/picture_replay.rs`; engine #100): thumbnails (空白アイコン while locked) under cursor buttons, 退出, 500 ms fade-in. A scene closes the screen holding its frame; `spgrab 999,-2` copies it so the freeze (`screenzoom` at 100 %) holds the list over the scene's first pictures; at the scene's end the list fades in again from black. 0 pixels (1 px at 6 s).
 
 #### Sound room drawn by the engine (2026-10-17)
 
-電磁蓄音機/動画映写機 is CONscripter's `screen "sound"`
-(`conv-cons/src/sound_screen.rs`, `SoundRoom` with `engine_screen`;
-engine #101): the track buttons (a locked song's `000` picture), the
-turning A-icon by the track playing (its cells in turn, 340 ms), the
-movies' thumbnails under their cursors, 退出. A click closes the screen
-holding its frame; the script plays or stops the track (the screen again
-at once) or plays the movie (fading to black and back over 300 ms). The
-room exists only in a build given the movies (`--movies`): the snapshot's
-dry run has none, so its 0.txt doesn't change. Checked on Xvfb against
-main's routine (dry runs with `--movies` over a full build): open, a
-track played and stopped, hovers, a movie and back, the menu: 0 pixels. Again
-after the rebase onto engine master 4f1e1bb, this build and the English
-one: 0 pixels but for the movie's own frame (capture timing).
+電磁蓄音機/動画映写機 is `screen "sound"` (`conv-cons/src/sound_screen.rs`, `SoundRoom`; engine #101): track buttons (a locked song's `000` picture), the turning A-icon by the playing track (340 ms), movie thumbnails, 退出. A click closes the screen holding its frame; the script plays or stops the track or plays the movie (fading to black and back over 300 ms). The room exists only in a build given `--movies`, so the snapshot's `0.txt` doesn't change. 0 pixels but for the movie's own frame.
 
 #### Settings drawn by the engine (2026-10-17)
 
-コンフィグ is CONscripter's `screen "settings"` (`conv-cons/src/settings_screen.rs`,
-from `PictureSettings` with `engine_screen`): the six sliders are picture
-sliders (knob dragged along the invisible track, engine #78), each pair's
-sides radios (the chosen side's `003` while on), the voice window a screen
-over it (`settings_voices`), 承認's question its own dialog
-(`settings_confirm`, the game's picture). The values are named globals
-(`%conv_set_bgm_volume`, …, `%conv_set_done`); a gloval.sav from before
-gets its `%2920`-`%2938` values copied once. Checked on Xvfb against
-main's routine (`compare -metric AE`): the screen at open, after clicking
-two pairs, the voice window: 0 pixels; dragging each slider from y 100
-to 180 sets the value (trace `var`/`screen set`, `*conv_ps_apply` run
-at each step). Open:
+コンフィグ is `screen "settings"` (`conv-cons/src/settings_screen.rs`, `PictureSettings`): six picture sliders (engine #78), pairs as radios, the voice window a screen over it (`settings_voices`), 承認's question its own dialog (`settings_confirm`). Values are named globals (`%conv_set_bgm_volume`, …, `%conv_set_done`); a gloval.sav from before gets `%2920`-`%2938` copied once. 0 pixels against main's routine. Fades (engine #81): screen and voice window 300 ms, a pair's chosen side 100 ms, the reset question unrolls out of x 512 over 150 ms (back over 200). Open: the knobs at 207 and 407 sit 1 px lower (engine #80 rounds); a press on the knob keeps the grab offset (a drag ends 2 px off); 続・殺戮のジャンゴ's stepped sliders still use the script routine.
 
-- fades (engine #81): the screen and the voice window fade 300 ms, a
-  pair's chosen side 100 ms, the reset question unrolls out of x 512 over
-  150 ms (back over 200) with its backdrop fading, as the routine did;
-  checked by frames mid-transition (they differ from the end frame) and
-  the end frames against main's routine (the knobs at 207 and 407 sit
-  1 px lower: positions round since engine #80);
-- a press on the knob itself keeps the grab offset (the engine's rule),
-  so a drag started on it ends 2 px from the routine's;
-- 続・殺戮のジャンゴ's settings (stepped sliders) still use the script
-  routine.
-
-Muramasa EN's settings (`settings_en`) are the same screen: the lying
-sliders are picture sliders with the lit bar as their `fill` (engine
-#80), each moving its position (0 at the right end: a negative `travel`,
-whose `fill` the engine lights from the left end since engine #86;
-before it the screen moved a mirrored `_shown` variable), the check
-boxes toggles with `pressed`, and the
-ON/OFF pairs radios. Against main's routine: 36 pixels at open (the knobs
-round to the nearest pixel now), drags of the five sliders give the same
-values; after a drag main's routine left the lit bar where the press
-began (its bug), the screen lights it to the knob.
-Open: EN's screen fades 300 ms (guess: the Japanese value, not read from
-`sys_config.nut` nor seen in the original), its pairs switch at once.
+Muramasa EN's settings (`settings_en`) are the same screen: lying sliders as picture sliders with the lit bar as `fill` (engine #80; a negative `travel` lights from the left end, engine #86), check boxes toggles with `pressed`, ON/OFF pairs radios. 36 pixels differ at open (knob rounding); main's routine left the lit bar where the press began (its bug). Open: EN's 300 ms fade is a guess (the Japanese value), its pairs switch at once.
 
 #### Queue (2026-10-16)
 
-- Merged: `CreateText`'s box height (#52). Open, each waiting on its
-  engine PR: `consset` (#9, engine #5 merged: #9 moves the pointer
-  next), `chvolfade` (#10, engine #6 to rebase), `sprot` as
-  `spzoom`'s angle (#16, engine #13), `chfreq` for `SetFrequency` (#22,
-  engine #15), menu unrolls as motions (#34, after #18 and engine #14).
-  Engine #5, #6, #13 and #14 remove commands main still emits, so each
-  of #9, #10, #16, #18 moves the pointer right after its engine PR.
-- Done: the trailing `*` check (exe and wine, #39). A wildcard doesn't
-  reach a window's, name's or camera's children, `Delete` still does
-  (#41); a picture's children are placed from its corner (#43).
-- `spgrab` (engine #32, merged; a copy of the screen or a sprite into a
-  sprite) could stand for `CreateTexture`'s render-to-texture: not used
-  yet.
-- `CreateProcess` (plan changed 2026-10-16, the user: played on paper at
-  convert time, not Lua; the compiler draws the screen at its syncs, so a
-  process running in Lua would have no sprite of its own to change). Done:
-  **A** endless loops, **B** `system.lua` from the IR, **C1** loops
-  behind an `if` with a lead-in, **C2** the one-shots played once on
-  paper (#151) (History, "Processes"). `ComicProcess` (83, #167): `Shake` plays on paper (`one_shot.rs`
-  `paper_shake`: the picture moved to and fro by `shake_keys`, its
-  wait holding the process), and a loop process's branch that doesn't
-  loop (`ComicProcess`'s signs 1, 2, 5-9, 12, 13, 16-18) is played on
-  paper (`loops.rs` `run_loop` → `play_once`) instead of as an action
-  process, so its waits don't hold the script. With that the whole
-  process passes `is_loop`, and the signs that loop (3, 4, 10, 11, 15)
-  take the loop path. Limits: 16 of the 18 signs are
-  `Hideable`, so they are drawn into the text window's picture at their
-  end state, not moved; the zoom is about the centre, not
-  `SetVertex`'s point. A zoom unlike in x and y (signs 10, 12, 17) is
-  keyed in both (`Pass::keyed` fills `MotionKey::zoom_y`; in review,
-  #188). Left: `EndSong` (12, music with
-  `if`s), `ma03_024`/`025`/`027vs` `_runsProcess` (23, wait on the
-  script: noted).
-  **C3** (#171): instead of Lua,
-  `Random` is allowed on paper and gives 0 there, as everywhere else in
-  the converter (`builtin.rs`), so `MFlashProcess` (43) is a one-shot:
-  the flashes with a 1 s pause after the 6th and then every 3rd (the
-  exe: every 3rd to 6th, chosen per run; a run-time pick is a possible
-  follow-up); 3 calls of 100 flashes are over `spmotion`'s 64 keys
-  (noted, drawn at their end). A refused paper run (10,000 turns) no
-  longer counts its notes. Lua (`Op::StartProcess`, `Script::lua`)
-  stays for a process that needs the run (none left among the
-  one-shots); the endless processes with `Random`
-  (`BGMoveLengthProcess`, `ma03_moveAuto*`, `RandomMeimetsuSet*`, the
-  shakes) don't end on paper and stay noted. A's last,
-  `ma00_FireMoveAutoProcess` (ma00_000's fire, zooming unlike in x and
-  y), loops now with the same PR; it wasn't drawn before.
-- Then the unread-argument gaps (item 5 below), most noticeable first;
-  among them, `CreateText`'s box height is read (#52) and `SetVertex`
-  for every picture (#61, "History", "`SetVertex`"). Tempo waits for
-  engine #2 and converter #13 (the curves are in item 5).
-- `EndSong` (12) in review (#176): a music process may
-  have `if`s (decided as it starts) and call `SetVolume`, `WaitAction`,
-  `SetFrequency`, `SetLoop` and `Request`; a `SetVolume` on a song
-  already playing goes on its clock, which a `WaitAction` moves; a BGM
-  played again while it plays is left to CONscripter's loop. One that
-  starts a sound effect after a wait, or fades one, is put back and
-  noted (md01_023's `ZansyuSet`). The script doesn't change: the roll
-  starts `EndSong` only when it outlasts its song by a minute
-  (`$EndName[…][4]`), never with these songs, and no ending has a
-  second song (`[8]` is `false`).
-- Changed by the Muramasa EN agent (#60, shared NSS code): choice
-  options set in runtime branches are picked at run time
-  (mc02_031innsyoku lists the items held; md05_004 offers 別れる with a
-  companion): `Op::RuntimeChoice`, `$3632` up, choice-only flags at
-  %783-%798. Their line-log entries (`『…』`, `【…】`) are picked at
-  run time too (`Op::RuntimeBacklogLine`, `$3638`).
-- Changed by the Django agent (shared NSS code): `SetPan` is converted
-  (`chpan`, engine #35); Muramasa pans nothing off centre, so its
-  script is the same and its 6,494 `SetPan` calls count as converted.
-- Changed by the Django agent (shared NSS code): `Shake` of a picture
-  smaller than the screen moves the picture alone (a one-shot
-  `spmotion`, as the exe's `shake_frame`): 83 of the 144 calls; the rest
-  are on pictures deleted or moved (`spmotion2`) at once, or never shown.
-- Changed by the Django agent (shared NSS code): `WaitPlay` on a sound
-  waits for its rest (#70, merged), and a disused one-shot (`OnSE`,
-  `MusicStart`) stays until its end (#76), so `WaitPlay`,
-  `Fade` and `SetVolume` on `SE*`/`OnSE*` still reach it: about 130 new
-  `delay`s (ma01_003's door: 2,528 ms), 366 fade-outs and 29 other
-  `chvolfade`s; `RemainTime` on a just-started SE now gives its length
-  (ma01_025's `WaitKey($残時間)`, the shakes timed by it). A `WaitPlay`
-  after a `SetVolume` to 0 over time waits for the fade, as the exe's
-  fade thread stops the sound at its end (67 new `delay`s; Django's
-  History, "A fade to 0").
-- Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
-  has its clip jump to the end place when the move starts. Sprite movies
-  (scene cuts, the turntables) don't play in CONscripter for Windows,
-  which only opens a movie in an outside player: an engine item for every
-  game, not started.
-- `Random` (#354, 2026-10-17) is picked when the game runs. The exe gives
-  `rand() % n` (`eval_primary` 0043a780, reseeded from the clock each
-  call; seen). A statement that draws one (itself, in a function it
-  calls or a process it starts; not an endless process, which doesn't
-  end on paper) is compiled once per pick, and `rnd %81,N` chooses: each
-  value for a single draw of up to 16 (`Shake_Delete`'s, `MFlash`'s
-  pause), else 8 samples of every draw (the `FadeFR*`/`MoveFRP*`/
-  `MoveFTP*` jitter, which were straight paths at 0). The picks start at
-  the last statement where nothing waited to be shown and go on to the
-  one that waits for them, sounds every pick starts alike are played
-  once between them (conv-cons hands out channels in order), so the
-  screen is synced where it was before (`convert/random.rs`). Left
-  (771 calls, noted "Random picked when converting", a seeded pick):
-  picks that reach text (SetKenki's 《…！》 lines in md05_008vs/009, the
-  airship kitchen), that leave a picture at a random place
-  (md04_043's 量産 moves, the cockpit compass `CP_AziChange`), or that
-  give a loop to a picture shown only later. The endless processes with
-  `Random` (`BGMoveAuto`, `RandomMeimetsu*`, `GunFlash`) stay noted as
-  before.
-- Done: `SetBlur`'s trail behind a moving picture as CONscripter's
-  `sptrail` (engine #25, converter #82; "History", "`SetBlur`").
-  Its last argument draws the copies over the picture (`false`) or
-  under it (`true`): `sptrail`'s `over` (engine #83, "History").
-- Decided: the hover sound's 0.125 s of silence is in the original file
-  and stays. The trace checker's `movie` rule will skip movies that start
-  from black (an engine-tools change, once the engine queue drains).
+Old queue, condensed (the PRs hold the detail).
 
-The whole story compiles, the 立方陣 included, and every ending of the
-chart is reached in the converted control flow. **Route runs**
-(2026-10-14, see "Testing"), the full build played in CONscripter
-0.19 headless with `--auto-play` and a debug trace, every page drawn
-and the files checked against nstrace:
+- `CreateProcess` (plan changed 2026-10-16, the user: played on paper at convert time, not Lua; the compiler draws the screen at its syncs, so a Lua process would have no sprite of its own). Done: A endless loops, B `system.lua` from the IR, C1 loops behind an `if` with a lead-in, C2 one-shots on paper (#151), `ComicProcess` (83, #167: `Shake` on paper by `shake_keys`; non-looping branches via `loops.rs` `run_loop` -> `play_once`; 16 of 18 signs are `Hideable`, so drawn at their end state; a zoom unlike in x and y is keyed in both, `MotionKey::zoom_y`, #188), C3 (#171: `Random` allowed on paper giving 0, so `MFlashProcess` (43) is a one-shot; 3 calls of 100 flashes exceed `spmotion`'s 64 keys). Lua (`Op::StartProcess`, `Script::lua`) stays for a process that needs the run (none left among one-shots); endless processes with `Random` (`BGMoveLengthProcess`, `ma03_moveAuto*`, `RandomMeimetsuSet*`, shakes) stay noted. Left: `EndSong` (12, #176: `if`s decided as it starts; `SetVolume`/`WaitAction`/`SetFrequency`/`SetLoop`/`Request` allowed; one starting a sound after a wait is put back and noted), `ma03_024`/`025`/`027vs` `_runsProcess` (23).
+- Merged/done: `CreateText`'s box height (#52); trailing `*` check (#39); a wildcard doesn't reach a window's, name's or camera's children, `Delete` still does (#41); a picture's children are placed from its corner (#43); `SetVertex` for every picture (#61); `SetBlur`'s trail as `sptrail` (engine #25, converter #82; its last argument `over`, engine #83). `spgrab` (engine #32) could stand for `CreateTexture`'s render-to-texture: not used.
+- Other agents' shared NSS changes: choice options set in runtime branches are picked at run time (`Op::RuntimeChoice`, `$3632` up, flags %783-%798; line-log entries `Op::RuntimeBacklogLine`, `$3638`; #60). `SetPan` converted (`chpan`, engine #35; Muramasa pans nothing off centre). `Shake` of a picture smaller than the screen moves the picture alone (83 of 144 calls). `WaitPlay` on a sound waits for its rest (#70) and a disused one-shot stays until its end (#76): ~130 new `delay`s (ma01_003's door 2,528 ms), 366 fade-outs; a `WaitPlay` after a `SetVolume` to 0 over time waits for the fade (67 new `delay`s).
+- Known limits: a moving window (`絵演窓上`, `窓右`, ~56 `Move`s) has its clip jump to the end place at the move's start. Sprite movies don't play in CONscripter for Windows (only an outside player): engine item, not started.
+- `Random` (#354, 2026-10-17) is picked when the game runs (exe: `rand() % n`, `eval_primary` 0043a780, reseeded each call). A statement that draws one is compiled once per pick and `rnd %81,N` chooses: each value for a single draw of up to 16, else 8 samples per draw (the `FadeFR*`/`MoveFRP*`/`MoveFTP*` jitter); picks span from the last statement where nothing waited to the one that waits, sounds every pick starts alike are played once (`convert/random.rs`). Left (771 calls, noted "Random picked when converting", a seeded pick): picks reaching text (SetKenki's 《…！》 in md05_008vs/009), leaving a picture at a random place (md04_043, `CP_AziChange`), or giving a loop to a picture shown later.
+- Decided: the hover sound's 0.125 s of silence is in the original file and stays.
 
-| Run | Ending | Files | Pages | Time | Result |
-|---|---|---|---|---|---|
-| 1 | 一条END | 246 | 26,704 | 24 min | passed |
-| 2 | 香奈枝END | 349 | 26,085 | 25 min | passed |
-| 3 | 茶々丸END | 300 | 29,136 | 26 min | passed |
-| 4 | bad end (`mz00_000`) | 436 | 31,500 | 28 min | passed |
-| 5 | bad end | 438 | 31,670 | 28 min | passed |
-| 6 | bad end | 440 | 31,714 | 28 min | passed |
-| 7 | bad end | 442 | 31,777 | 28 min | passed |
-| 8 | bad end | 455 | 32,873 | 28 min | passed |
-| 9 | 村正END | 510 | 36,276 | 29 min | passed |
-| 10 | TRUE END | 514 | 36,449 | 30 min | passed |
+**Route runs** (2026-10-14): the full build played headless in CONscripter 0.19 with `--auto-play` and a debug trace, every page drawn, files checked against nstrace; ten runs passed (一条END 246 files/26,704 pages/24 min; 香奈枝END 349; 茶々丸END 300; five bad ends via `mz00_000` 436-455 files; 村正END 510/36,276/29 min; TRUE END 514/36,449/30 min). The checker (`cons_trace_check.py` with `research/nitroplus/cons_trace_check.json`) found seven bugs, fixed. Its expected remaining findings: `voice` (lines in 『』 with no voice in the source), `crowd`/`offscreen` (NSS layers full-screen objects, parks some off screen), `sound` (battle scenes layer one effect on several channels; `se戦闘_` is in the config's `known`), `memory` (pre-scaled zoom pictures of 67-77 MB). Other agents stop engines with `pkill -x conscripter`: run ours through a renamed symlink (`--engine out/conscripter-mura`); route runs and `--at` starts are in `research/nitroplus/engrun.py`.
 
-(How the runs were made and what they fixed: "History", below.)
+Next, in order (as it stood):
 
-The checker (`cons_trace_check.py` with `research/nitroplus/cons_trace_check.json`)
-found the seven bugs fixed in "History"; on the rebuilt game its `text` and
-`duration` findings are gone, the favour panel no longer lingers, and
-fewer loops double and characters stay off screen. The `voice`
-findings left are lines in 『』 that have no voice in the source either.
-The rest of its report is expected for this game: `crowd` and `offscreen`
-(NSS layers many full-screen objects and parks some off screen),
-`sound` (the battle scenes layer one effect on several channels a
-few hundred ms apart, as the source does; `se戦闘_` is in the config's
-`known`),
-`memory` (a few pre-scaled zoom pictures of 67-77 MB, see "How the
-compiler works").
+1. **System screens** (step 7): the original filmed under wine from patched boots; every confirmation is drawn from `cg/sys/dialog` parts (the only `Message()` box is for a display option we leave out). Seen: right-click at a text wait opens the menu, wheel-up the backlog (a line a notch, wheel-down at the newest closes), right-click closes every screen (No in a dialog), Esc asks ゲームを終了しますか, the title's 終了する quits with no question, the backlog shows no names. 1-6 done (button strips, title, right-click menu, save/load, backlog, settings). 7 motion and movies done (title fire flicker and openings, dialog unroll, menu cascade) but for the quick bar sliding while text types (dropped by the user, 2026-10-15; needs the engine to move the bar). Movies: CONscripter 3f368bc draws the text window over an `mpegplay` movie and plays a movie given to `lsp` in the sprite's place (`spmoviewait n,1`): the cuts under the text play that way; a skipped movie stops the `dwave` sounds started with it (265942e). 動画 切 is `moviestop -1` (`MoviePlay(f, #SYSTEM_break_play_movie)`): the openings are always skippable, `mvOP`/`mvOP02` only with 動画 入 (default 切). The original under wine draws no movie (no 32-bit GStreamer plugins), so the smoke's strength (`SubRender` subtracts the white smoke; ours draws it black, lighter) is unchecked.
+2. **Extras** (特別付加目録, `extra_*.nss`; step 8 of the old list, "extras 1-7" in the game doc), done: menu, 画像映写機 (CG gallery: 349 slots in 2D/3D/BG, 805 CGs, each a `#<cg name>` flag), 回想映写機 (ten H scenes, each unlocked by its file's `#ma01_020`-style flag, replayed from `$PLACE_reco`), 電磁蓄音機/動画映写機 (37 BGM, five songs, three movies; the track chosen stays the extras' music `#エキストラＢＧＭ`), 劒冑回転目録 (46 looping 400×400 armour movies with `#av_`/`#aw_`), the way back to the title and the ライナー画像 button.
+3. The user's decisions (2026-10-14): the pressed state (`003`) is an engine feature on for every script; the settings CONscripter lacked (music/SE/voice mute, voice stops on click, auto waits for the voice, auto/skip stop at a choice, movie skip, game speed) are added to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented (a save to a reserved slot before each choice). Set with `consset "key",value`, read with `consget` (keys in the engine's `COMMANDS.md`).
+4. Gaps from the exe review (2026-10-15; `research/nitroplus/builtins.md`, `names.tsv`): text markup dropped (`<VALUE name=$mc02_時間>`, the airship clock in `mc02_031time`, no runtime strings in the IR; ASCII-art pages `PushText` + `NoLog`; `<voice mode="off">` (3)); a 4-argument `Fade` probably doesn't wait in the exe (49 calls wait in ours; check under wine).
+5. Gaps from the unread-argument notes (2026-10-16): tempo of `SetVolume` and the text window's fades (a sound's volume has no curve, nor `windowfade`; a fade folded into motion keys is straight; 9 `SetVolume` fades over time keep a straight ramp, the exe steps them by the tempo, 00478570). A 0 ms `Fade`'s or `SetVolume`'s tempo, a 0 ms `Shake` stop's wait and `CreateWindow`'s last argument change nothing in Muramasa.exe (`cb_Fade` 0044f020, `sound_set_volume` 00475f50, `builtin_CreateWindow` 0040b3a0). Story `CreateText` sideways text turned by `Rotate` sits ~17 px lower than under wine (cause unknown; "Story `CreateText`"). `DrawTransition` (FUN_0044fe00, 00457bf0): the mask is a threshold table (from and to × 0.255 its ends, then a ramp losing 255 ÷ p × 255 ÷ softness a grey level; a fade-out's threshold falls); full sweeps (2,073 calls) use `effectsoft` (engine #138), partial ones (367) `spmask` ("Veils laid on the screen"); a mask cg.npa lacks (ma04_018vs/020vs's `slide_01_02_2.png`, `cg/data/7.png`) means no transition (the exe returns before it). `Conquest` returns 0. Done: a whole-screen `Shake` growing from 0 px (7 calls; `queue_shake` 004462d0); `SetVertex`'s names count in lower case only (nothing lowers them: `eval_arg` 00413740, `FUN_004891e0`), so `Center`/`Middle` are atol's 0 (絵演鎧* zooms about its left edge, Rollbg from its top). Dropped, meaning to check in the exe: `MoveCamera`'s arguments in a process (4), `LockVideo`, `WaitText`, `SetFrequency` (but 1000), `WaitAction`'s time limit.
+6. Gaps from the script coverage (2026-10-15; `research/nitroplus/builtins.md`, "In the scripts: coverage"): `CreateEffect` Drop (1, mc04_052's snow) and Lens (2) not converted. Rain converted (#161): `convert/rain.rs` plays the exe's rain (`00435e60`, `00436390`) into a 24-frame strip (`$SYSTEM_effect_rain_dencity` drops, at most 128, grey streaks 196 px with the exe's alpha ramp, falling their speed per 16 ms, redrawn every 42 ms), looped; frame period 16 ms (`init_frame_tables`, `0048c5d0`). Tone kinds tint the pictures below (#137, #146); `SetTone` (228) draws the object in that tone (`FUN_00452000`); the sepia and KitanoBlue colours were still unverified then (settled later: "Accuracy"). `SetShade` (163): level passes of a 3×3 mean (`FUN_00465b10`; a second call adds passes, `NULL` restores) as one `spfilter` box blur. `DrawEffect` waves (Low/Middle/High/SuperWave) by `spwave` (CONscripter#76): the exe (`FUN_00430a70`, `FUN_00430de0`, `cb_00431230`) shifts each row by trunc(sin(2π·phase/256) × amp) px, phase = row × K / height (K 64, 512, 1024, 4096 by name) plus one per tick of more than 32 ms; amp goes `from` -> `to` over `time` by the tempo then stays (ramped to 0 is removed). Left: Ripple (4), Split kinds (7); a wave picked up later restarts its rest straight. `CreateStencil` (59) and `CreateMask` (28) converted (own sections); left a picture moved or zoomed over time under them, a zoom about a vertex, and a `Plain` cover under them; a colour mask is exact only for the alpha blend. `LoadImage` as a texture source on since 2026-10-17 (25 `CreateTexture`s from an object or the screen noted). `Request(…, NoIcon)` (4) dropped without a note (a `Request` on an object the converter doesn't keep returns silently). `system.ini`: the auto-mode icon (`icon_auto`, 15 frames) and the line-end kinsoku (`bad_end`) unused. Check under wine: `<BR>` (16 uses) isn't in the exe's tag list but breaks a line in ours. Small: 25 sounds missing from the archives, 2 transition masks missing, 2 statements that don't parse, 2 voices outside a text block, 3 BGMs without loop played looping.
 
-Testing notes: other agents stop engines with `pkill -x conscripter`;
-run ours through a symlink with another name (`--engine
-out/conscripter-mura`). The route runs and `--at` starts are in
-`research/nitroplus/engrun.py`.
+**Leftovers** (dry run on main, 2026-10-17): 1,162,127 source calls, 1,131,605 converted fully, 21,928 with gaps, 8,594 left out on purpose.
 
-Next, in order:
-1. **System screens** (step 7), under way. The original was filmed
-   under wine from patched boots (title, right-click menu, quick bar,
-   save/load, confirmations, settings and its voice window, backlog,
-   click-wait icon; transitions also slowed ×10); shots and videos are
-   in `research/nitroplus/local/` (git-ignored). Every confirmation is
-   drawn from `cg/sys/dialog` parts: no Windows dialog needs designing
-   (the only `Message()` box is for a display option we leave out).
-   Behaviour seen: right-click at a text wait opens the menu, wheel-up
-   opens the backlog, the wheel scrolls it a line a notch and wheel-down
-   at the newest line closes it, right-click closes every screen (No in
-   a dialog), Esc asks ゲームを終了しますか, the title's 終了する quits
-   with no question, the backlog shows no names. Plan, in order, each
-   screen checked beside the original:
-   1-6. Done: button strips, the title, the right-click menu, save and
-   load, the backlog and the settings screen ("History", below).
-   7. Motion and movies: the title's fire flicker and its openings, the
-      dialog unroll, the menu cascade (step 3, in "History") are done. Left, by the
-      user's choice (2026-10-15): the quick bar sliding while text types
-      (it slides at click waits; doing it while text types needs the
-      engine to move the bar);
-      - How each was done: "History", below.
-      - The trace's auto-play skips movies (CONscripter) but reports
-        missing ones; the prologue (`--chain 2`) has three cuts. The
-        checker's `movie` rule (CONscripter ca3904b) still sees what a
-        movie leaves: the engine redraws the screen from before the
-        movie as it ends, so sprites loaded after `mpegplay` show a
-        moment late. The title's openings and the scene cuts load what
-        follows before the movie ("History").
-        CONscripter 3f368bc (after 0.24.0) draws the text window over
-        an `mpegplay` movie and plays a movie file given to `lsp` in the
-        sprite's place (`spmoviewait n,1` waits for it): the cuts under
-        the text play that way ("History"). A skipped movie stops the `dwave` sounds
-        started with it (CONscripter 265942e): the title openings'
-        clash no longer plays over the title.
-      - 動画 切 is `moviestop -1` (the script's flag, as
-        `MoviePlay(f, #SYSTEM_break_play_movie)`): the title's openings
-        are always skippable, `mvOP`/`mvOP02` only with 動画 入
-        (default 切, as the original).
-      - The original under wine draws no movie (`CreateMovie` leaves the
-        scene as it was, `md04_045`'s first page matches its bare
-        background): wine decodes MPEG-1 through 32-bit GStreamer
-        plugins, which the test machine lacks, so the movies can't be
-        compared there yet. The smoke's strength (`SubRender` subtracts
-        the white smoke; ours draws it black over the scene, lighter) is
-        unchecked.
-      - On Windows CONscripter only opens a movie in an outside player.
-
-   8. **Extras** (特別付加目録, `extra_*.nss`), done. Filmed in the
-      original from a patched boot (`#ClearG` and a few CGs, a song, a
-      movie and a 3D entry set; shots in `research/nitroplus/local/shots/
-      extras/`). Five screens: the menu, 画像映写機 (CG gallery: 349 slots
-      in 2D/3D/BG, 805 CGs, each a `#<cg name>` flag the story sets),
-      回想映写機 (ten H scenes, each unlocked by its file's `#ma01_020`-style
-      flag and replayed from the file's `$PLACE_reco` branch), 電磁蓄音機/
-      動画映写機 (37 BGM, five songs, three movies; the track chosen stays
-      the extras' music, `#エキストラＢＧＭ`), 劒冑回転目録 (46 looping 400×400
-      movies of the armour with name plates and specs, `#av_`/`#aw_`).  Plan, in order, each beside the original:
-      1-7. Done: the menu, the gallery, the sound room, the
-         recollection, the 3D viewer, the way back to the title and the
-         title's ライナー画像 button ("History", below).
-
-   The user's decisions (2026-10-14): the pressed state (`003`) becomes
-   an engine feature that is on for every script; the settings CONscripter
-   lacks (music/SE/voice mute, voice stops on click, auto waits for the
-   voice, auto/skip stop at a choice, movie skip, game speed) are added
-   to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented
-   (a save to a reserved slot before each choice).
-   Those settings are set with the engine's `consset "key",value` (read
-   back with `consget`; keys in the engine's `COMMANDS.md`). Checked
-   headless (2026-10-16): `consset "mutebgm"`/`"mutese"`/`"gamespeed"`
-   then `consget` returned the values set, and the reset to 0/100 read back.
-2. The largest leftovers below: `CreateProcess` (C2, C3 above), non-blocking
-   `Move`/`Zoom`.
-3. Optional: the 18 files with no `else` (below).
-4. Gaps from the exe review (2026-10-15; the exe's side is in
-   `research/nitroplus/builtins.md`, the functions in
-   `research/nitroplus/names.tsv`), most noticeable first:
-   - Text markup dropped: `<VALUE name=$mc02_時間>` (the airship clock in
-     `mc02_031time` prints a gap: a string chosen by the runtime
-     `$mc02_TimeCount`, and the IR has no runtime strings), the
-     ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
-     not in the backlog), `<voice mode="off">` (3, meaning unknown).
-   - Tempo (easing) of `SetVolume` and of the text window's `Fade`s is never read (`Move` and `Zoom`'s is:
-     "History", "Tempo of `Move` and `Zoom`").
-   - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
-     wait in ours); check under wine first.
-5. Gaps from the unread-argument notes (2026-10-16; each built-in's
-   arguments the converter doesn't read, with counts, in
-   `research/nitroplus/builtins.md`, "Arguments not read"), most
-   noticeable first:
-   - Tempo (easing) of `SetVolume` and the text window's fades (`Move`,
-     `Zoom`, `Rotate`, `Fade` and `DrawTransition` done: "History"): a
-     sound's volume has no curve, nor `windowfade`; a fade folded into a
-     picture's motion keys is straight. A move with a fade folded into its keys still
-     goes straight. A 0 ms `Fade`'s or `SetVolume`'s tempo, a 0 ms
-     `Shake` stop's wait and `CreateWindow`'s last argument are read:
-     they change nothing in Muramasa.exe (`cb_Fade` 0044f020,
-     `sound_set_volume` 00475f50, `builtin_CreateWindow` 0040b3a0); 9
-     `SetVolume` fades over time keep a straight ramp (the exe steps them
-     by the tempo, 00478570).
-   - Story `CreateText`: a sideways text turned by `Rotate` sits about
-     17 px lower than the original's under wine (cause unknown; "History",
-     "Story `CreateText`").
-   - `DrawTransition` (FUN_0044fe00, 00457bf0, seen): the mask is a
-     threshold table, from and to × 0.255 its ends, shown up to the
-     threshold, then a ramp losing 255 ÷ p × 255 ÷ softness a grey level; a
-     fade-out's threshold falls, so the picture leaves the bright parts
-     first. Full sweeps (0 → 1000, 1000 → 0: 2,073 calls) are drawn so with
-     CONscripter's `effectsoft` (engine #138). A partial one (367 calls) now
-     leaves its picture drawn through the table, laid on the screen
-     (`spmask`, "History", "Veils laid on the screen"); its sweep is still a plain mask print, and one on a
-     `Plain` cover is drawn unmasked (noted). 565 calls start from another
-     opacity than shown (noted). A mask cg.npa lacks (ma04_018vs/020vs's
-     `slide_01_02_2.png`, `cg/data/7.png`, an unset `$Transition`): the
-     exe's step returns before the transition (seen), none drawn.
-   - `Conquest` returns 0 whatever its arguments (`Random`: picked at run time, Status).
-   - Done: a whole-screen `Shake` that grows from 0 px (7 calls, e.g.
-     5000 ms to 20 px) shakes; it was dropped (`queue_shake` 004462d0: the
-     size goes from arguments 2-3 to 4-5, seen).
-   - Done: `SetVertex`'s names count in lower case only (nothing lowers
-     them: `eval_arg` 00413740, `FUN_004891e0`, seen), so `Center` and
-     `Middle` are atol's 0: 絵演鎧* zooms about its left edge (mb02_022,
-     mb02_023vs, mb03_016vs, mc01_017vs), Rollbg from its top (ma01_022vs).
-   - `MoveCamera`'s arguments in a process (4 calls). (`CreateEffect`'s
-     place and size are read: every story call covers the screen, a tone
-     or `Plain` over part of it is noted; #355.)
-   - `LockVideo`, `WaitText`, `SetFrequency` (but 1000),
-     the time limit (?) of `WaitAction` and the
-     other waits: dropped; meaning to check in the exe.
-6. Gaps from the script coverage (2026-10-15; every file, built-in,
-   `Request` action, text tag, `$SYSTEM_` variable and `system.ini` key
-   with its status in `research/nitroplus/builtins.md`, "In the
-   scripts: coverage"). Every file has a status (no gaps there); new
-   gaps, most noticeable first:
-   - `CreateEffect` Drop (1, mc04_052's snow: an image per drop, swung
-     and turned) and Lens (2). Rain is converted (#161; values checked
-     against the exe again 2026-10-17): `convert/rain.rs` plays
-     the exe's rain (`00435e60`, `00436390`) into a 24-frame strip of the
-     effect's size (`$SYSTEM_effect_rain_dencity` drops, at most 128,
-     grey streaks 196 px with the exe's alpha ramp, falling their speed
-     per 16 ms, redrawn every 42 ms), looped; its place is read, and
-     `Zoom` and `Rotate` reach the strip (z as the `spzoom` angle, x or
-     y as a shorter zoom, no perspective). The frame period is the
-     exe's 16 ms (`init_frame_tables`, `0048c5d0`). The
-     tone kinds Sepia, Monochrome, NegaPosi and KitanoBlue tint the
-     pictures below the effect (#137, #146). `SetTone` (228) draws the
-     object in that tone with the same filters (the exe rewrites its
-     pixels, `FUN_00452000`); on a `Plain` cover, the frozen pictures
-     under it are drawn so; `null` takes it away. The sepia and
-     KitanoBlue colours are still ours (unverified). `SetShade` (163)
-     likewise blurs the object (or what a `Plain` cover froze): the exe
-     runs its level's passes of a 3×3 mean over the pixels (`FUN_00465b10`;
-     a second call adds passes, `NULL` restores), drawn as one `spfilter`
-     box blur of the same spread, scaled with a zoom the converter
-     renders. Unverified: the engine's blur keeps the alpha, which the
-     exe blurs too.
-   - `DrawEffect`: the waves (LowWave, MiddleWave, HighWave, SuperWave)
-     are converted, drawn by the engine's `spwave`
-     (CONscripter#76). The exe (`FUN_00430a70`, `FUN_00430de0`, `cb_00431230`)
-     shifts each row by trunc(sin(2π·phase/256) × amp) px, the row's phase
-     row × K / height (K 64, 512, 1024, 4096 by name) plus one per tick of
-     more than 32 ms; amp goes `from` → `to` over `time` by the tempo, then
-     stays (a wave ramped to 0 is removed). Left: the 10 waves on a
-     `Plain` cover (noted; the frozen screen would wave), Ripple (4) and
-     the Split kinds (7), noted; a wave picked up later (a picture shown
-     after the call, or moved to a new layer) restarts its rest straight,
-     without the tempo, and a picture cut to the screen loses its part's
-     phase offset.
-   - `CreateStencil` (59), converted ("History", "`CreateStencil`"):
-     left a picture moved or zoomed over time under a stencil (none in
-     this game), a zoom about a vertex (cut as about the centre) and a
-     `Plain` cover under a stencil (noted only).
-   - `CreateMask` (28), converted ("History", "`CreateMask`"): left
-     the same as `CreateStencil`'s, and a colour mask is exact only for
-     the alpha blend (per-channel factors on one picture).
-   - `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
-     (on since 2026-10-17, "History"; 25 `CreateTexture`s from an
-     object or the screen are still noted).
-   - `Request(…, NoIcon)` (4) is dropped without a note: a `Request` on
-     an object the converter doesn't keep returns silently, so the dry
-     run's notes undercount those.
-   - `system.ini`: the auto-mode icon (`icon_auto`, 15 frames) and the
-     line-end kinsoku (`bad_end`) aren't used.
-   - Check under wine: `<BR>` (16 uses) isn't in the exe's tag list but
-     is a line break in ours. (The 13 `DrawEffect` names with a trailing
-     space match: the exe allows a space or tab after a name.)
-   - Small: 25 sounds missing from the archives, 2 transition masks
-     missing (`cg/data/slide_01_02_2.png`), 2 statements that don't parse, 2 voices outside a text
-     block, 3 BGMs without loop played looping (the notes give counts
-     only, not where).
-
-**Leftovers** (counts from the dry run's notes):
-Counts from the dry run on main (2026-10-17, `metrics.json`): 1,162,127
-source calls, 1,131,605 converted fully, 21,928 with gaps, 8,594 left
-out on purpose.
-
-- `CreateProcess` (510 calls; the battle HUD `CP_*` in
-  `function_cockpit.nss`, fire flicker, comic panels): endless loops
-  play as engine motions (`convert/loops.rs`), one-shots on paper
-  (C2, "History"), the roll bar's wobble too. Left: 108 notes, most
-  `TurboBlur3` (10), `DenziBladeChargeSet` (10) and the
-  `ma03_*_runsProcess`/`ma03_moveAuto*Process`/`BGMove*Process` runs
-  that don't end on paper (about 45). `Request(<process>, Stop)` (1,126
-  notes over the paths; `プロセス*`, `プロセス１`, …) is dropped: not
-  checked whether a looped motion keeps running where the original
-  stops it.
-- Moves and zooms over time that come with a fade or a new picture are
-  drawn as cross-fades: 38 left (about 1,200 each before the motions).
-- `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
-  `spmotion` angle (over time); left: about z of other objects (31),
-  a turn over (about x or y) over time, mirrored at once (10).
-  `CreateTexture` from an object or the screen (25).
-- Cameras (`CreateCamera` 40, `MoveCamera` 105): drawn by
-  続・殺戮のジャンゴ's model, measured there under wine (a child of depth
-  `p` seen `z / (1000 - p)` times about the screen's centre, the
-  camera's place the other way; `Kind::Camera`), now for 装甲悪鬼村正 too,
-  its moves engine motions with their tempo. A camera at `Center`,
-  `Middle` is at 0, 0: only so do ma04_005a's pictures cover the screen
-  through it. Unverified against the original: its zooms other than
-  1000 (Django has none).
-- `BezierMove` (335 in the script, outside processes) moves the picture
-  to the path's end as `Move` does, and the sync's motion goes through
-  the path (`loops.rs` `bezier_move`: the curves cut into straight
-  pieces as in a loop, `sync.rs` `along`); its tempo eases the whole
-  motion. Where the sync draws no motion (a cross-fade: a new picture,
-  a fade with it), the picture is only put at the end.
-- 18 files whose `if`/`else if` chain on earlier flags has no `else`:
-  by the story's logic one branch always matches; the fall-through ends
-  the run.
-- Engine: an exit with status 255 in vertical text was put down to a
-  half-width character under `tateyoko 1`, but CONscripter draws those
-  (rotated) and nothing in drawChar exits. It was most likely a script
-  error in the text (a half-width `/`, `#`, `?` or `%`; up to 0.18.0
-  every script error exited with 255). Now a script error exits with 2
-  and the trace's `error` record gives the message and the line; the
-  checker's `text` rule finds those characters in text lines.
-- Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
-  held (seen once in a small test script; not looked into).
-
+- `CreateProcess` (510 calls): left 108 notes, most `TurboBlur3` (10), `DenziBladeChargeSet` (10) and the runs that don't end on paper (about 45). `Request(<process>, Stop)` (1,126 notes) is dropped: not checked whether a looped motion keeps running where the original stops it.
+- Moves and zooms over time that come with a fade or a new picture are drawn as cross-fades: 38 left (about 1,200 before the motions).
+- `Rotate` about z of other objects (31), a turn over (about x or y) over time, mirrored at once (10), and `CreateTexture` from an object or the screen (25) are left.
+- Cameras (`CreateCamera` 40, `MoveCamera` 105) are drawn by 続・殺戮のジャンゴ's model, measured there under wine (a child of depth `p` seen `z / (1000 - p)` times about the screen's centre, the camera's place the other way; `Kind::Camera`); moves are engine motions with their tempo. A camera at `Center`, `Middle` is at 0, 0 (ma04_005a's pictures cover the screen only so). Unverified: zooms other than 1000.
+- `BezierMove` (335 outside processes) moves the picture to the path's end and the sync's motion goes through the path (`loops.rs` `bezier_move`, `sync.rs` `along`); its tempo eases the whole motion; where the sync draws no motion the picture is only put at the end.
+- 18 files whose `if`/`else if` chain on earlier flags has no `else`: one branch always matches by the story's logic; the fall-through ends the run.
+- Engine: an exit with status 255 in vertical text was probably a script error in the text (a half-width `/`, `#`, `?` or `%`; before 0.18.0 every script error exited 255). Now a script error exits 2 and the trace's `error` record gives message and line; the checker's `text` rule finds those characters. CONscripter once segfaulted on `end` after a `dwave` voice with Ctrl held (not looked into).
 
 ### Fades that change nothing (2026-10-18)
 
-`cb_Fade` 0044f020 (Django.exe cb_00438fb0 the same) compares the
-target's opacity byte, round(n × 0.255), with the object's: equal, it
-sets it and starts no action, so a waited `Fade` doesn't wait and an
-unwaited one adds nothing to the next sync. A new object's byte is 255
-(`FUN_00488740`, called by every `Create*` through FUN_00488190), so
-`CreateColorSP(…); Fade(…, 1000, 1000, …)` (md02_021's `黒幕１`,
-md02_004, ma04_013vs's `絵色白`) shows it at once, not as a fade-in.
-The compiler skips such a `Fade` when every object it names keeps its
-byte and none has an action still unsynced (a `DrawTransition` under
-way: ma04_018vs's `FadeDelete("絵窓/絵被弾効果*", 450)` right after
-one keeps fading). Objects left out (`untracked`) and the text window's
-boxes wait as before. 174 calls in Muramasa: `bloodC*`/`bloodL*` at 0
-faded to 0, cockpit `@CPEn*` at 1000 faded to 1000, `FadeDelete` of
-pictures already out, new pictures faded to 1000. The 0.txt: 159 hunks,
-77 only `delay`/`wait` gone or merged; the rest follow from syncs no
-longer stretched by the dropped fade (ma01_022vs's `絵色200` 500 ms
-fade of a picture at 0 made the next 200 ms sync 500): sprite numbers
-of the cockpit pieces and counters re-drawn, the same pictures.
+`cb_Fade` 0044f020 (Django cb_00438fb0 the same) compares the target's opacity byte, round(n × 0.255), with the object's: equal, it sets it and starts no action, so a waited `Fade` doesn't wait and an unwaited one adds nothing to the next sync. A new object's byte is 255 (`FUN_00488740`), so `CreateColorSP(…); Fade(…, 1000, 1000, …)` shows it at once. The compiler skips such a `Fade` when every object it names keeps its byte and none has an action still unsynced (a `DrawTransition` under way keeps fading); objects left out (`untracked`) and the text window's boxes wait as before. 174 calls in Muramasa; 0.txt 159 hunks (77 only `delay`/`wait` gone or merged, the rest syncs no longer stretched).
 
 ### Actions on no object (2026-10-18)
 
-A `Fade` or `Move` whose name matches no object starts no action in
-the original (`cb_Fade` 0044f020 queues none; the wait, 00445ac0, waits
-on the objects' action slots), so a waited one doesn't wait and an
-unwaited one adds nothing for the next sync to play out: ma00_000:2501
-`Fade("silver_son*", 500, 0, null, true)` after they went (+500 ms in
-ours), and above all `TypeEnd`'s unwaited `Fade("@Face_Sepia", 150, …)`
-(function.nss:1058), which made ours wait 150 ms after each page
-(4329 `delay 150`s): the trace has the next statements 30 ms after it.
-The compiler keeps the names of the objects it leaves out (a `Create*`
-that makes no object, as the choice screen's plates) until a `Delete`,
-and an action on one still waits as before. The earlier worry ("@boxCC
-matches none") was these: the boxes are kept, `@Face_Sepia` is never
-created.
+A `Fade` or `Move` whose name matches no object starts no action in the exe (`cb_Fade` 0044f020 queues none; the wait, 00445ac0, waits on the objects' action slots), so it neither waits nor adds to the next sync. Above all `TypeEnd`'s unwaited `Fade("@Face_Sepia", 150, …)` (function.nss:1058; `@Face_Sepia` is never created) made ours wait 150 ms after each page (4329 `delay 150`s); the trace has the next statements 30 ms after. The compiler keeps the names of objects it leaves out (a `Create*` that makes no object, as the choice screen's plates) until a `Delete`; an action on one still waits as before.
 
 ### Auto mode and `WaitKey` (2026-10-18)
 
-Auto mode ends a `WaitKey(N)` or `WaitKey()` after 1.5 s in the
-original: every one in the 300-page trace (ma00_000:2496 to 2662, the
-`Gin_song*` lines) ends after 1505 to 1527 ms, with N = 2000 or none.
-The exe (builtin_WaitKey 0040f9d0) waits on its input events with N
-as the timeout, and the defaults (0047b400) set a 1500 (0x5dc) beside
-the auto settings; 続・殺戮のジャンゴ's defaults
-(`reset_system_defaults` 0045cb30) set it too, so both games take it
-(not checked in a Django trace). The compiler puts `Op::AutoWait`
-(1500 ms less what the statement's sync showed) before the wait when N
-is longer, and before `WaitKey()`'s click wait; conv-cons makes it
-`isskip` and a `delay` in auto mode, the wait itself otherwise.
+Auto mode ends a `WaitKey(N)` or `WaitKey()` after 1.5 s in the original (300-page trace, ma00_000:2496-2662: 1505 to 1527 ms, N = 2000 or none). The exe (builtin_WaitKey 0040f9d0; defaults 0047b400 set 1500 beside the auto settings; Django `reset_system_defaults` 0045cb30 too, not checked in a Django trace). The compiler puts `Op::AutoWait` (1500 ms less what the sync showed) before the wait when N is longer, and before `WaitKey()`'s click wait; conv-cons makes it `isskip` and a `delay` in auto mode.
 
 ### Boot logos (2026-10-18)
 
-`0_boot.nss` runs `TitleLogo` before `TitleSet` while `$Logo` is 0: at
-the first title of each run (`$Logo` is a local, set once a game has been
-started; no first-launch-only step, no save flag). Steps, ms: white over
-black 300; `media_a.jpg` in 500, `WaitKey(3000)`; `media_b.jpg` cross-fades
-in 500, `WaitKey(3000)`; out to white 500; `Wait(1000)` (no click);
-`Nitroplus-logo.jpg` in 1000, `WaitKey(3000)`, out to black 500;
-`Wait(500)`; `注意事項.jpg` in 1000 with `WaitKey(1100)`, `WaitKey(8000)`,
-out 500 with `WaitKey(600)`; `Wait(100)`; then the title's opening. A
-click ends a `WaitKey` hold (and the fade under it), never a waiting
-`Fade` or a `Wait`. Before this PR none of it converted (the dry run went
-from the notice to the title).
-
-Now `Game::boot_logos` compiles `TitleLogo` from the script into a
-subroutine (`conv_boot`) that a `BootStep::gosub` runs once a run,
-before the title (`%2960`, as the title's openings). Checked with a
-`--real-time` trace (`--file ma00_000.nss --chain 1` build): each step's
-time is the script's within 10 ms, 23,672 ms in all against 23,600.
-Also: `WaitKey(ms)` after a fade that doesn't wait now counts the fade in
-its time, as `Wait` did (the fade was dropped before: `print 1` and the
-whole wait).
-
+`0_boot.nss` runs `TitleLogo` before `TitleSet` while `$Logo` is 0: the first title of each run (a local, no save flag). Steps, ms: white over black 300; `media_a.jpg` in 500, `WaitKey(3000)`; `media_b.jpg` cross-fades in 500, `WaitKey(3000)`; out to white 500; `Wait(1000)`; `Nitroplus-logo.jpg` in 1000, `WaitKey(3000)`, out to black 500; `Wait(500)`; `注意事項.jpg` in 1000 with `WaitKey(1100)`, `WaitKey(8000)`, out 500 with `WaitKey(600)`; `Wait(100)`; the opening. A click ends a `WaitKey` hold (and the fade under it), never a waiting `Fade` or a `Wait`. `Game::boot_logos` compiles `TitleLogo` into the subroutine `conv_boot` that a `BootStep::gosub` runs once a run (`%2960`); 23,672 ms in `--real-time` against the script's 23,600. `WaitKey(ms)` after a fade that doesn't wait now counts the fade in its time.
 
 ### Eased sound ramps (2026-10-18)
 
-`SetVolume` and `SetFrequency` build their steps by the tempo as `Move`
-does (`FUN_00478570` → `apply_tempo`); ours were straight. Now the
-compiler puts `Op::SoundEase` before the ramp and conv-cons gives
-`chvolfade`/`chfreq` the curve (engine #145: an optional curve; a
-stop's fade-out goes along it, then the sound is halted): 32 `chfreq`
-and 7 `chvolfade` in the dry run. Still straight: the music's eased
-fade-out (mc02_013, `bgmfadeout`; noted) and a sound's fade-in as it
-starts (`dwavefadein`).
+`SetVolume` and `SetFrequency` build steps by the tempo as `Move` does (`FUN_00478570` -> `apply_tempo`). `Op::SoundEase` before the ramp; `chvolfade`/`chfreq` take the curve (engine #145; a stop's fade-out goes along it, then halts): 32 `chfreq`, 7 `chvolfade`. Still straight: the music's eased fade-out (mc02_013, `bgmfadeout`) and a sound's fade-in as it starts (`dwavefadein`).
 
 ### Unwaited fade-outs (2026-10-18)
 
-A `Fade` to 0 that outlasts the sync's wait used to be part of the
-blocking cross-fade, so the script waited for it (up to `UNWAITED_MS`):
-ma00_000:1624's `Fade("絵色100", 300, 0, null, false)` before `OnSE`
-and the text (the text 36 ms after it under wine, 918 ms in ours, now
-609 ms: the rest is the box's own fade-in, as on every page). Such a
-fade is now an engine motion to alpha 0, as a fade-in from 0 was
-already, and the picture is taken away at a later sync. A picture
-disused as such a fade starts (`FadeDelete(…, false)`: `Fade` then
-`Request(…, Disused)`) is kept until a sync after the fade, as the
-exe's frame on page 3 shows (ma00_000:137, the old sky still at about
-a third after the 1 s `Wait`); not one that also zooms or turns
-(mb02_028vs:123) or that a `DrawTransition` wipes (md01_029vs:2107):
-those go at once, as before. Limit: the later sync takes it away
-even if the reader clicks on before the fade's end (by the script's
-clock).
+A `Fade` to 0 that outlasts the sync's wait was part of the blocking cross-fade (the text came 918 ms after it in ours, 36 ms under wine; now 609, the rest the box's own fade-in). Now an engine motion to alpha 0 and the picture is taken away at a later sync. A picture disused as such a fade starts (`FadeDelete(…, false)`) is kept until a sync after the fade (the exe's frame on ma00_000:137 shows the old sky at a third after the 1 s `Wait`); not one that also zooms or turns (mb02_028vs:123) or that a `DrawTransition` wipes (md01_029vs:2107): those go at once. Limit: the later sync takes it away even if the reader clicks on before the fade's end.
 
 ### Zoom to 0 (2026-10-18)
 
-A `Zoom` to 0 along an axis was kept at 1‰, so a 1 px line or dot stayed
-(ma04_015vs ×2, mc02_029, 32 static 1×1 copies in the dry run; django's
-dja023 one). The exe stores the zoom as `atol` gives it
-(`FUN_0044f2a0`, only the time 0 becomes 1), so a picture at 0 is not
-drawn. Now it isn't (`sync`); one zoomed to 0 over time is squashed by
-the engine on the sprite it was (`spmotion` to zoom 0, moved and turned
-with it), then removed; one not shown that grows from 0 is placed where
-it ends and keyed from its zoom of 0 (`Compiler::pending_zoom_from`).
-`Random` over a picture at 0 (ma04_016vs:6680) is now picked when
-converting (35 draws): its moves change only the unshown state.
+A `Zoom` to 0 along an axis was kept at 1‰, leaving a 1 px line (32 static 1×1 copies; Django's dja023 one). The exe stores the zoom as `atol` gives it (`FUN_0044f2a0`, only the time 0 becomes 1), so a picture at 0 is not drawn. Now it isn't; one zoomed to 0 over time is squashed by the engine (`spmotion` to zoom 0) then removed; one not shown that grows from 0 is placed where it ends and keyed from 0 (`Compiler::pending_zoom_from`). `Random` over a picture at 0 (ma04_016vs:6680) is picked when converting (35 draws).
 
 ### Trace diff fixes (2026-10-17)
 
-A `Move` of a picture not shown yet (created since the last sync, as in
-ma00_000.nss:128-136, 370-373, 380-385) put it where the move ends; the
-original pans it from where it was created while the script goes on
-(`PrintGO` cuts it mid-move). Now the next sync places it at its end and
-moves it there from its start (`spmotion`, its tempo kept), and, as a
-moving picture, it no longer stretches the sync's cross-fade to
-`UNWAITED_MS`: `Fade("背景30", 500, …, true)` after the two pans (375) is
-`print 10,500` again, 509 ms against the original's 545 (was 1009);
-`FadeDelete("上背景", 500, true)` (387) the same. The script changed
-wherever a new picture moves (about 1,360 `spmotion`s, fewer layer
-changes and cross-fades; 続・殺戮のジャンゴ about 200, the English release
-the same as this game).
+A `Move` of a picture not shown yet (ma00_000.nss:128-136, 370-385) put it where the move ends; the original pans it from where it was created while the script goes on. Now the next sync places it at its end and moves it from its start (`spmotion`, tempo kept) and, as a moving picture, it no longer stretches the sync's cross-fade to `UNWAITED_MS`: `Fade("背景30", 500, …, true)` is `print 10,500` again (509 ms against the original's 545, was 1009). About 1,360 `spmotion`s in Muramasa, ~200 in Django.
 
 ### Veils laid on the screen (2026-10-18)
 
-A partial `DrawTransition`'s veil is read by the exe's draw (`00418320`)
-at the screen pixel, so it stays put while the picture moves:
-mc04_022vs's `MoveFFP1("@絵効果線")` jitters its rain strip ±10 px (a
-looped `spmotion`) under the veil. The picture was cut once where it
-stood, so the cut moved with it. CONscripter's new `spmask num,"mask"`
-(engine PR #153) draws a sprite times a mask fixed on the screen,
-applied after the sprite is drawn (whatever its motion, zoom, turn,
-wave or blend). The converter now gives every veiled picture (images
-and strips) `spmask` with its `system/veil_*.png` in place of a cut
-picture (`Shown::mask`, `Op::SpriteMask`). A veil that comes or goes is
-placed again, never done by a motion, so its sweep stays a mask print
-(`motion`). Stencils (`CreateStencil`/`CreateMask`) are still cuts.
-Checked in an engine frame of mc04_022vs's strip (zoomed 2×4, turned,
-moved (0, −10)) over its veil: the frame equals `bg + (strip − bg) ×
-veil` at the screen pixel within 1 on all 16,856 lit pixels; the cut
-moved with the strip differs on 2,661 pixels (max 58). Snapshots:
-Muramasa and EN change (about 1,450 hunks: `lsp` of the uncut picture plus
-`spmask` in place of `stencil_*` cuts (669); the layers get `csp` when
-they are freed; a fade that changed nothing on a cut picture is gone; a
-`DrawTransition` from one veil to another on the energy gauge is now a
-mask print, where it was instant); Django's script doesn't change.
+A partial `DrawTransition`'s veil is read by the exe's draw (`00418320`) at the screen pixel, so it stays put while the picture moves (mc04_022vs's jittering rain strip). CONscripter's `spmask num,"mask"` (engine #153) draws a sprite times a mask fixed on the screen, applied after the sprite's motion, zoom, turn, wave or blend. Every veiled picture (images and strips) gets `spmask` with its `system/veil_*.png` (`Shown::mask`, `Op::SpriteMask`); a veil that comes or goes is placed again, never done by a motion, so its sweep stays a mask print. Stencils (`CreateStencil`/`CreateMask`) are still cuts. Checked: frame equals `bg + (strip − bg) × veil` within 1 on all 16,856 lit pixels (the old cut differed on 2,661). About 1,450 hunks in Muramasa and EN; Django unchanged. (Superseded by `spfadeto`: the `veil_*.png` are gone.)
 
 ### Partial `DrawTransition` (2026-10-17)
 
-A `DrawTransition` that ends between 0 and 1000 (to 200, 250 → 150)
-leaves its picture drawn times a table of the mask's grey, for good
-(seen in Muramasa.exe: `FUN_0044fe00` builds the table, `00457bf0`
-steps it each of `time` × 60 ÷ 1000 frames and keeps it once done unless
-the level is 255; the draw `00418320` reads the mask stretched to
-1024×576 at the screen pixel, the green byte, and multiplies it with the
-picture's own `Fade` opacity, which the transition leaves alone; only a
-new `DrawTransition` or `Delete` takes it away, `0045a490`). The
-converter now does the same with existing commands: `convert/transition.rs`
-replays the table (exact for the last frame; earlier frames take a
-straight curve, which only decides leftovers of the start's ramp), the
-assets draw it as a screen-sized `system/veil_*.png`, and the picture
-is cut by it as by a stencil (`Compiler::stenciled`, `lsp` of a new
-picture), keeping its opacity (fire01's `焚き火光`: `Fade` 0, the
-transition, then `Fade`s up): 367 calls, 6 of them on effects, drawn
-unmasked at first; since 2026-10-18 the 4 on rain strips (mc01_021vsaba,
-mc04_022vs, md01_029vs's two) are cut too, each cell by the veil at its
-screen place through the strip's zoom and `lsp2` turn (an engine frame of
-mc04_022vs's turned, 2×4-zoomed strip: cut ÷ uncut equals the veil exactly
-wherever the veil is flat over 9×9 pixels, 4,748 lit pixels; it differs
-only at the veil's steps, where the zoomed sprite is filtered), leaving
-the 2 on md05_016vs's `Plain` covers unmasked (noted). The other partial ones (from a level to 0 or
-1000, or to a level under 4, which × 0.255 is 0) end unmasked or hidden,
-as before. Checked in a
-scene build of ma04_013vs: the five veils equal a Python replay of the
-exe's table over the source masks (0 differing pixels of 589,824 each).
-Snapshots: Muramasa and EN change (≈ 1,300 hunks: cut pictures in place
-of colours and pictures, `msp` opacity changes gone; 215 more cut
-pictures); Django's script doesn't change.
+A `DrawTransition` ending between 0 and 1000 leaves its picture drawn times a table of the mask's grey, for good (exe: `FUN_0044fe00` builds the table, `00457bf0` steps it each of `time` × 60 ÷ 1000 frames and keeps it unless the level is 255; the draw `00418320` reads the mask stretched to 1024×576 at the screen pixel, the green byte, times the picture's own `Fade` opacity; only a new `DrawTransition` or `Delete` takes it away, `0045a490`). The converter replayed the table (`convert/transition.rs`, exact for the last frame) and cut the picture by it as by a stencil: 367 calls; from 2026-10-18 the 4 on rain strips are cut too; the 2 on md05_016vs's `Plain` covers unmasked. Partial ones from a level to 0 or 1000, or to a level under 4 (× 0.255 is 0), end unmasked or hidden. Checked: five veils equal a Python replay of the table (0 of 589,824 pixels).
 
 ### `Wait` and clicks (2026-10-17)
 
-The exe's `Wait` (Muramasa.exe `0040f7f0`, Django's `0040bd80`) ends
-only on quit, a state change or skip mode; a click doesn't end it. Ours
-was `delay`; it is `wait` now (the part shown over the running actions
-too), which CONscripter ends in skip mode (engine PR #134). `WaitKey(ms)`
-stays `delay`. The script changed only in those lines (about 6,800).
+The exe's `Wait` (Muramasa `0040f7f0`, Django `0040bd80`) ends only on quit, a state change or skip mode; a click doesn't end it. Ours was `delay`, is `wait` now (CONscripter ends it in skip mode, engine #134). `WaitKey(ms)` stays `delay`. About 6,800 lines changed.
 
 ### The backlog's voices and the voice switches (2026-10-17)
 
-The exe keeps each log line's speaker with its voice (`FUN_00403730`; a
-text's `<voice class>`, `SetBacklog`'s third argument) and its backlog
-(`FUN_00403910`) offers the voice only when the speaker is not in
-`#SYSTEM_voice_enable_list`, the classes switched off
-(`ConfigCharacterVoice`): it decides when the backlog is drawn. Ours
-logged a voice only when it played, so a voice switched off while read
-never had a button and one switched off later kept it. Now every voiced
-line runs `logvoice "<voice>",<character>` before its `if %970+c == 0
-dwave` (CONscripter's history voice without playing it, with a tag),
-`SetBacklog` lines `logadd "<text>","<voice>",<character>` (the speaker as
-a class, or the class it starts: 村正 for 村正さん), and the backlog's rows
-list has `voice_off=970`, which leaves a row's button out while `%(970 +
-tag)` is set (engine PR blankiekun/CONscripter#103). 0.txt: 36,053
-`logvoice` lines, 53 `logadd`s with a tag. Checked on the full build
-(`--goto if0_else`, a `gosub *conv_backlog` after ma00_000's 卵 lines,
-`--skip-screens none`): voice buttons on rows 6, 7, 9, 10, 11, 13-16
-with `%971=0`, on 6, 7, 10, 13 with `%971=1` (the five rows of character
-1 lose theirs).
+The exe keeps each log line's speaker with its voice (`FUN_00403730`; a text's `<voice class>`, `SetBacklog`'s third argument) and its backlog (`FUN_00403910`) offers the voice only when the speaker is not in `#SYSTEM_voice_enable_list` (`ConfigCharacterVoice`): decided when the backlog is drawn. Now every voiced line runs `logvoice "<voice>",<character>` before its `if %970+c == 0 dwave`, `SetBacklog` lines `logadd "<text>","<voice>",<character>` (speaker as a class, or the class it starts: 村正 for 村正さん), and the backlog's rows list has `voice_off=970` (engine #103). 36,053 `logvoice` lines, 53 `logadd`s with a tag.
 
 ### Tempo of `Fade` and `DrawTransition` (2026-10-17)
 
-Seen in Muramasa.exe: the fade's per-object step (`0044f020`) and the
-transition's (`FUN_0044fe00`) ease by the tempo through `apply_tempo`.
-A sync's transition now goes along the last eased fade's curve before
-its print (CONscripter's `effectcurve`, engine #85; `Op::TransitionEase`):
-588 transitions in the story; 61 in 続・殺戮のジャンゴ, whose exe eases the
-same way (`cb_00438fb0` and `FUN_00439d20` call its curve table
-`FUN_00434ea0` on the tempo). `Game::fade_tempo` turns it on for these
-two, and for Muramasa EN with the port's own reading of `AxlDxl`
-(`docs/games/muramasa-en.md`, "Eased fades"). The rest of
-the 3,869 eased `Fade`s take no time, fade the text window, or become
-part of a picture's motion.
+Both ease by the tempo through `apply_tempo` (seen: `0044f020`, `FUN_0044fe00`). A sync's transition goes along the last eased fade's curve before its print (`effectcurve`, engine #85; `Op::TransitionEase`): 588 transitions in the story, 61 in Django (its exe eases the same: `cb_00438fb0`, `FUN_00439d20`, curve table `FUN_00434ea0`). `Game::fade_tempo` turns it on for these two and for Muramasa EN with the port's own reading of `AxlDxl` (muramasa-en.md, "Eased fades"). The rest of the 3,869 eased `Fade`s take no time, fade the text window, or become part of a picture's motion.
 
 ### The text window's fades (2026-10-17)
 
-The box is an ordinary picture the scripts fade (`Request(…, Hideable)`
-only lets the player hide it): the text's preprocess fades it in over
-`$BoxFadeTime` (150 ms) and a waited `Fade(…, 0, …, true)` takes it
-away. Ours showed and hid it at once (`textoff`); now CONscripter's
-`windowfade` (engine #82, `Op::WindowFade`) fades it: 5,644 hides
-become `windowfade 0,ms` with the script's wait after (most a `delay`,
-the rest joining a sync's wait), and 5,573 shows fade the window in from
-0 with the next page (after its `setwindow`: `windowfade 256,ms,0,0`,
-`textclear:texton`), the text held for the waited fade (`delay ms`), as
-the preprocess's `Fade(…, true)` holds the script before
-`Request(…, Enter)`. An unwaited fade to 0 is a box switch and changes
-nothing. Muramasa EN the same; 続・殺戮のジャンゴ's script doesn't change.
+The box is an ordinary picture the scripts fade (`Request(…, Hideable)` only lets the player hide it): the text's preprocess fades it in over `$BoxFadeTime` (150 ms) and a waited `Fade(…, 0, …, true)` takes it away. Now CONscripter's `windowfade` (engine #82, `Op::WindowFade`): 5,644 hides become `windowfade 0,ms` with the script's wait after, 5,573 shows fade in from 0 with the next page (`windowfade 256,ms,0,0`, text held for the waited fade). An unwaited fade to 0 is a box switch and changes nothing. EN the same; Django unchanged.
 
 ### Pictures made from `LoadImage` (2026-10-17)
 
-`CreateTexture(…, "name")` draws a picture `LoadImage` loaded under that
-name (seen: `builtin_CreateTexture` looks the source up by name,
-`FUN_004491a0`, and copies its picture, `FUN_00488670`, before trying a
-file). Muramasa now takes `Game::loaded_textures`: the story's pictures
-made that way (the scrolling battle backgrounds, `雑魚イメージ`, `イメージ１`)
-are drawn, about 11,000 lines of `0.txt` (new `lsp`s, `spmotion`s and
-the re-layering they cause). The choice screen's plates (`select_img*`
-in `function_select.nss`) stay the engine's choice: left out (1,776
-`CreateTexture`, 504 `LoadImage`; 続・殺戮のジャンゴ's 40 and 10 the same,
-its script unchanged).
+`CreateTexture(…, "name")` draws a picture `LoadImage` loaded under that name (`builtin_CreateTexture`, `FUN_004491a0`, `FUN_00488670`). `Game::loaded_textures`: the story's pictures made that way (scrolling battle backgrounds, `雑魚イメージ`, `イメージ１`) are drawn, ~11,000 lines of `0.txt`. The choice screen's plates (`select_img*`) stay the engine's choice: left out (1,776 `CreateTexture`, 504 `LoadImage`; Django's 40 and 10 the same).
 
 ### Tempo of `Rotate` (2026-10-17)
 
-Seen in Muramasa.exe: `builtin_Rotate` passes its tempo to
-`FUN_00446010`, which keeps it in the command (`+0xa0`); the turn's
-step `FUN_0044f620` eases each of the three angles by it through
-`apply_tempo`. A turn about z over time (an `spmotion2` angle) now
-takes the tempo's curve as `Move` and `Zoom` do: 187 motions in the
-story (the same in Muramasa EN); turning over about x or y already read
-it (`convert/turn.rs`). 続・殺戮のジャンゴ's script doesn't change (its
-42 eased `Rotate`s now count as read).
+`builtin_Rotate` passes its tempo to `FUN_00446010` (kept at +0xa0); the step `FUN_0044f620` eases each of three angles through `apply_tempo`. A turn about z over time (`spmotion2` angle) now takes the curve: 187 motions (same in EN); x/y turns already did (`convert/turn.rs`). Django's 42 eased `Rotate`s now count as read.
 
 ### `Shake`'s `n` and tempo (2026-10-17)
 
-Seen in Muramasa.exe, as 続・殺戮のジャンゴ's: `queue_shake`
-(`004462d0`) stores the step 1000 ÷ (`n` × fps ÷ 1000) ms
-(`00446381`-`004463c3`) and returns at once for `n` above 1000;
-`shake_frame` (`004578e0`) flips the offset once `timeGetTime` has gone
-more than a step past the last flip, the size eased by the tempo over
-`time` × fps ÷ 1000 frames. fps is the double at `005dcb40` + 8 × the
-speed index `005dcaf0`, which `init_frame_tables` (`0048c5d0`) sets to
-4 and nothing changes: 60.0. So `n` 1000 flips every 17 ms, 500 every
-33 ms, 200 every 83 ms. Muramasa now takes `Game::shake_jolts`: the
-1,284 screen shakes are `screenshake` mode 2 with that step and the
-tempo's curve, and the 81 picture shakes' `spmotion` keys turn at that
-step (the 100 ms and 16 ms guesses are gone). Muramasa EN keeps the old
-shake (its exe is not checked). `Shake`'s argument 8 (wait, 58 calls)
-is still unread.
+`queue_shake` (`004462d0`) stores the step 1000 ÷ (`n` × fps ÷ 1000) ms and returns at once for `n` above 1000; `shake_frame` (`004578e0`) flips the offset once `timeGetTime` is more than a step past the last flip, the size eased by the tempo over `time` × fps ÷ 1000 frames. fps is the double at `005dcb40` + 8 × speed index `005dcaf0` (4, set by `init_frame_tables` `0048c5d0`): 60.0. So `n` 1000 flips every 17 ms, 500 every 33, 200 every 83. `Game::shake_jolts`: 1,284 screen shakes are `screenshake` mode 2 with that step and the tempo curve; 81 picture shakes' `spmotion` keys turn at that step. EN keeps the old shake (its exe not checked). `Shake`'s argument 8 (wait, 58 calls) is still unread.
 
 ### `CreateStencil` (2026-10-17)
 
-The exe (`00409fa0`): mode 128 (every call) turns the picture into its
-alpha; `false` leaves the object a container (a wildcard doesn't reach
-its children, which sit at their own place). The converter cuts each
-child's picture by the stencils over it (`Assets::stenciled`, a zoom
-about the centre), kept while the picture, its place and zoom and the
-stencils' places stay the same; a child created off the screen and
-moved in (`CreateColorEX`, `CreateTextureEXover`) is cut where it ends
-up. Checked in our build (out of 89 cuts, one empty: a one-frame
-intermediate in mb03_011): ma04_013vs's red and blood over each
-standing picture (seen: 皇路's red cut has exactly the picture's 83617
-opaque pixels at its place; this was empty before the place was in the
-cut's key), ma05_019's spider (seen: the event picture only inside the
-spider, its wave on), ma02_009vs's zoomed bg201 inside 月山 (seen). Not
-compared with the original (no wine run). Inferred, not checked:
-ma04_013vs's `DrawTransition` of the red to 200 through
-`slide_02_01_0.png` was drawn as a plain 20 % opacity (cut by the
-mask's table since "Partial `DrawTransition`"). Snapshots: Muramasa and EN
-change (the cut pictures; inferred: pictures under a cut child are
-no longer culled as under an opaque one).
+Exe `00409fa0`: mode 128 (every call) turns the picture into its alpha; `false` leaves the object a container (a wildcard doesn't reach its children, which sit at their own place). The converter cuts each child's picture by the stencils over it (`Assets::stenciled`, a zoom about the centre), cached while picture, place, zoom and stencil places stay the same; a child created off the screen and moved in is cut where it ends up. Checked against the exe's rules in our build (ma04_013vs, ma05_019, ma02_009vs); not compared with the original (no wine run). Inferred, not checked: pictures under a cut child are no longer culled as under an opaque one.
 
 ### `CreateMask` (2026-10-17)
 
-`CreateMask(name, priority, x, y, picture, wildcard)` draws nothing
-itself; its children are drawn multiplied by the picture, byte by byte
-(colour and alpha), and not at all outside it or where it is clear
-(28 calls in the story; 30 in Django's choice screen, left out with
-it). From the exe:
-
-- `builtin_CreateMask` (`00409ce0`) reads the name, priority, x, y and
-  picture, and passes the last argument to `00443800`, which, as for
-  `CreateStencil`, leaves the flag at +0x9d4 0 unless it is `true`
-  (a wildcard then reaches the children).
-- `00457e80` sets the mask up: every pixel of its picture whose alpha
-  is 0 is made 0 (black and clear), and a 1024×576 buffer (576 row
-  pointers) is made for the screen; the draw call is `00416860`.
-- `00416860` clears the buffer to 0 (or copies the enclosing mask's
-  buffer) and draws the picture into it at its place, zoom and turn
-  (per-row texture steps); inside another mask, the two multiply per
-  byte (black stays black, white leaves the other).
-- The blitters that draw a child under a mask (`00419210` normal,
-  `0041a510` added, and their kin with the same tests) skip a pixel
-  where the buffer is black, copy it where it is white, else multiply
-  the child's pixel by the buffer's, each byte (with the child's
-  opacity), before blending.
-
-So a white child shows the mask's picture (ma01_019's `絵Ｍ１/絵白`
-over ev104_d: a copy of the event picture that zooms and fades), an
-added grey shows as smoke where the mask is light (ma01_021's
-`絵マスク１/もや`). The converter treats it as a stencil whose cut
-multiplies colour as well as alpha (`Assets::stenciled` with
-`colour`; the same cut cache, place and zoom shortcuts as
-`CreateStencil`). A colour mask under a normal blend is drawn as the
-child's colour times the mask's with alpha times the mask's alpha,
-which is the exe's only when the mask is grey (the exe's per-byte
-factor is also a per-channel opacity); the story's colour masks are
-ev104_d (white child: exact) and 3d村正蜘蛛_正面 (Ｓ/Ｍ).
-
-Checked with numbers in our build of ma01_021 (`--goto` at the もや,
-shot with and without the masked sprite): the added smoke follows
-`cg/data/effect_01_00_0.png` (correlation 0.90 over 9,216 points; mean
-added red 10, 21, 32, 41 where the mask is 16-64, 64-128, 128-192,
-192-256, against 0.29 × 187 × mask/255 expected; before, it was a
-flat grey over the whole screen). Not compared with the original (no
-wine run). Snapshots: Muramasa and EN change (the cut pictures of 28
-masks' children); Django's 0.txt does not (its masks are in the
-choice screen, left out).
+`CreateMask(name, priority, x, y, picture, wildcard)` draws nothing itself; its children are drawn multiplied by the picture, byte by byte (colour and alpha), and not at all outside it or where it is clear (28 calls; Django's 30 are in the choice screen, left out). Exe: `builtin_CreateMask` `00409ce0` (the last argument to `00443800`, as for `CreateStencil`; a wildcard reaches the children only if `true`); `00457e80` zeroes pixels of alpha 0 and makes a 1024×576 buffer; `00416860` draws the picture into it at its place, zoom, turn (inside another mask the two multiply per byte); the blitters (`00419210` normal, `0041a510` added, kin) skip a pixel where the buffer is black, copy where white, else multiply the child's pixel by it before blending. So a white child shows the mask's picture (ma01_019's `絵Ｍ１/絵白`), an added grey shows as smoke where the mask is light (ma01_021's `絵マスク１/もや`). The converter treats it as a stencil whose cut multiplies colour as well (`Assets::stenciled` with `colour`). A colour mask under a normal blend is exact only when the mask is grey (the exe's per-byte factor is a per-channel opacity); the story's colour masks are ev104_d (white child: exact) and 3d村正蜘蛛_正面. Checked in ma01_021: the smoke follows `cg/data/effect_01_00_0.png` (correlation 0.90 over 9,216 points). Not compared with the original.
 
 ### Processes: one-shots on paper (C2, 2026-10-16, #151)
 
-`convert/one_shot.rs` walks the function at the process's start
-(`if`/`while` decided then, assignments run, a 10,000-turn cap: a
-process waiting on what the script sets later, `ProcessAFB1`/`2`, is
-noted and its state put back), puts each picture's actions on a clock
-(`loops.rs` `paper_action`, `Pass::keys_to_end`), and gives it one
-loop-2 `spmotion` at the next sync: placed where the process leaves it
-at the highest opacity it reaches, keyed from where it was; once
-`sound_clock` passes the end it takes its last opacity, or is deleted
-(`Delete`, `Request(…, Disused)`). A process run in line (the end roll)
-keeps its old path. Dry run: `CreateProcess` notes 1,756 → 236 (the
-counters `MyTr_*`/`MyLife_*`/`EnTr_*`/`EnLife_*`, `CP_LockOn*`,
-`CP_IHPMove`/`CP_EHPMove`, `md02_023_ComicProcess*`, `MapBGLoop`, …
-gone), about 800 new many-key motions; the script's total waits change
-by +27 s over the game (a `WaitAction` on a one-shot now waits for it).
-Real-time trace, 90 s from `*if0_else` (`--auto-play 0 --real-time
---vars` with the settings' defaults: `--goto` leaves `%2920`-`%2938` at
-0, so the story ran at `gamespeed` 10 without them): main 57 loop-2
-motions, C2 92 (and 17 more pages); the 35 new ones are the blood-spray
-frame flips (`SL_rightdamfade`, `ma00_000`, 13 frames; three sets of 8
-in `ma01`): 11 ran out, 3 cut short by the next set's `spmotion` on the
-same sprites (after 34-86 of 80-90 ms), 21 removed by the scene's `csp`
-after 18-43 ms because auto-play clicked through the 500 ms `print`
-before it (a player sees them whole: motions go on during effects).
-Every other ending count is the same as main's. Tests:
-`a_one_shot_counter_flips_its_digits_on_paper`,
-`a_one_shot_fading_out_then_disused_goes_after_its_fade`. `CP_LockOnBGMoveProcess` passes (`SetVertex` allowed).
+`convert/one_shot.rs` walks the function at the process's start (`if`/`while` decided then, assignments run, 10,000-turn cap: a process waiting on what the script sets later, `ProcessAFB1`/`2`, is noted and its state put back), puts each picture's actions on a clock (`loops.rs` `paper_action`, `Pass::keys_to_end`) and gives it one loop-2 `spmotion` at the next sync: placed where the process leaves it at the highest opacity it reaches, keyed from where it was; once `sound_clock` passes the end it takes its last opacity or is deleted. A process run in line (the end roll) keeps its old path. `CreateProcess` notes 1,756 -> 236, ~800 new many-key motions; the script's waits change by +27 s (a `WaitAction` on a one-shot now waits for it). Real-time trace, 90 s from `*if0_else` (needs the settings' defaults: `--goto` leaves `%2920`-`%2938` at 0, i.e. `gamespeed` 10): 35 new motions, the blood-spray frame flips; 21 removed by the scene's `csp` after 18-43 ms only because auto-play clicked through the `print`.
 
 ### Processes: loops behind an `if`, after a lead-in (2026-10-16)
 
-The cockpit meters' `CP_SpeedAuto`, `CP_HighAuto` and `CP_AltAuto`
-(703 dry-run notes) test the meter's value, wait in the process for the
-move `CP_*Move` started (`WaitAction`), may step once more, then wobble
-for ever. `loops.rs` decides an `if` the function ends in when the
-process starts (`split_if`, `ends_in_loop`: each branch loops or runs
-once). Waits in a loop process (`Wait`, `WaitAction`, a blocking
-action) hold only the process: they add up to `process_lead` instead of
-holding the script (a process run in line, the end roll, still holds
-it), and a process's own time no longer lengthens the script's wait at a
-sync. The loop then starts after that lead, in one motion with the move
-it waits for (`spmotion` loop 4, CONscripter #48, `MotionEnd::LoopFrom`):
-the next sync turns a picture's pending move into the lead-in, places
-the picture at its new place and keys it from where it was
-(`lead_in_loop`), so neither motion replaces the other. Dry run: 579
-lead-in loops, 792 fewer `delay`s; a cockpit run from `*if46_else`
-(trace, master engine): of the lead-in loops 114 are replaced by the next
-meter change's, 109 removed with the scene, 63 stopped, 8 replaced by
-another motion. The test is
-`a_loop_after_a_move_has_the_move_as_its_lead_in`.
+The cockpit meters' `CP_SpeedAuto`, `CP_HighAuto`, `CP_AltAuto` (703 notes) test the meter's value, wait in the process for the move `CP_*Move` started (`WaitAction`), may step once more, then wobble for ever. `loops.rs` decides an `if` the function ends in when the process starts (`split_if`, `ends_in_loop`). Waits in a loop process hold only the process: they add up to `process_lead` instead of holding the script (an in-line process still holds it), and a process's own time no longer lengthens a sync's wait. The loop starts after the lead in one motion with the move (`spmotion` loop 4, CONscripter #48, `MotionEnd::LoopFrom`; `lead_in_loop`). 579 lead-in loops, 792 fewer `delay`s.
 
 ### Tempo of `Move` and `Zoom` (2026-10-16)
 
-The tempo argument of `Move` and `Zoom` is read (`tempo` in
-`nitroplus/convert.rs`): the exe's curves (`apply_tempo`, `00449f40`;
-t the progress 0-1) Axl1/2/3 t², t³, t⁴ and Dxl1/2/3 1-(1-t)², ³, ⁴
-are `Op::MoveEase` 1 and 2 with exponents 2-4 (the MAGES ones, `spcurve`
-11-13 and 31-33); AxlAuto 1-cos(πt/2), DxlAuto sin(πt/2), AxlDxl
-½-½cos(πt) and DxlAxl acos(1-2t)/π are new eases 4-7 (`spcurve` 70-73,
-33 steps, `conv-cons/src/ease.rs`); any other name (`null` too) is
-straight. The curve goes on the `spmotion` key of the move or zoom: a
-single blocking move (`SpriteMove`) and the engine motions made at a
-sync (`SpriteMotion2`, the non-waiting calls, most of the story's:
-Move 631 Dxl1, 576 Dxl2, 362 DxlAuto, 190 AxlDxl; Zoom 618 Dxl2, 385
-Dxl1). A move and a zoom of one picture with different tempos before
-one sync take the last one's. In the dry run: 615 motion keys on 70-73,
-the "argument 4 ignored" notes of `Move` (3,420) and `Zoom` (2,213)
-gone. Not compared with the original under wine.
+Read (`tempo` in `nitroplus/convert.rs`); exe curves `apply_tempo` `00449f40` (t the progress 0-1): Axl1/2/3 t², t³, t⁴ and Dxl1/2/3 1-(1-t)², ³, ⁴ are `Op::MoveEase` 1 and 2 with exponents 2-4 (`spcurve` 11-13, 31-33); AxlAuto 1-cos(πt/2), DxlAuto sin(πt/2), AxlDxl ½-½cos(πt), DxlAxl acos(1-2t)/π are eases 4-7 (`spcurve` 70-73, 33 steps, `conv-cons/src/ease.rs`); any other name (`null` too) is straight. The curve goes on the `spmotion` key. A move and a zoom of one picture with different tempos before one sync take the last one's. Not compared with the original under wine.
 
 ### Render modes (2026-10-16)
 
-`Request(obj, AddRender|MulRender|SubRender|NormalRender)` sets the
-object's blend; a picture placed with one is drawn with CONscripter's
-`spblend` 1 (added on), 2 (multiplied into what is under it) or 3
-(subtracted), times its opacity, keeping its place among the sprites
-(IR `Op::SpriteBlend`, shared with 続・殺戮のジャンゴ). A blend set on a
-picture already shown changes it in place (`spblend` alone);
-`spblend` stays through `lsp`, so a layer a blended picture leaves is
-cleared before another picture takes it. Before, every blend was drawn
-normal (`lsp2add` only fits pictures over every other sprite).
-A movie with `AddRender` (white smoke) is now added on; `SubRender`
-movies keep their darkened re-encode (the colour drawn black). In the
-dry run: 2,736 `spblend …,1`, 329 `…,2`, 27 `…,3`, 80 `…,0`. Checked
-in the engine (CONscripter #34): over #808080, #404040 subtracted gives
-65, screen 192, the same zoomed or turned. Not compared with the
-original under wine.
+`Request(obj, AddRender|MulRender|SubRender|NormalRender)` sets the blend; a picture placed with one is drawn with `spblend` 1 (added), 2 (multiplied), 3 (subtracted), times its opacity, keeping its place among the sprites (`Op::SpriteBlend`, shared with Django). A blend set on a shown picture changes it in place; `spblend` stays through `lsp`, so a layer a blended picture leaves is cleared first. A movie with `AddRender` (white smoke) is added on; `SubRender` movies keep their darkened re-encode. Dry run: 2,736 `spblend …,1`, 329 `…,2`, 27 `…,3`, 80 `…,0`. Engine check (CONscripter #34): over #808080, #404040 subtracted gives 65, screen 192.
 
 ### `SetBlur`
 
-The exe's `SetBlur(obj, on, passes, alpha, lag, wait)` (`FUN_00460230`,
-`FUN_00460530`, `FUN_00456810`) draws `passes` (1-128) copies under the
-picture at its opacity × `alpha`/1000 (1-1000); when a move, zoom or
-turn starts they are put on the picture, and copy i shows where the
-picture was i × `lag` ms before. A picture that doesn't move shows no
-difference (AE 0 under wine). The converter drew a Gaussian blur of
-1.5 px per pass and waited `alpha` ms as if it were a time; both went
-(1,049 blurred pictures and about 240 waits fewer in `0.txt`). Copies as
-extra converter sprites were tried and dropped: the layers are packed
-(849-878 scene re-layerings against 592, or 6,374 copies left out).
-Instead CONscripter's `sptrail layer,passes,alpha,lag` draws the copies
-under the sprite, following its `spmotion` keys `lag` × i ms late; the
-converter emits it before each motion of a trailed picture, a blocking
-`Move` included (an `spmotion` too since #101): 594 in the story;
-`sptrail layer` ends it when `SetBlur` is turned off on screen (28).
-The last argument (`wait` in the old notes) is no wait: the exe
-(`00454ca4`) draws the copies (`FUN_00456810`) before the picture when
-it is `true` and after it otherwise, so the story's `false` (955 of
-996 calls) puts them over the picture. CONscripter's `sptrail
-…,lag,1` (engine #83) draws them over: 659 of the story's 704 trails.
+Exe `SetBlur(obj, on, passes, alpha, lag, wait)` (`FUN_00460230`, `FUN_00460530`, `FUN_00456810`) draws `passes` (1-128) copies under the picture at its opacity × `alpha`/1000; when a move, zoom or turn starts they are put on the picture, and copy i shows where it was i × `lag` ms before; a still picture shows no difference. The old Gaussian 1.5 px blur per pass and the `alpha`-ms wait went (1,049 blurred pictures, ~240 waits fewer). Copies as extra converter sprites were tried and dropped (the layers are packed: 849-878 scene re-layerings against 592, or 6,374 copies left out). Instead `sptrail layer,passes,alpha,lag` (engine #25, converter #82) draws the copies following its `spmotion` keys `lag` × i ms late, emitted before each motion of a trailed picture (blocking `Move` included, `spmotion` too since #101): 594 in the story; `sptrail layer` ends it when `SetBlur` is turned off (28). The last argument is no wait: the exe (`00454ca4`) draws the copies before the picture when `true`, after it otherwise, so the story's `false` (955 of 996 calls) puts them over: `sptrail …,lag,1` (engine #83), 659 of 704 trails.
 
-Finished work, moved out of "Status" so a session reads only the open
-state.
+Finished work, moved out of "Status".
 
-**A picture's children (2026-10-16, wine):** a child of a picture is placed
-from its parent's corner (a `CreateColor` child at (100, 150) of a parent
-at (50, 100) drew at (150, 250)); a window's or a name's child at its own
-place. `Compiler::parent_offset` now adds a picture parent's place for
-every game (with `Game::relative_children`, 続・殺戮のジャンゴ, a container's
-too, as before). The whole-game script doesn't change: the story's
-pictures with children (if any) sit at (0, 0) or their children are in windows and names (`絵窓`, `遠３`).
+**A picture's children (2026-10-16, wine):** a child of a picture is placed from its parent's corner; a window's or a name's child at its own place. `Compiler::parent_offset` adds a picture parent's place for every game (`Game::relative_children`: Django, a container's too).
 
-**Wildcards and children (2026-10-16, exe and wine):** a trailing `*` that
-matches a window, a name or a camera doesn't reach its children; one
-that matches a picture does (the exe's flag at `+0x9d4`; under wine
-`Fade("@窓*")` left a window's child, `Fade("@絵*")` faded a picture's).
-`Delete` still takes a matched container's children, a locked one's too
-(under wine `Delete("*")` removed the standing pictures in the locked
-`遠３`), and deleting a window deletes what is in it (`md01_006`'s
-`Delete("絵窓")` used to leave its standing picture and background).
-About 5,800 lines of the script change, mostly in battle scenes
-(`ma04_016vs` 144 hunks, `md05_024vs` 64, `md01_029vs` 46): children of
-windows that a wildcard `Fade`/`Move` used to show or hide.
+**Wildcards and children (2026-10-16, exe and wine):** a trailing `*` that matches a window, name or camera doesn't reach its children; one that matches a picture does (the flag at `+0x9d4`). `Delete` still takes a matched container's children (a locked one's too), and deleting a window deletes what is in it. ~5,800 script lines changed, mostly battle scenes.
 
-**Title button sounds late (2026-10-16, reported by the user):** the
-hover sound (`$TitleOverSE`, `se戦闘_動作_刀構え02.ogg`, our
-`selectvoice`) started late. Loading takes 0 ms; the file opens with
-125 ms of silence, but it is the original's file copied unchanged, so
-the original plays that silence too, and it stays. The delay was the
-mixer: CONscripter opened it with a 4096-sample buffer (93 ms at
-44.1 kHz, so 140 ms late on average). CONscripter `f33a0c0` uses 1024
-(23 ms), 2048 in the web build, which mixes on the main thread.
+**Title button sounds late (2026-10-16, reported by the user):** the hover sound (`$TitleOverSE`, `se戦闘_動作_刀構え02.ogg`) opens with 125 ms of silence in the original's own file, so it stays. The rest was the mixer's 4096-sample buffer (93 ms); CONscripter `f33a0c0` uses 1024 (2048 in the web build, which mixes on the main thread).
 
-**Window clip (2026-10-16, reported by the user):** the cockpit's speed and
-altitude tapes ran the whole screen height: `CreateWindow(name, prio, x,
-y, w, h, ?)` (`CPWS`/`CPWH` at 260,138 and 665,138, 100×300, in
-`CockpitSetSpeed`/`CockpitSetHigh`) shows its children only inside its
-rectangle, and only the window's place was kept. Now every picture in a
-window (or in several, their overlap) is drawn with CONscripter's
-`spclip` (`Op::SpriteClip`) at the window's place, which a `Move` of the
-window moves; a named place (`Center`, `OutRight`) is read as for a
-picture. Checked headless in `ma01_022vs` beside the user's shot: the
-tapes show between y 138 and 438 only. Not with
-`Game::relative_children` (続・殺戮のジャンゴ: its windows that move in from
-`OutRight` aren't checked, so its script is unchanged). The cockpit's
-windows don't move (`FrameShake` shakes `@CP_Frame` only); story windows
-that do (`絵演窓上`, `窓右`, `絵窓上`/`下`: about 56 `Move`s, 14 over
-200-1000 ms) move the clip at once to the end place when the move
-starts, not over its time. Pictures under a clipped full-screen picture
-(the halves of a split screen) are no longer left out as covered: 50
-more `print 1` in the whole game's script, none from `spclip` itself
-(it is always given with its `lsp`, inside the transition).
+**Window clip (2026-10-16, reported by the user):** `CreateWindow(name, prio, x, y, w, h, ?)` shows its children only inside its rectangle (the cockpit's speed and altitude tapes, 100×300). Every picture in a window (or several, their overlap) is drawn with `spclip` (`Op::SpriteClip`) at the window's place, which a `Move` of the window moves; named places read as for a picture. Not with `Game::relative_children` (Django unchanged). Known limit: story windows that move (`絵演窓上`, `窓右`, `絵窓上`/`下`: ~56 `Move`s) jump the clip to the end place at the move's start. Pictures under a clipped full-screen picture are no longer culled as covered.
 
-**`SetVertex` (2026-10-16):** `builtin_SetVertex` (`0040ff40` →
-`FUN_00447780` → `FUN_00451e10`) sets the point (`left`/`center`/`right`
-or px, `top`/`middle`/`bottom` or px, from the picture's top left) that
-a `Zoom` or `Rotate` keeps in place; it doesn't move the picture. 続・殺
-戮のジャンゴ's rule (`Game::zoom_vertex`) is now every NSS game's, the flag
-gone. In Muramasa 1,226 places of `0.txt` change: 1,152 `lsp` places,
-36 `spmotion2`, 28 sprites shown, hidden or reordered, 10 `conv_move`
-end points. Checked under wine from a patched `md04_006`
-(`research/nitroplus/local/patch/vertex*`, shots in `research/nitroplus/
-local/shots/vertex/`): `ma03_016`'s background zoomed ×2 about its left
-middle (RMSE 7 % against the original, 24 % before), `mc01_023vs`'s
-mountain strip `bg202` (1536×6112) turned -90° about the screen's middle
-(0.1 % of pixels differ; turned about its own middle it was off screen),
-`ma01_022vs`'s sky zoomed ×2 across about its left edge (RMSE 0.9 %,
-2.6 % before), and its far-off 村正 (`SetVertex(…, 512, 288)` on a
-1400×1000 picture, zoomed to 1 %: now above the screen, as in the
-original; tried at 30 %, 41 pixels differ, 12,970 before). The full
-build grows by 310 KB (3,858 MB; the pre-scaled zooms' crops), its peak
-memory stays 1.39 GB.
+**`SetVertex` (2026-10-16):** `builtin_SetVertex` (`0040ff40` -> `FUN_00447780` -> `FUN_00451e10`) sets the point (`left`/`center`/`right` or px, `top`/`middle`/`bottom` or px, from the picture's top left) that a `Zoom` or `Rotate` keeps in place; it doesn't move the picture. Django's rule (`Game::zoom_vertex`) is now every NSS game's. 1,226 places of `0.txt` change. Checked under wine from a patched `md04_006` (`research/nitroplus/local/patch/vertex*`): `ma03_016` zoomed ×2 about its left middle (RMSE 7 %, 24 % before), `mc01_023vs`'s strip turned -90° about the screen's middle (0.1 % differ), `ma01_022vs`'s sky (0.9 %, 2.6 % before), its far-off 村正 (`SetVertex(…, 512, 288)` on 1400×1000 zoomed to 1 %: now above the screen as in the original). Full build +310 KB, peak memory 1.39 GB.
 
-**Story `CreateText` (2026-10-16):** the 27 calls the story reaches (殺 害,
-〝我は力〟, the screamed lines of `mb03_022`, the date captions, the
-two 「暗闇星人……」) are drawn by the converter into a picture
-(`system/strip/text_<hash>.png`, `convert/text_object.rs`) in the
-last `SetFont`'s style with the `--font`, then they are ordinary picture
-objects. An `@` face is Windows' sideways font: the upright letters turned a
-quarter counterclockwise along a line the script turns with `Rotate(…,
-90)`; brackets, dashes and ASCII lie along the line. `HEAVY` thickens
-the letters; `RIGHTDOWN` is a shadow 2 px right and down on the screen
-after the turn; `inherit` for y is the screen's middle. A turn goes about their `SetVertex` (`ma01_009`, `mb04_015vs`). Checked under wine from a patched
-`md04_006` (the captions, and the four kinds side by side, shots in
-`research/nitroplus/local/shots/ctext*/`): same places within about
-15 px; the original's letters are heavier and narrower, but wine
-substitutes ＭＳ 明朝 (see "Running the original under wine"), so
-sizes can't be compared. The box's height (argument 5) clips the
-picture: the exe draws into a surface of the box's size (`builtin_CreateText`
-makes it from w and h, or from the text's size for `auto`); no story text
-reaches its box's height (500), so nothing changes in Muramasa. Not drawn: the choices' texts
-(`function_select.nss`, the engine's choice draws them), texts with
-markup (none in Muramasa; 続・殺戮のジャンゴ's song in `dja026`), and the
-English build's (the port's own captions aren't known yet).
+**Story `CreateText` (2026-10-16):** the 27 calls the story reaches (殺害, 〝我は力〟, `mb03_022`'s screamed lines, date captions) are drawn by the converter into a picture (`system/strip/text_<hash>.png`, `convert/text_object.rs`) in the last `SetFont`'s style with `--font`. An `@` face is Windows' sideways font: upright letters turned a quarter counterclockwise along a line the script turns with `Rotate(…, 90)`; brackets, dashes and ASCII lie along the line. `HEAVY` thickens the letters; `RIGHTDOWN` is a shadow 2 px right and down after the turn; `inherit` for y is the screen's middle; a turn goes about their `SetVertex`. Under wine: same places within ~15 px (wine substitutes ＭＳ 明朝, so sizes can't be compared). The box's height (argument 5) clips (the exe draws into a surface of that size); no story text reaches its 500. Not drawn: the choices' texts (the engine's choice draws them), texts with markup (Django's song in `dja026`), the English build's.
 
 **Auto-play stuck in `mc04_041vs` (2026-10-15, reported by the user):**
 the trace's auto-play ended as stuck (20000 waits) in a blocking sprite
