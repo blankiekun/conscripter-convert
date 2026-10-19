@@ -909,11 +909,9 @@ impl AssetBank {
         if self.dry_run {
             return Ok(());
         }
-        let dest = self.out.join(name);
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|source| ConvertError::Io { path: parent.to_path_buf(), source })?;
-        }
-        img.save(&dest).map_err(|source| ConvertError::Image { what: name.to_string(), source })
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|source| ConvertError::Image { what: name.to_string(), source })?;
+        write_file(&self.out.join(name), &png)
     }
 
     /// Builds the ADV text box from the game's own window graphics
@@ -3619,11 +3617,7 @@ fn unique(used: &mut HashSet<String>, dir: &str, name: &str, number: usize) -> S
 }
 
 fn write_file(path: &Path, data: &[u8]) -> Result<(), ConvertError> {
-    let io = |source| ConvertError::Io { path: path.to_path_buf(), source };
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(io)?;
-    }
-    fs::write(path, data).map_err(io)
+    crate::output::write_file(path, data).map_err(|source| ConvertError::Io { path: path.to_path_buf(), source })
 }
 
 #[cfg(test)]
