@@ -126,35 +126,9 @@ Then run CONscripter on the output directory:
 engine/build/conscripter --root out/mygame
 ```
 
-Every convert command (`build`, `convert-game`, `convert-nss`, `mages convert`,
-`typemoon convert`) takes these options, except `--linear` (`convert-game` only):
-
-| Option | Effect |
-|---|---|
-| `--loose` | Write assets as loose files instead of packing them into `.nsa` archives |
-| `--linear` | Play the story scripts in file order with no jumps (debugging aid) |
-| `--dry-run` | Compile and write `0.txt` only, no assets (seconds instead of minutes; the same `0.txt` as a full build) |
-| `--small` | A smaller download: `--webp` and `--audio-codec opus` together (an explicit `--audio-codec` or `--webp-quality` still applies). The default stays PNG and the game's own sounds. `version.txt` names the media flags a build used |
-| `--webp` | Store images as near-lossless WebP, about half the size of PNG. CONscripter's web build reads it; native builds need an SDL_image with libwebp. Pictures wider or taller than WebP allows (16,383 pixels: 最果てのイマ's `fx` strips) stay PNG |
-| `--webp-quality N` | With `--webp` (or `--small`): lossy WebP at quality N (0-100, as `cwebp -q`; transparency stays lossless). 80 makes the pictures about a quarter of the near-lossless size and is hard to tell apart |
-| `--audio-codec opus` | Voices and sound effects as Ogg Opus, re-encoded with ffmpeg (libopus): 最果てのイマ's 542 MB of them become 217 MB. Music stays Vorbis. Needs CONscripter 0.21.0 or later (it decodes Opus itself) |
-| `--audio-quality N` | Quality: Opus kbit/s per channel (6-256, default 32); Vorbis ffmpeg `-q:a` (-1 to 10), which re-encodes the game's own Vorbis |
-
-`conscripter-convert convert-script <game> --script N -o <dir>` converts a
-single script, which is handy for testing one scene.
-
-## Format tools
-
-Each engine reader comes with low-level subcommands for inspecting its
-files (`list`/`extract` and the like). Run
-`conscripter-convert <command> --help` for details. For Xuse:
-
-| Command | Files | Subcommands |
-|---|---|---|
-| `conscripter-convert xarc` | `*.arc` archives | `list`, `verify`, `extract` |
-| `conscripter-convert gaf` | `*.004` GAF4 image containers | `list`, `names`, `extract` |
-| `conscripter-convert xsa` | `*.xsa` voice banks and `*.bin` sound banks | `list`, `extract` |
-| `conscripter-convert cd` | `*.cd` compiled scripts | `info`, `dump`, `messages`, `strings`, `symbols`, `opstats` |
+Every option and subcommand (the shared build options such as `--small`,
+`--webp` and `--dry-run`, `--original-archives`, `lint`, `games` and the
+format tools for each engine) is in [`docs/cli.md`](docs/cli.md).
 
 ## How it works
 
