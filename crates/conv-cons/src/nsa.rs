@@ -30,7 +30,7 @@ pub struct NsaFile {
 
 /// Packs `files` into `dir/arc.nsa`, `dir/arc1.nsa`, …, splitting when an
 /// archive would exceed the file-count or size limit. Returns the archive
-/// paths written.
+/// paths written; deletes the later ones an earlier build left.
 pub fn write_archives(dir: &Path, files: &[NsaFile]) -> io::Result<Vec<PathBuf>> {
     let mut groups: Vec<Vec<(&NsaFile, u64)>> = vec![Vec::new()];
     let mut bytes = 0u64;
@@ -54,6 +54,13 @@ pub fn write_archives(dir: &Path, files: &[NsaFile]) -> io::Result<Vec<PathBuf>>
         let path = dir.join(name);
         write_one(&path, group)?;
         written.push(path);
+    }
+    // an earlier, bigger build's: the engine would load them too
+    for i in groups.len()..MAX_ARCHIVES {
+        match fs::remove_file(dir.join(format!("arc{i}.nsa"))) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+            _ => {}
+        }
     }
     Ok(written)
 }
@@ -183,8 +190,11 @@ mod tests {
             NsaFile { name: "bg\\a.png".into(), source: a },
             NsaFile { name: "se\\b.ogg".into(), source: b },
         ];
+        // an earlier build's second archive goes
+        std::fs::write(dir.join("arc1.nsa"), b"old").unwrap();
         let written = write_archives(&dir, &files).unwrap();
         assert_eq!(written, [dir.join("arc.nsa")]);
+        assert!(!dir.join("arc1.nsa").exists());
 
         let data = std::fs::read(dir.join("arc.nsa")).unwrap();
         let header_len = 6 + (8 + 1 + 1 + 12) * 2;
