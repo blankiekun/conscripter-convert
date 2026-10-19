@@ -38,6 +38,9 @@ for id in $(sed -n 's/^\([a-z-]*\): \(0.txt differs\|CHANGED\|metrics CHANGED\).
     echo "- $id metrics before: $(git show "$base:tests/snapshots/$id.metrics.json" 2>/dev/null | tot)"
     echo "  after: $(tot < out/snapshot/$id/metrics.json 2>/dev/null)"
     echo "  why it changed: <fill in>"
+    r=out/snapshot-ref/out/$id n=out/snapshot/$id  # motion time that went down, per source place (motion_drop.py)
+    [ -f "$r.map" ] && [ -f "$n.map" ] && python3 -I research/tools/motion_drop.py "$r/0.txt" "$r.map" "$n/0.txt" "$n.map" |
+        sed '/ ms of motion /{s/^/  - motion down: /;s/$/ (why: <fill in>)/;b};s/^/  /'
 done
 echo; echo "## Found by"
 echo "Found by: <user|check|agent>"

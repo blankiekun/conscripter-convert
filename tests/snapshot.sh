@@ -110,10 +110,12 @@ key_of() { # binary, then the dry run's arguments
 }
 dry() { # binary, out dir, key, then the arguments
     [ $cache = 1 ] && [ -d "$2" ] && [ "$(cat "$2.key" 2>/dev/null)" = "$3" ] && return
-    rm -rf "$2" "$2.key" # files from an older run would be hashed
+    rm -rf "$2" "$2.key" "$2.map" # files from an older run would be hashed
+    # the source map beside the out dir (not hashed), for pr-report's motion_drop.py; not every command has one
+    local sm=(); "$1" "$4" --help 2>/dev/null | grep -q -- --source-map && sm=(--source-map "$2.map")
     # its peak memory (KB) goes in <out>.peak, for the next run's scheduling
     local time=(); [ -x /usr/bin/time ] && time=(/usr/bin/time -o "$2.peak.new" -f %M)
-    "${time[@]}" "$1" "${@:4}" -o "$2" --dry-run > "$2.log" 2>&1 && echo "$3" > "$2.key" || true
+    "${time[@]}" "$1" "${@:4}" "${sm[@]}" -o "$2" --dry-run > "$2.log" 2>&1 && echo "$3" > "$2.key" || true
     [ ! -s "$2.peak.new" ] || mv "$2.peak.new" "$2.peak"
 }
 # Starts a game's job only when MemAvailable, less the peaks of the jobs
