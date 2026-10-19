@@ -547,7 +547,8 @@ build tested headless. Output 960×544.
   (the plugins retired, engine #72): rebuild.
 - Script errors the eboot can't read either (we convert or skip): five
   tasks with a missing or misplaced `[TaskN]` header (S01_04L, S03_03J2,
-  S03C_03C twice, S04_03D), a SeStop inside S01_02A's EyeCatch (missing
+  S03C_03C twice, S04_03D; skipped, as the reference trace shows the
+  eboot does), a SeStop inside S01_02A's EyeCatch (missing
   `}`), S03_06E2's task with two `:Tasktype`s (we take the first).
 
 **Next:** the user picks fixes from "Arguments not read" (the table below). The dry
