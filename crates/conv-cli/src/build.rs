@@ -87,6 +87,10 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         let ours = conv_cons::parity::animated_ms(&source, &lines, |f| metrics.source_ms.contains_key(f), engine == "nitroplus");
         metrics.ours_ms = ours;
     }
+    if lines.is_empty() {
+        // no source map (a build that records none, such as TYPE-MOON's two-language one): no parity
+        metrics.source_ms.clear();
+    }
     if let Some(path) = source_map {
         let text: String = lines.iter().map(|(n, at)| match at {
             Some(at) => format!("{n}\t{}:{}\n", at.file, at.index),
