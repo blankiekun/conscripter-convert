@@ -602,6 +602,19 @@ mod tests {
     }
 
     #[test]
+    fn pack_archives_the_folders_and_deletes_them() {
+        let dir = std::env::temp_dir().join(format!("conv-pack-test-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("cg/sub")).unwrap();
+        std::fs::write(dir.join("cg/sub/a.png"), b"A").unwrap();
+        std::fs::write(dir.join("0.txt"), b"*start\nend\n").unwrap();
+        super::pack(&dir, &["cg", "absent"]).unwrap();
+        assert!(!dir.join("cg").exists() && !dir.join("script.hash").exists());
+        let names = conv_cons::nsa::read_names(&dir.join("arc.nsa")).unwrap();
+        assert_eq!(names, ["cg\\sub\\a.png", conv_cons::nsa::SCRIPT_HASH]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn fallback_only_without_japanese() {
         assert!(!super::needs_fallback(super::DEFAULT_FONT));
         assert!(super::needs_fallback(b"not a font"));
