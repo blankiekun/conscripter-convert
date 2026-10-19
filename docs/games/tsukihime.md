@@ -1889,8 +1889,16 @@ Open there, by size:
 
 With `--english <game-en>` the build holds both copies of the
 scripts (`language.rs`): the Japanese as before (labels `tm_<script>…`)
-and the fan patch's (`tm_en_<script>…`, `pic/en/` for its own 155
-pictures, the English text layout). The flags keep the Japanese
+and the fan patch's (`pic/en/` for its own 155 pictures, the English
+text layout) under CONscripter's label variants (`COMMANDS.md`, "Label
+variants"; 2026-10-19): its labels are `tm_<script>…@en`, and a jump
+names the plain label, which the engine takes to the `@en` one while
+the language is English, so the copies' jumps and choices are the same
+names in both. Only the labels a copy jumps to while the language is
+still the other's keep their own names (`tm_en_…__lang_in`,
+`tm_en_lang`, `tm_en_lang_new`). A save in the English copy from a build
+before this has its label under the old name `tm_en_…`: it loads at the
+line it kept, not by the label. The flags keep the Japanese
 numbering (none is the English copy's alone). The language is the
 copy the script runs in, so a save keeps it; the engine's `language`
 is set at a new game's start, on each switch and after each load
@@ -1922,6 +1930,10 @@ the same with the page forced unaligned → slot 897 loaded, English from
 `00_00`'s `START`; %1800 = 1 → a new game in English; an English save
 loaded → `language "en"`, English pages; there a switch at an unaligned
 page → the reset path, Japanese from the entry, the old loops stopped.
+Again with the label variants (2026-10-19, same patches): page 5 →
+`tm_lang_p1_5@en`; page forced unaligned → slot 897, English from
+`00_00`'s `START`; %1800 = 1 → English from page 1; an English save
+loaded from the Japanese copy → English from its page.
 The Japanese-only build (no `--english`) is unchanged but for the right
 click.
 

@@ -12,7 +12,8 @@
 //!   scene is entered again from a cleared screen with the flags as they
 //!   are.
 //!
-//! The language is the copy the script runs in, so a save keeps it; the
+//! The English copy's labels are the engine's variants (`tm_X@en`,
+//! [`variant`]). The language is the copy the script runs in, so a save keeps it; the
 //! engine is told it at the start, on each switch and after each load
 //! (`language`, not saved). A new game starts in the language last chosen.
 
@@ -262,7 +263,33 @@ pub fn compile(ja: &Game, en: &Game, own: &HashSet<String>, ja_window: TextWindo
         Op::Language("en".into()),
         Op::Return,
     ]);
+    for op in &mut ops {
+        variant(op);
+    }
     Compiled { ops, notes: a.notes, metrics: a.metrics, starts: Vec::new(), source_map: Vec::new() }
+}
+
+/// The English copy under the engine's label variants (COMMANDS.md, "Label
+/// variants"): its labels `tm_X@en`, and every jump to one by the plain
+/// name `tm_X`, which the engine takes to `tm_X@en` while the language is
+/// English: the copy runs only then (set before each jump into it and
+/// after a load). Kept as they are: the labels a copy jumps to while the
+/// language is still the other's (`…__lang_in`, `tm_en_lang`,
+/// `tm_en_lang_new`).
+fn variant(op: &mut Op) {
+    let kept = |l: &str| l.ends_with("__lang_in") || l == "tm_en_lang" || l == "tm_en_lang_new";
+    let target = |t: &mut String| {
+        if t.starts_with("tm_en_") && !kept(t) {
+            *t = ja_label(t);
+        }
+    };
+    match op {
+        Op::Label(l) if l.starts_with("tm_en_") && !kept(l) => *l = format!("{}@en", ja_label(l)),
+        Op::Jump(t) | Op::Gosub(t) | Op::If { label: t, .. } => target(t),
+        Op::Choice { options, .. } => options.iter_mut().for_each(|(_, t)| target(t)),
+        Op::ButtonScreen(b) => b.buttons.iter_mut().for_each(|(_, t)| target(t)),
+        _ => {}
+    }
 }
 
 #[cfg(test)]
@@ -288,6 +315,13 @@ mod tests {
         let b: [&[Op]; 2] = [&[Op::Label("tm_en_A".into()), Op::Label("tm_en_A__L".into()), Op::Jump("tm_en_B__M".into())], &[Op::Label("tm_en_B".into()), Op::Label("tm_en_B__M".into()), Op::Jump("tm_en_B__N".into()), Op::Label("tm_en_B__N".into())]];
         let e = entries([&a, &b]);
         assert_eq!(e.keys().collect::<Vec<_>>(), ["tm_A", "tm_B", "tm_B__M"]);
+    }
+
+    #[test]
+    fn english_labels_are_variants_jumped_to_by_the_plain_name() {
+        let mut ops = [Op::Label("tm_en_S__L".into()), Op::Jump("tm_en_S__L".into()), Op::Label("tm_en_S__lang_in".into()), Op::Gosub("tm_en_lang".into()), Op::Jump("tm_S__M".into())];
+        ops.iter_mut().for_each(variant);
+        assert_eq!(ops, [Op::Label("tm_S__L@en".into()), Op::Jump("tm_S__L".into()), Op::Label("tm_en_S__lang_in".into()), Op::Gosub("tm_en_lang".into()), Op::Jump("tm_S__M".into())]);
     }
 
     #[test]

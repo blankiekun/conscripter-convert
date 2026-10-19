@@ -61,7 +61,8 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             defined.insert(label, i);
         }
     }
-    let labels: HashSet<String> = defined.into_keys().collect();
+    // a jump to `name` reaches a language's `name@en` (CONscripter's label variants)
+    let labels: HashSet<String> = defined.into_keys().flat_map(|l| [l.split('@').next().unwrap_or_default().to_string(), l]).collect();
     let mut motions = Motions::default();
     let mut vertical = false;
     let mut checked_files = HashSet::new();
@@ -256,7 +257,7 @@ fn label_refs(code: &str) -> Vec<&str> {
         if !code[..i].ends_with([' ', ',', '\t']) {
             continue;
         }
-        let end = rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(rest.len());
+        let end = rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '@')).unwrap_or(rest.len());
         out.push(&rest[..end]);
     }
     out
@@ -284,6 +285,8 @@ mod tests {
 *start
 effect 300,10,100
 goto *missing
+goto *v:goto *v@en
+*v@en
 select \"a\",*start,\"b\",*gone
 mov %1,%2*%3
 mov %1,(%1+1)%3:goto *start
