@@ -18,7 +18,9 @@ sprite of a picture both move, as our cross-fades between zooms make;
 not a difference), end (where it
 ends, more than --tol-px off, default 4), duration (more than --tol-ms off,
 default 50), path (the largest gap at the same fraction of the motion,
-over --tol-px; positions as top-left corners, alpha left out of it). For
+over --tol-px; positions as top-left corners, alpha left out of it), zoom
+(where it ends, more than 2 % off; the original's as drawn, from ntrace's
+texture record; not for our pre-zoomed copies, whose zoom is in the picture). For
 our pre-zoomed copies (`system/zoom/…`), whose box corner isn't the
 object's position, the motion is compared from where each starts.
 """
@@ -33,6 +35,7 @@ from scene_check import key, zoomed  # noqa: E402
 import trace_diff as td  # noqa: E402
 
 WINDOW = 30000  # ms after a page that its motions are looked for in
+TOL_ZOOM = 2  # percent
 
 
 def picture(call):
@@ -52,7 +55,8 @@ def orig_side(path):
         elif r["t"] == "obj" and "gone" not in r:
             if "call" in r:
                 pic[r["n"]] = picture(r["call"])
-            objs.append({"ms": r["ms"], "n": r["n"], "pic": pic.get(r["n"], ""), "x": r["x"], "y": r["y"], "a": r["a"]})
+            objs.append({"ms": r["ms"], "n": r["n"], "pic": pic.get(r["n"], ""), "x": r["x"], "y": r["y"], "a": r["a"],
+                         "z": r.get("zx", 1000) / 10})
     return pages, objs
 
 
@@ -66,7 +70,8 @@ def ours_side(path, m):
             pages.append({"at": td.lookup(m, td.line_of(r.get("at"))), "ms": r["ms"]})
         elif r["t"] == "sample" and "n" in r:
             samples.append({"ms": r["ms"], "n": r["n"], "pic": files.get(r["n"], ""), "x": r["x"] - r.get("w", 0) // 2,
-                            "y": r["y"] - r.get("h", 0) // 2, "a": r.get("alpha", 256) * 255 // 256})
+                            "y": r["y"] - r.get("h", 0) // 2, "a": r.get("alpha", 256) * 255 // 256,
+                            "z": (r.get("zoom") or [100])[0]})
     return pages, samples
 
 
@@ -86,7 +91,7 @@ def motions(recs, lo, hi, by):
     for r in recs:
         if lo <= r["ms"] < hi and r["pic"]:
             out.setdefault(r[by], []).append(r)
-    return {k: v for k, v in out.items() if len({(r["x"], r["y"], r["a"]) for r in v}) > 1}
+    return {k: v for k, v in out.items() if len({(r["x"], r["y"], r["a"], r.get("z")) for r in v}) > 1}
 
 
 def at_fraction(seq, f):
@@ -124,6 +129,8 @@ def compare(o_pages, o_objs, u_pages, u_samples, tol_px=4, tol_ms=50):
             do, du = seq[-1]["ms"] - seq[0]["ms"], us[-1]["ms"] - us[0]["ms"]
             if abs(do - du) > tol_ms:
                 finds.append(("duration", page, f"{seq[0]['pic']}: original {do} ms, ours {du} ms"))
+            if not zoomed(us[0]["pic"]) and abs(us[-1].get("z", 100) - seq[-1].get("z", 100)) > TOL_ZOOM:
+                finds.append(("zoom", page, f"{seq[0]['pic']}: original {seq[-1]['z']:.0f} %, ours {us[-1]['z']:.0f} %"))
             gap = max(max(abs(a - b) for a, b in zip(at_fraction(seq, f / 10), at_fraction(us, f / 10))) for f in range(11))
             if gap > tol_px:
                 finds.append(("path", page, f"{seq[0]['pic']}: {gap} px apart at the same fraction"))

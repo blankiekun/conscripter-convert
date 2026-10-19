@@ -9,8 +9,11 @@ callback 0x44d9b0's time-0 branch): the object list at 0x55e74c ([7] when
 0x5d4040 == 400; node +0xc the object, +0x18 the next), the object's name
 at +0, the call that made it at +0x180 (`CreateTexture("…",100,0,0,"cg/…");`), x/y at +0x9f8/+0x9fc, priority at
 +0x9ac, the render record at +0x1200 (x/y at +0xc/+0x10, alpha 0-255 a
-byte at +0x18; none for sounds and processes). Zoom and rotation not
-located yet (a time-0 Zoom/Rotate in the probe changed no field).
+byte at +0x18; none for sounds and processes), whose +0x24 points at the
+texture record: rotation x/y/z in degrees at +0xc0/+0xc4/+0xc8, zoom x/y per
+mille at +0xcc/+0xd0. The Zoom and Rotate frame callbacks (0x456f30,
+0x457240) write them there; the probe's Zoom 1500/2500 and Rotate 33, then
+800/900 and -50, read back.
 """
 import os
 import re
@@ -44,6 +47,7 @@ def label(scene):
     return "f_" + scene[:-4] if scene.endswith(".nss") else None
 
 
+R_TEX, T_ROT, T_ZOOM = 0x24, 0xc0, 0xcc  # render +0x24: the texture record; rotation x/y/z (degrees), zoom x/y (per mille)
 LIST, SEL, CALL, PIC, X, Y, PRIO, RENDER, R_X, R_Y, R_ALPHA = 0x55e74c, 0x5d4040, 0x180, 0x1a4, 0x9f8, 0x9fc, 0x9ac, 0x1200, 0xc, 0x10, 0x18
 
 
@@ -57,8 +61,11 @@ def objects(exe, prefix):
         o = e.ptr(node + 0xc)
         r = e.ptr(o + RENDER)
         if r:
+            t = e.ptr(r + R_TEX)
+            zr = {"zx": i32(t + T_ZOOM), "zy": i32(t + T_ZOOM + 4), "rx": i32(t + T_ROT), "ry": i32(t + T_ROT + 4),
+                  "rz": i32(t + T_ROT + 8)} if t else {}
             out.append({"name": cstr(o), "pic": picture(cstr(o + CALL)), "x": i32(r + R_X), "y": i32(r + R_Y),
-                        "alpha": e.read(r + R_ALPHA, 1)[0], "prio": i32(o + PRIO)})
+                        "alpha": e.read(r + R_ALPHA, 1)[0], "prio": i32(o + PRIO), **zr})
         node = e.ptr(node + 0x18)
     return out
 

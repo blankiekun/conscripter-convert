@@ -707,8 +707,11 @@ and others, whose text the template's flags skip). `scene_check.py`
 runs `--goto f_<scene> --auto-play 1` in a scratch run of our build
 (`research/tools/scratch.sh`) and matches the objects by picture.
 `scene_objects.py` reads the dump: the object list, each object's
-creating call at +0x180, and its render record (x, y, alpha). Zoom and
-rotation are not located yet.
+creating call at +0x180, and its render record (x, y, alpha). The render
+record's texture record (+0x24) holds the rotation (degrees, +0xc0..+0xc8)
+and the zoom (per mille, +0xcc/+0xd0) as drawn (2026-10-19; the Zoom and
+Rotate frame callbacks 0x456f30 and 0x457240 write them, and the probe
+dump read back 1500/2500 and 33). The check doesn't compare them yet.
 
 The run of 2026-10-19 checked 865 scenes in 11 min (3 workers): **640
 clean**. The differences: extra 477, alpha 112, missing 105, position
