@@ -28,7 +28,8 @@
 #
 # Exit status 1 when a snapshot differs, a command is unknown, or a lint
 # count rose; 2 when a game's gaps or left_out total rose against its
-# metrics snapshot (each printed per game), unless --accept-gaps.
+# metrics snapshot, or a channel of its `score` (or the total) fell by
+# more than 0.01 (each printed per game), unless --accept-gaps.
 #
 # How often each command is used (cmdcheck.py --counts) is kept as
 # <game>.cmds.json: a command whose count moved over 5 %, appeared or went
@@ -258,6 +259,8 @@ $others"
             [ "${o:-0}" = "${n:-0}" ] || echo "$id: $k ${o:-0} -> ${n:-0}"
             [ "${n:-0}" -le "${o:-0}" ] || [ $accept = 1 ] || rose=1
         done
+        # each score channel and the total: a fall over 0.01 counts as a rise in gaps
+        python3 -I research/tools/score_fell.py "$msnap" "$out/metrics.json" "$id" || [ $accept = 1 ] || rose=1
     fi
 done
 # edition pairs: the English row reads its Japanese twin's install (f[1])
@@ -268,5 +271,5 @@ for id in "${ids[@]}"; do
         echo "${f[1]} : $id command counts off the pair's ratio (informative):"; echo "$off" | sed 's/^/    /'
     fi
 done
-[ $rose = 0 ] || { echo "gaps/left_out/short_ms rose or command counts moved: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
+[ $rose = 0 ] || { echo "gaps/left_out/short_ms rose, a score fell or command counts moved: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
 exit $changed
