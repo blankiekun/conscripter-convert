@@ -1774,7 +1774,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::Compare;
+    use conv_core::ir::{Compare, MotionEnd, MotionKey};
     use conv_core::ir::{Animation, ButtonScreen, ChoiceStyle, Noise, Placed, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     #[test]
@@ -1993,6 +1993,23 @@ goto *conv_link1
         assert!(text.contains("\nspcurve 32,0,"), "{text}");
         // An unknown curve: straight.
         assert!(!emit(&script(fade(0))).contains("effectcurve"));
+    }
+
+    #[test]
+    fn a_second_motion_runs_beside_the_first_with_spmotionadd() {
+        let key = |ms, x, opacity| MotionKey { ms, x, y: 0, zoom: 100, zoom_y: 100, angle: 0, opacity, ease: None };
+        let text = emit(&script(vec![
+            Op::SpriteMotion2 { layer: 3, keys: vec![key(0, -200, 256), key(2000, 0, 256)], end: MotionEnd::Keep },
+            Op::MoveEase { ease: 2, exponent: 3 },
+            Op::SpriteMotionAdd { layer: 3, keys: vec![key(0, 0, 0), key(500, 0, 256)], end: MotionEnd::Back },
+            Op::SpriteMotionAdd { layer: 3, keys: vec![], end: MotionEnd::Keep },
+        ]));
+        let slot = SPRITE_BASE + 3;
+        assert!(text.contains(&format!("spmotion {slot},2,0,-200,0,100,100,0,256,0,2000,0,0,100,100,0,256,0\n")), "{text}");
+        // (Eased by the MoveEase before it, as a SpriteMotion2 is.)
+        assert!(text.contains(&format!("spmotionadd {slot},0,0,0,0,100,100,0,0,")), "{text}");
+        assert!(!text.contains(&format!("spmotionadd {slot},0,0,0,0,100,100,0,0,0,")), "{text}");
+        assert!(text.contains(&format!("spmotionadd {slot},2\n")), "{text}");
     }
 
     #[test]

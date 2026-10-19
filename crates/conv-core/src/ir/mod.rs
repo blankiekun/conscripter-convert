@@ -803,6 +803,13 @@ pub enum Op {
     /// sprite's own opacity times it (CONscripter's `spfadeto`). Nitroplus's
     /// `DrawTransition`.
     SpriteFadeTo { layer: u32, mask: String, ms: u32, from: u32, to: u32, softness: u32, form: u8, ease: Option<(u8, u32)> },
+    /// A second motion on `layer` beside its [`Op::SpriteMotion2`], with
+    /// its own start, keys and end: the offsets and angles add, the zooms
+    /// and opacities multiply (CONscripter's `spmotionadd`). A fade or a
+    /// shake that runs on while the sprite moves (an NSS `Fade` beside a
+    /// `Move`). Eased as [`Op::SpriteMotion2`] is ([`Op::MoveEase`], each
+    /// key's own); no keys: stop it, with [`MotionEnd::Keep`] where it is.
+    SpriteMotionAdd { layer: u32, keys: Vec<MotionKey>, end: MotionEnd },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

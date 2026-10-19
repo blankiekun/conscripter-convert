@@ -63,7 +63,7 @@ pub(crate) struct Emitter<'a> {
 impl<'a> Emitter<'a> {
     /// Writes op `i` of the script.
     pub(crate) fn op(&mut self, i: usize, op: &'a Op) {
-        if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. } | Op::MoveNoWait | Op::MoveArc { .. }) {
+        if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMotionAdd { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. } | Op::MoveNoWait | Op::MoveArc { .. }) {
             self.fading.clear();
         }
         let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, ref mut text_goes_on, ref mut strings, fading: ref mut fading_slots } = self;
@@ -327,6 +327,10 @@ impl<'a> Emitter<'a> {
             // shortcut: a fade folded into the keys splits them, so the motion goes straight (keys with their own curve keep it); ease each part when a game needs it.
             let curve = if fade.is_none() { ease::curve(ease, eased) } else { 0 };
             motion::emit2(out, *layer, keys, *end, fade, curve, eased);
+        }
+        Op::SpriteMotionAdd { layer, keys, end } => {
+            let curve = ease::curve(move_ease.take(), eased);
+            motion::emit_cmd(out, "spmotionadd", SPRITE_BASE + layer, keys, *end, None, curve, eased);
         }
         Op::MotionClock { layer, from } => writeln!(out, "spmotionclock {},{}", SPRITE_BASE + layer, SPRITE_BASE + from).unwrap(),
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
