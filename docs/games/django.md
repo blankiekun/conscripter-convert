@@ -546,7 +546,7 @@ Open:
 timed fade. After an unwaited `Move` (dja010_01:76-78: `CreateBGz`,
 `Move("背景21",16000,@320,@0,…,false)`, `FadeFade(…,1000,…)`) the 0 ms
 fade's sync hid the picture over the move's time (`csp`, `print 11`)
-and dropped the move with it, so the fade-in placed it at the move's
+and the move ended with it, so the fade-in placed it at the move's
 end. Now a sync leaves a hidden picture's unwaited move (its start,
 path, tempo) for the sync that shows it again, and doesn't draw over
 its time (`Move` keeps a shown picture's start for this); only to the
