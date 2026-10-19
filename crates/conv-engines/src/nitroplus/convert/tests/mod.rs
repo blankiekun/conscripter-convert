@@ -125,6 +125,7 @@ mod calls;
 mod effects;
 mod motions;
 mod sync;
+mod scheduler;
 /// Runs the variable and jump ops of `ops` (everything else is skipped).
 fn run_ir(ops: &[Op]) -> HashMap<conv_core::ir::Var, i32> {
     run_ir_picking(ops, &[])
