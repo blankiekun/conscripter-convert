@@ -893,7 +893,7 @@ impl Compiler<'_, '_> {
                 // most.
                 let at = self.ops.len();
                 let ms = self.movie_wait(arg(0).int().max(0) as u32);
-                let shown = std::mem::take(&mut self.pending_ms).min(ms);
+                let shown = self.take_running(ms);
                 self.sync(shown);
                 if ms > shown {
                     self.ops.push(Op::Wait { ms: ms - shown });
@@ -917,7 +917,7 @@ impl Compiler<'_, '_> {
                     // As `Wait`: the actions still running count in its
                     // time (a fade out, then `WaitKey` a little longer).
                     let ms = self.movie_wait(ms.int().max(0) as u32);
-                    let shown = std::mem::take(&mut self.pending_ms).min(ms);
+                    let shown = self.take_running(ms);
                     self.sync(shown);
                     if ms > shown {
                         let auto = WAITKEY_AUTO_MS.saturating_sub(shown);
@@ -969,7 +969,7 @@ impl Compiler<'_, '_> {
                 if wait > 0 {
                     // As `Wait`: the actions still running are shown over it.
                     let ms = self.movie_wait(wait);
-                    let shown = std::mem::take(&mut self.pending_ms).min(ms);
+                    let shown = self.take_running(ms);
                     self.sync(shown);
                     if ms > shown {
                         self.ops.push(Op::Wait { ms: ms - shown });
@@ -990,7 +990,7 @@ impl Compiler<'_, '_> {
                 // only for that object's (`CP_EHPChange` waits on its own
                 // process, not on the 15 s zoom started before it).
                 let ms = if matches!(arg(0), Value::Null) {
-                    std::mem::take(&mut self.pending_ms)
+                    self.take_running(u32::MAX)
                 } else {
                     self.matching(&arg(0)).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0)
                 };
