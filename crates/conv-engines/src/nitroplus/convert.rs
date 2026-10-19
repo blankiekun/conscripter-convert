@@ -324,6 +324,10 @@ pub trait Assets {
     /// A movie the scripts name (`dx/mvOP.ngs`), or `None` if the game has
     /// no such file.
     fn movie_info(&mut self, path: &str) -> Option<MovieInfo>;
+    /// Whether this build has the movie folder (the dry run may not).
+    fn has_movies(&self) -> bool {
+        true
+    }
     /// The movie as a file the engine plays full screen, with its sound or
     /// without: its output path.
     fn movie_file(&mut self, path: &str, sound: bool) -> Option<String>;

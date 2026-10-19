@@ -309,29 +309,30 @@ impl Compiler<'_, '_> {
                 let name = self.object_name(&arg(0));
                 let (screen_w, screen_h) = self.frame(&name);
                 let path = self.deref(&arg(6));
+                // Read before the file check, so a missing movie is one note, not five.
+                let (order, at_x, at_y, looped, alpha) = (arg(1).int(), arg(2), arg(3), arg(4).truthy(), arg(5).truthy());
                 let Some(info) = self.assets.movie_info(&path) else {
-                    self.note("CreateMovie of a missing movie");
-                    self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                    self.note(missing_movie("CreateMovie", self.assets.has_movies()));
+                    self.create(name, Kind::Other, order, 0, 0);
                     return Value::Null;
                 };
-                let alpha = arg(5).truthy();
                 let (w, h) = (info.w as i64, if alpha { info.h as i64 / 2 } else { info.h as i64 });
-                let m = MovieObject { path, looped: arg(4).truthy(), alpha, dark: false, info, state: MovieState::Playing { at: 0 }, credit: 0 };
-                let o = self.create(name, Kind::Movie(m), arg(1).int(), w, h);
-                o.x = arg(2).position(0, w, screen_w);
-                o.y = arg(3).position(0, h, screen_h);
+                let m = MovieObject { path, looped, alpha, dark: false, info, state: MovieState::Playing { at: 0 }, credit: 0 };
+                let o = self.create(name, Kind::Movie(m), order, w, h);
+                o.x = at_x.position(0, w, screen_w);
+                o.y = at_y.position(0, h, screen_h);
             }
             "MoviePlay" => {
                 // Full screen, the script waiting. A movie with sound stops
                 // the music; a silent cut lets it play on.
                 let path = self.deref(&arg(0));
                 self.sync(0);
+                let skippable = arg(1).truthy();
                 let Some(info) = self.assets.movie_info(&path) else {
                     // `mv_smg_PV` (the title's): no such file on the disc.
-                    self.note("MoviePlay of a missing movie");
+                    self.note(missing_movie("MoviePlay", self.assets.has_movies()));
                     return Value::Null;
                 };
-                let skippable = arg(1).truthy();
                 if let Some(file) = self.assets.movie_file(&path, info.sound) {
                     self.ops.push(if info.sound { Op::Movie { file, skippable } } else { Op::SceneMovie { file, skippable } });
                 }
@@ -1147,6 +1148,12 @@ impl Compiler<'_, '_> {
 }
 
 /// The filters drawing a tone `CreateEffect` and `SetTone` name (lower case).
+/// The note on a movie call whose file isn't there: lost, or (no movie
+/// folder in this build, such as the snapshot's dry run) unmeasured.
+fn missing_movie(call: &str, have_movies: bool) -> String {
+    if have_movies { format!("{call} of a missing movie") } else { format!("{call}: no movies in this build") }
+}
+
 fn tone(name: &str) -> Option<Vec<SpriteFilter>> {
     use conv_core::ir::{FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_COLOUR, FILTER_GREY_WEIGHTS, FILTER_NEGATIVE};
     let filter = |kind, blend, params: [i32; 3]| SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(blend), strength: Operand::Const(256), params: params.map(Operand::Const) };
