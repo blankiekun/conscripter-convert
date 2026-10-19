@@ -484,7 +484,12 @@ S02_03B:4050, S02_05E:3310, S02_06B:1580, S02_06F:3230); 721 missing:
 0x21 (CharacterActionEnd) 643, SeStop 56, 0x27 4, EyeCatch 0x3e/0x3f
 3 each, 0x2d 3, CharacterDelete 3, SpriteDeleteBG 2, CharacterAction
 2, SpriteDelete 1, 0x1b 1; 733 quiet. The 0x21 count predates #505's
-CharacterActionEnd wait. Ours needs a fresh trace on main to count it again.
+CharacterActionEnd wait. Ours again on main with #581 (route 4, 23200
+pages): 0 text, 0 page, 0 extra; 93 missing: SeStop 56 (each right after
+another SeStop, nothing playing), CharacterActionEnd 14 (the action
+already waited for by CharacterWait, or never started), InOut once
+(S03C_03C:4030, nothing staged after the headerless block the eboot skips), and
+the 22 in Status.
 
 ## Milestones
 
@@ -523,9 +528,10 @@ build tested headless. Output 960×544.
   catch's speed, the wave transition's size, the particles' motion,
   the skip dialog's and text's font sizes, CONFIG's lit cells (ours cut
   1-3 pixels short of the eboot's 90/180-wide cells at 0x8107145c).
-  Full-route reference trace (Testing, step 3): all 23327 pages, text
-  clean; to look at: SeStop none of ours 56 times, EyeCatch 6, five
-  `*_jump` pages, an extra at S03C_03C:7700; re-run ours on main.
+- Reference trace (Testing, step 3): `EyeCatch :Image 0,-1` + `:Color`
+  gives none of ours (S01_02C:960, S01_03B:490, S02_03G:3810), likely
+  the eboot's two panels in that colour; SpriteMove 0x27 ×4 (S03_02A:6530),
+  CharacterAction ×2, SpritePriority ×3, 7 deletes/opens act on pictures ours let go.
 - A missing `:Position` with no picture to replace: the eboot puts
   Sprite at (640, 560) and SpriteBG at (640 - w/2, 360 - h/2); ours
   centres it (no script relies on it). The characters' has-a-place
