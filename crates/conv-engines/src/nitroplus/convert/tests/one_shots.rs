@@ -437,3 +437,27 @@ function Roll()
         assert!(c.notes.is_empty(), "{:?}", c.notes);
     }
 }
+
+#[test]
+fn a_disused_process_holds_nothing() {
+    // 装甲悪鬼村正's CP_HighMove: started, disused at once, the script
+    // going on; its 1 s turn runs in the engine, the 100 ms wait is 100 ms.
+    let story = r#"
+scene a.nss
+{
+	CreateTexture("bar", 15000, Center, Middle, "cg/st/a.png");
+	Fade("bar", 0, 1000, null, true);
+	Wait(100);
+	CreateProcess("P", 15000, 0, 0, "Roll");
+	Request("P", Start);
+	Request("P", Disused);
+	Wait(100);
+}
+function Roll()
+{
+	Rotate("@bar", 1000, @0, @0, 45, null, true);
+}
+"#;
+    let c = compile(story, LIBRARY);
+    assert!(!c.notes.contains_key("unwaited action held the script"), "{:?} {:?}", c.notes, c.ops);
+}

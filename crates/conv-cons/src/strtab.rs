@@ -421,6 +421,33 @@ mod tests {
     }
 
     #[test]
+    fn a_hold_in_one_edition_changes_no_english_shown() {
+        // ma01_022vs:2546: the Japanese two pages with a hold between them
+        // (another place's line), the English one page; a picture changed
+        // (place 3) before the last voice. The table rows may go to
+        // per-language lines: what plays in English is the same.
+        use conv_core::ir::SourceLoc;
+        let at = |i| Some(SourceLoc { file: "a.nss".into(), index: i });
+        let mut ja = Strings::tables(false);
+        ja.at = "a.nss:2".into();
+        let [a, b, c, d] = ["　一\\", "　二\\", "　三\\", "「四」\\"].map(|t| ja.lines(TEXT, t));
+        let mut en = Strings::tables(false);
+        en.at = "a.nss:2".into();
+        let [e1, e4] = ["`One two three\\", "`Four\\"].map(|t| en.lines(TEXT, t));
+        let en_script = format!("dwave 0,\"v1\"\n{e1}\nlsp 5,\"f.png\",0,0\ndwave 0,\"v4\"\n{e4}\n");
+        let en_lines = vec![(1, at(2)), (3, at(3)), (4, at(2)), (6, None)];
+        let shown = |hold: bool| {
+            let w = if hold { "wait 100\n" } else { "" };
+            let script = format!("dwave 0,\"v1\"\n{a}\n{b}\n{w}dwave 0,\"v3\"\n{c}\nlsp 5,\"f.png\",0,0\ndwave 0,\"v4\"\n{d}\n");
+            let lines = if hold { vec![(1, at(2)), (4, at(9)), (5, at(2)), (7, at(3)), (8, at(2)), (10, None)] } else { vec![(1, at(2)), (6, at(3)), (7, at(2)), (9, None)] };
+            let m = merge(Edition { script: &script, lines: &lines, rows: &ja.rows }, Edition { script: &en_script, lines: &en_lines, rows: &en.rows });
+            fill(&m.script, &m.tables.1).lines().filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n")
+        };
+        assert_eq!(shown(true), shown(false));
+        assert_eq!(shown(true), fill(&en_script, &table(&en.rows)).trim_end());
+    }
+
+    #[test]
     fn without_a_map_the_text_is_the_place() {
         let mut s = Strings::tables(false);
         s.label = "f_a".into();

@@ -846,9 +846,10 @@ Open, by area (each is small; most noticeable first):
   over time about x or y mirrored at once (10); 38 moves/zooms with a
   fade or new picture drawn as cross-fades; a window that moves (`絵演窓上`,
   `窓右`, about 56 `Move`s) has its clip jump to the end place.
-- **Time ledger** (`sync.rs` notes): 2,035 syncs held up to 1 s for an
-  unwaited action (most in function_cockpit/select/stand.nss helpers); 9
-  motions end at once (mc01_009vs:439, mb04_025vs:2987, md05_007vs).
+- **Time ledger** (`NSS_TRACE=1` prints each hold's place): 1,652 syncs
+  hold up to 1 s. Later: 289 under an opaque cover; ~1,200 zooms, paths,
+  moves and fades drawn as cross-fades (until `spmotion` keys, own item).
+  9 motions end at once (mc01_009vs:439, mb04_025vs:2987, md05_007vs).
 - **Tempo/arguments**: easing of `SetVolume` (9 fades over time keep a
   straight ramp) and the text window's `windowfade`; a move with a fade
   folded into its keys is straight; story `CreateText` rotated sideways

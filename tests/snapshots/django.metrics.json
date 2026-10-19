@@ -2,12 +2,12 @@
 "game": "django",
 "engine": "nitroplus",
 "engine_doc": "nitroplus-nss",
-"commit": "1480a08f",
+"commit": "fe68790b",
 "commit_date": "2026-10-19",
-"totals": {"calls": 58158, "full": 57661, "gaps": 257, "left_out": 240, "weighted": 57918.0, "credit": 57731.0, "score": {"total": 98.17, "as_original": 98.17, "channels": {"text": 98.74, "sound": 100.00, "picture": 99.97, "motion": 93.03, "timing": 92.47, "movie": 100.00}, "unmeasured": [], "parity_complete": true, "parity_factor": 93.15}},
+"totals": {"calls": 58158, "full": 57664, "gaps": 254, "left_out": 240, "weighted": 57918.0, "credit": 57732.5, "score": {"total": 98.17, "as_original": 98.17, "channels": {"text": 98.74, "sound": 100.00, "picture": 99.97, "motion": 93.02, "timing": 92.48, "movie": 100.00}, "unmeasured": [], "parity_complete": true, "parity_factor": 93.13}},
 "kinds": {
-"WaitAction": {"calls": 5940, "gaps": 82, "reasons": [["unwaited action held the script", 82]], "weighted": 5940.0, "credit": 5899.0, "channel": "timing"},
 "SetNextFocus": {"calls": 160, "gaps": 80, "left_out": 80, "reasons": [["built-in SetNextFocus", 80], ["the choice screen's own code: the engine's choice stands in", 80]], "weighted": 80.0, "credit": 0.0, "channel": "text"},
+"WaitAction": {"calls": 5940, "gaps": 79, "reasons": [["unwaited action held the script", 79]], "weighted": 5940.0, "credit": 5900.5, "channel": "timing"},
 "Move": {"calls": 3639, "gaps": 30, "reasons": [["unwaited action held the script", 30]], "weighted": 3639.0, "credit": 3624.0, "ms": 1936951, "credit_ms": 1932101, "channel": "motion"},
 "CreateChoice": {"calls": 48, "gaps": 28, "left_out": 20, "reasons": [["built-in CreateChoice", 28], ["the choice screen's own code: the engine's choice stands in", 20]], "weighted": 28.0, "credit": 0.0, "channel": "text"},
 "Fade": {"calls": 11938, "gaps": 14, "reasons": [["unwaited action held the script", 14]], "weighted": 11938.0, "credit": 11931.0, "ms": 1643100, "credit_ms": 1643100, "channel": "motion"},
@@ -56,7 +56,7 @@
 },
 "outside_calls": [["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1], ["unwaited action held the script", 1]],
 "text": {"pages": 7344, "gaps": 0, "credit": 7344.0, "reasons": []},
-"timing": {"calls": 131},
-"parity": {"source_ms": 4652205, "ours_ms": 5591748, "short_ms": 301190, "scenes_short": 74},
+"timing": {"calls": 128},
+"parity": {"source_ms": 4652205, "ours_ms": 5591148, "short_ms": 301790, "scenes_short": 74},
 "parity_worst": [["dja048_エッガーとイライザ_01_地下酒蔵にて.nss", 66200, 22100], ["dja011_人間狩り_03_残り３人.nss", 54800, 29900], ["dja047_リリィ、名無し捕まる_01_エル・ドミンゴ潜入.nss", 35500, 14100], ["dja043_エル・ドミンゴへ_02_イライザ触手Ｂ.nss", 180800, 162800], ["dja027_新兵教練_01_小銃訓練.nss", 35900, 19800], ["dja025_ジュリアン登場_02_少佐の狙撃.nss", 41300, 26100], ["dja041_脱獄_03_名無し自動車.nss", 54900, 41200], ["dja033_エスパルテロ市街戦_04_包囲突破.nss", 39320, 26420], ["extra_3_dja047_リリィ、名無し捕まる_02_再会.nss", 44800, 36200], ["dja047_リリィ、名無し捕まる_03_胡桃割り人形.nss", 31600, 23900]]
 }

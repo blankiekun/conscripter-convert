@@ -84,14 +84,20 @@ impl Compiler<'_, '_> {
     /// The time ledger: a sync that waits longer than the script asked
     /// holds it for actions the exe runs on (they start at the next
     /// waiting statement; ma00_000:1624's 300 ms fade held the text).
-    fn held(&mut self, ms: u32, blocking: u32) {
+    fn held(&mut self, ms: u32, blocking: u32, why: &str) {
         if ms > blocking {
             self.note("unwaited action held the script");
+            if std::env::var_os("NSS_TRACE").is_some() {
+                let at: Vec<String> = self.running.iter().map(|(f, l)| format!("{f}:{l}")).collect();
+                eprintln!("HOLD {blocking}->{ms} {why} @ {}", at.join(" < "));
+            }
         }
     }
 
     fn draw(&mut self, ms: u32) {
         let blocking = ms;
+        // (What holds, for NSS_TRACE: the longest pending action.)
+        let why = std::env::var_os("NSS_TRACE").and_then(|_| self.pending_by.iter().max_by_key(|(_, t)| **t)).map(|(n, t)| format!("{n} {t}ms")).unwrap_or_default();
         let ms = ms.max(self.take_running(UNWAITED_MS));
         let timed = std::mem::take(&mut self.pending_by);
         let tempo = std::mem::take(&mut self.pending_tempo);
@@ -141,7 +147,7 @@ impl Compiler<'_, '_> {
         let under = |n: &String| frozen.is_some_and(|p| self.objects.get(n).is_none_or(|o| o.priority <= p));
         let retone = cover_tone.as_ref().is_some_and(|c| self.shown.iter().any(|(n, s)| under(n) && s.tint.as_ref() != Some(&toned(self.objects.get(n), s, c))));
         if frozen.is_some() && nothing_above && !retone {
-            self.held(ms, blocking);
+            self.held(ms, blocking, &why);
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });
             }
@@ -806,8 +812,15 @@ impl Compiler<'_, '_> {
         // (A `DrawTransition` starts now and runs on in the engine: the
         // print shows its start, then the script waits as it asked.)
         let fading: Vec<&String> = want.iter().filter(|w| w.1.fade.is_some() && self.shown.get(&w.0).is_none_or(|o| o.fade != w.1.fade)).map(|w| &w.0).collect();
-        let rest = timed.iter().filter(|(n, _)| !moving.contains(n) && !fading.contains(n) && !matches!(self.objects.get(*n), Some(Object { kind: Kind::Process { .. }, .. }))).map(|(_, &t)| t).max().unwrap_or(0);
+        // (A process's own time holds only a `WaitAction` on it, and a
+        // deleted object's action ended with it: neither holds the script;
+        // CP_HighMove, `Request(…, Disused)` after `Start`, ma01_022vs:80.)
+        let live = |n: &String| self.objects.get(n).is_some_and(|o| !matches!(o.kind, Kind::Process { .. }));
+        let longest = |live_ones: bool| timed.iter().filter(|(n, _)| live(n) == live_ones).map(|(_, &t)| t.min(UNWAITED_MS)).max().unwrap_or(0);
+        let rest = timed.iter().filter(|(n, _)| !moving.contains(n) && !fading.contains(n) && live(n)).map(|(_, &t)| t).max().unwrap_or(0);
         let (ms, after) = match (moving.is_empty(), fading.is_empty()) {
+            // (Its time all from those: only the rest's.)
+            (true, true) if ms > blocking.max(longest(true)) && ms <= longest(false) => (blocking.max(longest(true)), 0),
             (true, true) => (ms, 0),
             (false, true) => (blocking.max(rest.min(UNWAITED_MS)), 0),
             (m, false) => {
@@ -962,7 +975,7 @@ impl Compiler<'_, '_> {
                 animated.push(super::loops::lead_in_loop(s.layer, (0, 0, 0), lead, keys.clone(), *from));
             }
         }
-        self.held(ms, blocking);
+        self.held(ms, blocking, &why);
         if changes.is_empty() && animated.is_empty() && opacity.is_empty() {
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });
