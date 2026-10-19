@@ -37,7 +37,7 @@ impl<'a> Compiler<'a, '_> {
                 // ending it as it ends a whole one.)
                 self.timed(i64::from(ms), &Value::Null, targets);
                 let n = n as u32;
-                let shown = std::mem::take(&mut self.pending_ms).min(n);
+                let shown = self.take_running(n);
                 self.sync(shown);
                 if n > shown {
                     self.ops.push(Op::Wait { ms: n - shown });

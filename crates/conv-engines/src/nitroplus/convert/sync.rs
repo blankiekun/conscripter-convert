@@ -3,6 +3,12 @@
 use super::*;
 
 impl Compiler<'_, '_> {
+    /// The running actions' time left, at most `ms`, taken: the one place a
+    /// wait reads what still runs (`u32::MAX`: all of it).
+    pub(super) fn take_running(&mut self, ms: u32) -> u32 {
+        std::mem::take(&mut self.pending_ms).min(ms)
+    }
+
     /// Shows the changes since the last sync, as a cross-fade over `ms`,
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     pub(super) fn sync(&mut self, ms: u32) {
@@ -56,7 +62,7 @@ impl Compiler<'_, '_> {
 
     fn draw(&mut self, ms: u32) {
         let blocking = ms;
-        let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
+        let ms = ms.max(self.take_running(UNWAITED_MS));
         let timed = std::mem::take(&mut self.pending_by);
         let tempo = std::mem::take(&mut self.pending_tempo);
         let fade_tempo = self.fade_tempo.take();
