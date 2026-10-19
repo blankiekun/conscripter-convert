@@ -41,6 +41,7 @@ STUBS = 0xf0000000        # imports point here, unmapped: a fetch is a stub hit
 STACK, STACK_SIZE = 0xe0000000, 0x100000
 HEAP = 0xe8000000         # argument buffers
 RET = 0xef000000          # the return address; the call ends when it is reached
+TIB = 0xef100000          # x86: the thread block FS points at
 NSO_BASE = 0x100000       # where Ghidra puts an ET_DYN image
 PAGE = 0x1000
 # argument counts of the stdcall Win32 imports a stub pops (a stub of one not
@@ -49,7 +50,8 @@ STDCALL = {"timeGetTime": 0, "GetTickCount": 0, "GetProcessHeap": 0, "GetCurrent
            "QueryPerformanceCounter": 1, "Sleep": 1, "ReleaseMutex": 1, "SetEvent": 1, "ResetEvent": 1, "CloseHandle": 1,
            "EnterCriticalSection": 1, "LeaveCriticalSection": 1, "SuspendThread": 1, "ResumeThread": 1,
            "WaitForSingleObject": 2, "HeapAlloc": 3, "HeapFree": 3, "HeapReAlloc": 4, "PostMessageA": 4,
-           "SendMessageA": 4, "VirtualAlloc": 4, "VirtualFree": 3, "GlobalAlloc": 2, "GlobalFree": 1}
+           "SendMessageA": 4, "VirtualAlloc": 4, "VirtualFree": 3, "GlobalAlloc": 2, "GlobalFree": 1,
+           "TlsGetValue": 1, "TlsSetValue": 2, "FlsGetValue": 1, "FlsSetValue": 2}
 
 
 def up(n):
@@ -84,6 +86,19 @@ class Exe:
         self.uc.mem_map(RET, PAGE)
         if self.arch == "x86":  # at the return: fstp qword [RET+0x100] (st0 if a float came back)
             self.uc.mem_write(RET, b"\xdd\x1d" + struct.pack("<I", RET + 0x100))
+            # a thread block at FS (MSVC's SEH prologs read fs:[0]): an empty SEH chain, the stack's bounds, itself
+            # (32-bit mode has no FS base register: a GDT entry with the block as its base, at TIB + 0x800)
+            self.uc.mem_map(TIB, PAGE)
+            self.uc.mem_write(TIB, struct.pack("<7I", 0xffffffff, STACK + STACK_SIZE, STACK, 0, 0, 0, TIB))
+            def seg(base, limit, access, flags):  # a GDT descriptor
+                return (limit & 0xffff | (base & 0xffffff) << 16 | access << 40 | (limit >> 16) << 48
+                        | flags << 52 | (base >> 24) << 56)
+            # 1: flat data (DS, ES, SS once a GDT is set), 2: the thread block (FS); ring 0, 32-bit
+            self.uc.mem_write(TIB + 0x800, struct.pack("<3Q", 0, seg(0, 0xfffff, 0x93, 0xc), seg(TIB, 0xfff, 0x93, 0x4)))
+            self.uc.reg_write(X.UC_X86_REG_GDTR, (0, TIB + 0x800, 0x18 - 1, 0))
+            for r in (X.UC_X86_REG_DS, X.UC_X86_REG_ES, X.UC_X86_REG_SS):
+                self.uc.reg_write(r, 0x8)
+            self.uc.reg_write(X.UC_X86_REG_FS, 0x10)
         self.stubs = {}   # address -> value, for --stub
         self.hits = []
 

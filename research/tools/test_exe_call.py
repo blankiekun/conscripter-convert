@@ -18,6 +18,7 @@ CODE = {
     0x1020: "ff1550114000 03442404 c3",    # imp(a): call [IAT]; add eax,[esp+4]; ret
     0x1030: "a100000010 c3",                # glob(): mov eax,[0x10000000]; ret
     0x1040: "6a05 ff1550114000 03442404 c3",  # imp1(a): push 5; call [IAT] (stdcall, 1 arg); add eax,[esp+4]; ret
+    0x1050: "64a100000000 c3",              # seh(): mov eax,fs:[0]; ret (an MSVC SEH prologue's read)
     0x1100: "40110000 00000000 00000000 60110000 50110000",  # import descriptor, then a zero one
     0x1140: "70110000",                    # lookup table: the hint/name at 0x1170
     0x1150: "70110000",                    # IAT
@@ -53,6 +54,7 @@ def main():
     assert e.call(BASE + 0x1000, [40, 2])[0] == 42
     assert e.call(BASE + 0x1000, [-1, 0])[0] == 0xffffffff
     assert e.call(BASE + 0x1010, [1.25], ret="float")[0] == 2.5
+    assert e.call(BASE + 0x1050)[0] == 0xffffffff  # the empty SEH chain at fs:[0]
     assert e.imports == {STUBS: "k.dll!F"}, e.imports
     e.stubs[STUBS] = 100
     assert e.call(BASE + 0x1020, [7])[0] == 107

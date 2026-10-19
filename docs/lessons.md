@@ -120,6 +120,13 @@ The steps that apply them are in `docs/new-game.md`.
   is left, run it silent on its own Xvfb display with a script copy
   patched to slow the effect down, take the fewest shots at fixed
   fractions and fit them to the curve (`CLAUDE.md`, "Rules").
+- **One short snapshot run beats long filming sessions for timing.**
+  (続・殺戮のジャンゴ) A probe scene that dumps the process's memory
+  before and after each overlap case took one 40 s wine run. The dumps
+  answered the FadeFade question outright (the pan's step counter went
+  on through `Fade(0)`), and the exe's own frame function then steps
+  them under Unicorn with no further wine (`docs/new-game.md`,
+  "Snapshot oracle").
 - **Use reference screenshots of the original** for layout: measuring
   pixels settles the text box and name plate in one pass.
 - **A wine prefix shares the user's home by default.** Its Documents,
