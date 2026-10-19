@@ -273,6 +273,24 @@ take that state from one short run and step the exe's own code on it:
 5. **Into tests**: the numbers become fixtures of the converter's unit
    tests and `(scheduler)` rows marked seen in the findings table.
 
+**Further: the interpreter from a dump** (a timeboxed prototype,
+2026-10-19: `research/nitroplus/interp.py`). Scene dumps name the
+process and script context of the statement they stopped on (`th`,
+`ctx` in the `dump` record). The prototype runs Muramasa.exe's
+`run_statement` (`0x470a50`) on them in the thread loop's order
+(`0x4708b0`), and it gets past the chain's own `Load(i+1);`. From
+ma01_002's start it runs `GameMainSet()`, its body and `call_scene
+$MainGameName`. The scene's new frame then runs nothing. What blocks it:
+the script files are read on another thread (`0x47b400` → `0x401000`,
+`ReadFile`), text is shown through the main thread's message queue, and
+the frames are stepped on the render thread. So the threads need a
+cooperative scheduler over one Unicorn (a context and a stack each,
+switched at the waits), file calls served from the real archives, and
+sound lengths. The generic fixes it needed are in `exe_call.py`: stubs
+inside the image at odd x86 addresses never fired before (a Thumb mask);
+stdcall argument counts now come from the mingw-w64 import libraries;
+`EncodePointer`/`DecodePointer`; the CRT's per-thread data.
+
 Worked example, Django's FadeFade (dja010_01:76-78: an unwaited 16 s
 `Move`, then `Fade(0)` and a 1 s fade in). The probe run took 40 s,
 the prefix's creation included. It wrote 20 dumps of about 94 MB each,

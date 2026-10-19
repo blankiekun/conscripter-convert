@@ -40,7 +40,10 @@ class Harness:
                  "KERNEL32.dll!GetTickCount": lambda e, a: int(self.ms),
                  "KERNEL32.dll!WaitForSingleObject": 0, "KERNEL32.dll!ReleaseMutex": 1,
                  "KERNEL32.dll!GetProcessHeap": 1, "KERNEL32.dll!HeapFree": 1,
-                 "KERNEL32.dll!HeapAlloc": lambda e, a: self.alloc(struct.unpack("<3I", e.read(a, 12))[2])}
+                 "KERNEL32.dll!HeapAlloc": lambda e, a: self.alloc(struct.unpack("<3I", e.read(a, 12))[2]),
+                 # MSVC 2005+ CRTs keep their function pointers encoded: identity is enough
+                 "KERNEL32.dll!EncodePointer": lambda e, a: e.ptr(a), "KERNEL32.dll!DecodePointer": lambda e, a: e.ptr(a),
+                 "KERNEL32.dll!EnterCriticalSection": 0, "KERNEL32.dll!LeaveCriticalSection": 0}
         for name, v in stubs.items():
             try:
                 self.e.stub_import(name, v)
