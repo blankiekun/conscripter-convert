@@ -3,8 +3,7 @@
 #   tests/pr-report.sh [--base REF]    (default origin/main; run from the branch)
 # cargo test, clippy -D warnings, tests/snapshot.sh --diff REF (txtdiff counts
 # per changed game, missing assets, gaps), findings_lint, dropped_lint,
-# docpaths, doclint; metrics totals before (REF) and after per changed game,
-# and the source places whose motion time went down (motion_drop.py);
+# docpaths, doclint; metrics totals before (REF) and after per changed game;
 # flags engine code changed without a docs/games/*.md. Exit 1 on any failure.
 # Fill in each "why it changed" line, and the "Found by" block, before
 # opening the PR.
