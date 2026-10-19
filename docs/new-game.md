@@ -346,7 +346,13 @@ rather than by browsing:
     (Django's `FadeFade`, function.nss:887). For each, give the
     converter a test or a dry-run check of the composed output, not
     just of each call (Django lost 16 s pans to a 0 ms fade's sync, and
-    only the trace diff caught it).
+    only the trace diff caught it). One `(scheduler)` row per question
+    of `findings_lint.py`'s `QUESTIONS` (unwaited goes on, 0 ms on
+    in-flight, wait on in-flight, replace or delete while moving), the
+    question in the second column; the last column names its check, a
+    test (`file.rs::fn`) or a ledger reason (`ledger: "<reason>"`), and
+    the lint checks the name exists. Missing rows warn up to the game's
+    `SCHED_MAX`, which only goes down.
 16. **Track inferred findings to the end.** Keep a machine-readable
     table per game (`docs/games/<game>.findings.tsv`, or a section):
     every argument and branch marked seen, inferred or unknown. An
