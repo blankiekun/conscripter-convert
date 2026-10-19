@@ -709,12 +709,9 @@ control flow (10 route runs passed, 2026-10-14). The system screens
 (title, menu, save/load, backlog, settings, extras, gallery, replay,
 sound room), movies, processes, `Random` and the effects are done; their
 write-ups, the route-run table and the old queue are in "History"
-("Status as it stood before the 2026-10-18 prune"). Dry-run counts
-(2026-10-17): 1,162,127 source calls, 1,131,605 converted fully, 21,928
-with gaps, 8,594 left out on purpose. `metrics.json` also gives each
-kind a `credit` (approximations 0.5, unconverted built-ins 0; dry run
-2026-10-18: 1,151,769 of 1,153,532.6 weighted) and counts the 64 movie
-calls of a build without its movie folder as `unmeasured`.
+("Status as it stood before the 2026-10-18 prune"). Dry-run `score`
+(`metrics.json`, 2026-10-18): 99.90; picture 99.67, movie unmeasured (no
+movie folder in a dry run).
 
 Japanese and English in one build (in progress, `docs/string-tables.md`):
 the `--english` build is the Japanese game plus the English code and

@@ -91,6 +91,7 @@ const RUN_END: &str = "conv_run_end";
 /// from one that names no next file.
 const GAME_NAME_SET: &str = "$GameName (set)";
 mod builtin;
+pub use builtin::channel;
 mod sync;
 mod muramasa;
 pub use muramasa::{MURAMASA, MURAMASA_EN};
