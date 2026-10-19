@@ -1546,8 +1546,9 @@ fn path(p: &str) -> String {
 }
 
 /// Labels must be ASCII identifiers.
+/// `@`: a language's variant of a label (CONscripter's "Label variants").
 fn label(name: &str) -> String {
-    name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect()
+    name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '@' { c } else { '_' }).collect()
 }
 
 /// [`escape`] for a text line, where `?` also starts an array reference
