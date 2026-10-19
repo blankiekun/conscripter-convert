@@ -279,7 +279,7 @@ static void dump(const unsigned char *label, int n, int mode, const char *scene)
     fputs("}\n", out);
 }
 
-/* NTRACE_SCENE_DUMPS: the main thread runs a statement of a file it hasn't
+/* NTRACE_SCENE_DUMPS: a thread runs a statement of a file it hasn't
  * run before: a dump (the first one whole, the base; then the pages that
  * differ from it) */
 static void scene_dump(unsigned char *rec) {
@@ -316,7 +316,7 @@ void __cdecl nt_cmd(unsigned char *th, unsigned char **pos, unsigned char *ctx) 
             while (*e && *e != '"') e++;
             dump(l, e - l, 0, NULL);
         }
-        if (scene_dumps && thread_no() == 0) scene_dump(FILE_REC(ctx, th));
+        if (scene_dumps) scene_dump(FILE_REC(ctx, th));
         fflush(out);
     }
     LeaveCriticalSection(&lock);

@@ -647,6 +647,45 @@ python3 -I research/tools/nitroplus_save.py write <game>/Muramasa.exe <saves>/00
 The template must stand on a page of a story scene (not at a choice,
 whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 
+## Per-scene snapshots
+
+A memory dump of the original at the start of every story scene, for the
+snapshot oracle (`docs/new-game.md`, "Snapshot oracle"). They come from
+saves, not from playing the route (2026-10-18):
+
+```sh
+python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa <nss>
+python3 -I research/nitroplus/scene_saves.py <game>/Muramasa.exe <template slot> <nss> <saves> <patch> > manifest.tsv
+GAME=<game> research/nitroplus/tracedll/ntrace.sh -o scenes.jsonl --patch <patch> --saves <saves> \
+    --scene-dumps research/nitroplus/local/<dir> --clicks 500 --pages 1 --seconds 5400
+```
+
+`scene_saves.py` writes slot i as the template (a save the game wrote on
+a story page; `common` beside it is copied too) sent to the i-th scene
+file with `nitroplus_save.py write` ("scene"). It also writes patched
+copies of `0_boot.nss` (`Load(1);` after the first game-speed line) and
+of every scene (`Load(i+1);` as the first statement of its `_MAIN`
+scene), each edit on its line. One wine process then loads save 1, the
+scene starts, `--scene-dumps` dumps it at that first statement, the
+`Load` goes on to the next save, and so on: about 2.5 s a scene, no
+clicks needed. `research/tools/dumppack.py` packs the dumps as they come
+(zstd with a keyframe as prefix: 1.35 MB a scene against 9 MB alone).
+
+The run of 2026-10-18 dumped all 881 story scenes (the files
+`m?NN_NNN*.nss` with a `_MAIN` scene) and 5 boot and system files in
+41 min (886 dumps, 1.2 GB, an average of 1.35 MB a scene; base 160 MB
+raw). `research/nitroplus/muramasa-scene-dumps.tsv` indexes them (scene,
+slot, dump label, game ms, packed KB). `exe_call.py`'s `load_dump`
+rebuilds one in about 2 s; the dumps stay in `research/nitroplus/local/`.
+
+What a loaded save lacks against a played run: moves and fades in flight
+(the save holds the objects as `frames.npf` re-creates them), sound
+positions (a BGM starts again), CreateProcess threads (the text
+decoration's, the quick bar's), timers and the backlog, and the route's
+flags (the template's are kept; `write` can set `vars`). So the oracle's
+cases start at scene starts; a case that needs state in flight starts
+from a played dump (`ntrace.sh --dumps` and a probe).
+
 ## Milestones
 
 The date each phase was reached, and its PR (`-`: none yet, or made
@@ -792,6 +831,10 @@ Open, by area (each is small; most noticeable first):
 - **Picture diff of ma00_000** (#457's 24 blocks, 2026-10-18): small
   differences left, not fixed (History, "ma00_000 picture diff: what is left").
 - **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
+- **Per-scene snapshots** (2026-10-18): all 881 story scenes dumped from
+  saves ("Per-scene snapshots"). Next: compare each scene's objects with
+  our engine's at the same label (the scene-start check), then run the
+  scenes in the interpreter under Unicorn from those dumps.
 
 ## History
 
