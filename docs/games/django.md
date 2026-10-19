@@ -499,7 +499,7 @@ Open:
    trace diff, pages 600, 846, 852): ours draws it (`lsp`, `print`),
    fades it out over the next fade's time (`csp`, `print 11`/`9`) where
    the original's `Fade(0)` is instant, then draws it again at the
-   motion's end: an unwaited motion before it is dropped. Example
+   motion's end: an unwaited motion before it is lost. Example
    dja010_01:76-78 (`CreateBGz`, `Move("背景21",16000,@320,@0,…,false)`,
    `FadeFade(…,1000,…)`): 16 s pan lost, 1 s fade-out added; also
    dja005_01:262-264. Calls after an unwaited timed motion:
