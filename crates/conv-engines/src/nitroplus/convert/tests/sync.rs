@@ -135,3 +135,34 @@ scene a.nss
     assert_eq!((fades.iter().filter(|&&f| f == 1000).count(), fades.last()), (1, Some(&1000)), "{:?}", c.ops);
     assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteMotion2 { keys, .. } if keys.iter().any(|k| k.ms == 16000))), "{:?}", c.ops);
 }
+
+#[test]
+fn time_ledger_notes_a_sync_held_by_an_unwaited_action() {
+    // Draw holds the script for the running fade (the exe goes on).
+    let held = |wait: &str| {
+        let story = format!("scene a.nss\n{{\n\tCreateTexture(\"bg\", 100, 0, 0, \"cg/bg/a.jpg\");\n\tFade(\"bg\", 5000, 500, null, {wait});\n\tDraw();\n}}\n");
+        compile(&story, LIBRARY).notes.contains_key("unwaited action held the script")
+    };
+    assert!(held("false"));
+    assert!(!held("true"));
+}
+
+#[test]
+fn time_ledger_notes_a_motion_dropped_by_a_sync() {
+    // shortcut: a turned picture cut to the screen (zoomed past 4096 px)
+    // that moves unwaited stays cut to the whole screen, so its move ends
+    // at once (mb04_025vs:2987); a fix of that case needs another one here.
+    let story = r#"
+scene a.nss
+{
+	CreateColor("white", 300, 0, 0, 1024, 576, "WHITE");
+	CreateTexture("ef", 200, Center, Middle, "cg/bg/a.jpg");
+	Zoom("ef", 0, 20000, 20000, null, true);
+	Rotate("ef", 0, @0, @0, @-90, null, true);
+	Move("ef", 400, @0, @1000, null, false);
+	Fade("white", 100, 0, null, true);
+}
+"#;
+    let c = compile(story, LIBRARY);
+    assert!(c.notes.contains_key("timed action dropped by a sync"), "{:?} {:?}", c.notes, c.ops);
+}

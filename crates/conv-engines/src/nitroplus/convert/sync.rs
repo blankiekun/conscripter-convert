@@ -60,6 +60,15 @@ impl Compiler<'_, '_> {
         }
     }
 
+    /// The time ledger: a sync that waits longer than the script asked
+    /// holds it for actions the exe runs on (they start at the next
+    /// waiting statement; ma00_000:1624's 300 ms fade held the text).
+    fn held(&mut self, ms: u32, blocking: u32) {
+        if ms > blocking {
+            self.note("unwaited action held the script");
+        }
+    }
+
     fn draw(&mut self, ms: u32) {
         let blocking = ms;
         let ms = ms.max(self.take_running(UNWAITED_MS));
@@ -86,6 +95,7 @@ impl Compiler<'_, '_> {
             }
         }
         let mut paths = std::mem::take(&mut self.pending_path);
+        let pathed: Vec<String> = paths.keys().cloned().collect();
         let from = std::mem::take(&mut self.pending_from);
         let angle_from = std::mem::take(&mut self.pending_angle_from);
         let zoom_from = std::mem::take(&mut self.pending_zoom_from);
@@ -110,6 +120,7 @@ impl Compiler<'_, '_> {
         let under = |n: &String| frozen.is_some_and(|p| self.objects.get(n).is_none_or(|o| o.priority <= p));
         let retone = cover_tone.as_ref().is_some_and(|c| self.shown.iter().any(|(n, s)| under(n) && s.tint.as_ref() != Some(&toned(self.objects.get(n), s, c))));
         if frozen.is_some() && nothing_above && !retone {
+            self.held(ms, blocking);
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });
             }
@@ -486,6 +497,7 @@ impl Compiler<'_, '_> {
         // Placed instead of the wanted (cut) picture, for its motion (below).
         let mut uncut: HashMap<String, Shown> = HashMap::new();
         let mut vanished = Vec::new();
+        let mut crossfaded = Vec::new();
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(t)) = (*layer, turning.get(name)) else { continue };
             let old = self.shown.get(name);
@@ -698,6 +710,7 @@ impl Compiler<'_, '_> {
                         vanished.push(name.clone());
                     }
                     self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");
+                    crossfaded.push(name.clone());
                 }
                 None => {}
             }
@@ -753,6 +766,20 @@ impl Compiler<'_, '_> {
                     self.unwaited_motions.insert(name.clone());
                 }
             }
+        }
+        // The time ledger: an unwaited move or zoom of a shown picture
+        // that is neither run by the engine nor drawn as a cross-fade
+        // ended at once (the exe runs it on: Django `FadeFade`, #564).
+        // shortcut: a picture hidden through the sync isn't judged (nothing seen moves).
+        let geometry = |s: &Shown| (s.whole.unwrap_or((s.x, s.y, s.w, s.h)), s.zoom, s.angle);
+        let dropped = timed
+            .iter()
+            .filter(|&(n, &t)| t > blocking && !moving.contains(n) && !crossfaded.contains(n) && (from.contains_key(n) || zoom_from.contains_key(n) || size_from.contains_key(n) || angle_from.contains_key(n) || pathed.contains(n)))
+            .filter(|(n, _)| matches!(self.objects.get(*n), Some(Object { kind: Kind::Image { .. }, .. })))
+            .filter(|(n, _)| want.iter().find(|w| &w.0 == *n).is_some_and(|w| self.shown.get(*n).is_some_and(|old| geometry(old) != geometry(&w.1))))
+            .map(|(n, _)| n.clone()).collect::<Vec<_>>();
+        for _ in 0..dropped.len() {
+            self.note("timed action dropped by a sync");
         }
         // (A process's own time holds only the process.)
         // (A `DrawTransition` starts now and runs on in the engine: the
@@ -914,6 +941,7 @@ impl Compiler<'_, '_> {
                 animated.push(super::loops::lead_in_loop(s.layer, (0, 0, 0), lead, keys.clone(), *from));
             }
         }
+        self.held(ms, blocking);
         if changes.is_empty() && animated.is_empty() && opacity.is_empty() {
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });
