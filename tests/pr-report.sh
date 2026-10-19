@@ -3,7 +3,8 @@
 #   tests/pr-report.sh [--base REF]    (default origin/main; run from the branch)
 # cargo test, clippy -D warnings, tests/snapshot.sh --diff REF (txtdiff counts
 # per changed game, missing assets, gaps), findings_lint, dropped_lint,
-# docpaths, doclint; metrics totals before (REF) and after per changed game;
+# docpaths, doclint; metrics totals before (REF) and after per changed game,
+# and the source places whose motion time went down (motion_drop.py);
 # flags engine code changed without a docs/games/*.md. Exit 1 on any failure.
 # Fill in each "why it changed" line, and the "Found by" block, before
 # opening the PR.
@@ -35,6 +36,9 @@ for id in $(sed -n 's/^\([a-z-]*\): \(0.txt differs\|CHANGED\|metrics CHANGED\).
     echo "- $id metrics before: $(git show "$base:tests/snapshots/$id.metrics.json" 2>/dev/null | tot)"
     echo "  after: $(tot < out/snapshot/$id/metrics.json 2>/dev/null)"
     echo "  why it changed: <fill in>"
+    r=out/snapshot-ref/out/$id n=out/snapshot/$id  # motion time that went down, per source place (motion_drop.py)
+    [ -f "$r.map" ] && [ -f "$n.map" ] && python3 -I research/tools/motion_drop.py "$r/0.txt" "$r.map" "$n/0.txt" "$n.map" |
+        sed '/ ms of motion /{s/^/  - motion down: /;s/$/ (why: <fill in>)/;b};s/^/  /'
 done
 echo; echo "## Found by"
 echo "Found by: <user|check|agent>"
