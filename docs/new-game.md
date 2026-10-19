@@ -146,24 +146,19 @@ then the **oracle** (`exe_call`, memory dumps, a reference trace), then
   strings it uses) plus `functions.tsv` and `strings.tsv`. Grep those first.
   **Every function or global you identify goes into
   `research/<engine>/names.tsv`** (`address<TAB>name<TAB>comment`); rerun the
-  export (~30 s; the first run ~1 min) so the next session reads named code.
-  Options (`--rtti` for MSVC C++ classes, `-- -processor …` for ARM) are in the
-  script's header. For ARM C++ (a Vita eboot) add `-postScript
-  ThumbPointerFunctions.java` after `--` (vtable-only virtual methods sit
-  outside any function; it makes one at every Thumb pointer stored as data).
+  export (~30 s) so the next session reads named code. Options (`--rtti` for
+  MSVC C++ classes, `-- -processor …` for ARM) are in the script's header. For
+  ARM C++ (a Vita eboot) add `-postScript ThumbPointerFunctions.java` after
+  `--` (it makes a function at every Thumb pointer stored as data).
   `objdump -d -M intel` is fine for a quick look at bytes.
-- **A packed exe** (section names gone or odd, entropy near 8 bits/byte,
-  entry point in the last section, stub strings such as "cannot be run with
-  debugger") gives Ghidra nothing. Work on a copy only, unpacked binaries in a
+- **A packed exe** (odd section names, entropy near 8 bits/byte, entry point
+  in the last section, stub strings such as "cannot be run with debugger")
+  gives Ghidra nothing. Work on a copy only, unpacked binaries in a
   git-ignored `local/`. In order: (1) an unpacked build the user already owns
-  of the same version (a no-CD exe is an image dump with rebuilt imports:
-  plain entropies, an extra import section; check its code against the
-  other copies and its addresses against the scripts' behaviour); (2) a
-  standard unpacker for the packer the stub names; (3) dump under wine once
-  the stub reaches the original entry point (stop on the first execution in
-  the first section; a disc check in the stub stops this without the disc)
-  and rebuild the imports (Scylla's method). Hooks for the unpacked exe
-  (step 22) then go into that exe run under wine. (続・殺戮のジャンゴ: (1),
+  of the same version (a no-CD exe is an image dump with rebuilt imports);
+  (2) a standard unpacker for the packer the stub names; (3) dump under wine
+  at the original entry point and rebuild the imports (Scylla's method). Hooks
+  (step 22) then go into that exe. (続・殺戮のジャンゴ: (1),
   docs/games/django.md "The exe".)
 - Work out **every index space a jump uses** (per-script labels or global
   tables, implicit entries, labels on marker instructions) and check all
@@ -173,36 +168,30 @@ then the **oracle** (`exe_call`, memory dumps, a reference trace), then
 
 For a value from a small function (a curve, a table lookup, a sprite quad's
 corners), run it instead of reading its maths: `research/tools/exe_call.py`
-maps the exe into Unicorn (Ghidra's addresses throughout) and calls one
-address with int, float and pointer arguments, printing the return value and
-buffers; calls into imports or `--stub` addresses return 0 or a chosen value
-and are listed. Seconds, no game, no wine. `Exe(path).call` runs thousands of
-calls for a sweep. Setup once per machine: `research/tools/setup-venv.sh`
-(ends with exe_call's self-test). Examples: `research/nitroplus/en_tempo_exe.py`
-(every tempo curve of the English Muramasa, checked by a test in
-`muramasa.rs`); 俺たちに翼はない's sprite quad with a negative scale
-(`docs/games/oretsuba.findings.tsv`).
+maps the exe into Unicorn (Ghidra's addresses) and calls one address with int,
+float and pointer arguments, printing the return value and buffers; imports
+and `--stub` addresses return 0 or a chosen value. Seconds, no game, no wine.
+`Exe(path).call` runs thousands of calls for a sweep. Setup once per machine:
+`research/tools/setup-venv.sh`. Examples: `research/nitroplus/en_tempo_exe.py`
+(the English Muramasa's tempo curves); `docs/games/oretsuba.findings.tsv`.
 
 Limits: no OS, so a function that allocates, does file or GPU work, or reads
-state the game set up needs that state written into memory first (an object's
-fields as a buffer); a stdcall import's stub pops as many arguments as the
-mingw-w64 import libraries give it (unknown: none); the Vita's SCE relocations
-and import stubs are not read (only an import call is wrong: stub it). For
-game-set state, a trace DLL can dump the process's memory at chosen statements
-(Django's `ntrace.sh --dumps`, docs/games/django.md "Running the original
-under wine"); `load_dump` maps a dump so the exe's own functions run on real
-objects. Stub the clock (`stub_import("WINMM.dll!timeGetTime", …)`) to step
+state the game set up needs that state written into memory first (a trace DLL
+can dump it: Django's `ntrace.sh --dumps`; `Exe.load_dump` maps a dump); a
+stdcall import's stub pops as many arguments as the mingw-w64 import libraries
+give it (unknown: none); the Vita's SCE relocations are not read (stub the
+import). Stub the clock (`stub_import("WINMM.dll!timeGetTime", …)`) to step
 frames.
 
-**What each platform has** (2026-10-19):
-
-| Platform | Executable | `exe_call` | Memory snapshots | Per-frame state |
-|---|---|---|---|---|
-| Windows x86-32 (Xuse, Nitroplus NSS) | PE | yes (cdecl, stdcall, thiscall, fastcall; FS block, CRT TLS) | trace DLL under wine: `ntrace.sh --dumps`/`--scene-dumps` (NSS) | `ntrace.sh --frames` (Django, Muramasa), `xtrace.sh --frames` (Saihate) |
-| Windows x86-64 | PE32+ | no (not read yet) | not yet | not yet |
-| Linux x86-64 | ELF | yes (System V; RELA relocations) | not yet (no game yet) | not yet |
-| PS Vita (ARM) | decrypted eboot ELF | yes (AAPCS; SCE relocations not read) | Vita3K's GDB stub: `gdbdump.py --scan` (docs/games/oretsuba.md) | not yet |
-| Switch (AArch64) | NSO | yes (relocations applied) | Ryubing's GDB stub, modules only: `gdbdump.py --get-info`; its heap hangs the stub (docs/games/tsukihime.md) | not yet |
+**What each platform has** (2026-10-19): `exe_call` works on every executable
+we have except Windows x86-64 (not read yet): x86-32 PE (all calling
+conventions, FS block, CRT TLS), Linux ELF (System V), Vita eboot (AAPCS; SCE
+relocations not read), Switch NSO (AArch64). Memory snapshots: x86-32 under
+wine via the trace DLL (`ntrace.sh --dumps`/`--scene-dumps`); Vita via
+Vita3K's GDB stub (`gdbdump.py --scan`, docs/games/oretsuba.md); Switch via
+Ryubing's, modules only (`gdbdump.py --get-info`; its heap hangs the stub,
+docs/games/tsukihime.md). Per-frame state: `ntrace.sh --frames` (Django,
+Muramasa), `xtrace.sh --frames` (Saihate); not yet elsewhere.
 
 ### Snapshot oracle
 
@@ -214,60 +203,33 @@ exe's own code on it instead of filming:
    before and after each step (Django: `research/nitroplus/sched_probe.nss`;
    a marker is `Delete("__dump_<label>")`, a name nothing has).
 2. **Dumps**: the trace DLL writes the process's committed memory at each
-   marker (`ntrace.sh --probe <file> --dumps <dir>`; `ntrace.c`,
-   `NTRACE_DUMPS`), holding the engine's object mutex, suspending other
-   threads and stopping the game clock. Run at 1x (script waits follow the
-   clock, motions step per frame). Dumps go under `research/<engine>/local/`
-   and often answer the question alone: read the object's fields before and
-   after. `--scene-dumps` dumps at every scene start (a base plus changed
-   pages per scene, docs/games/django.md "Memory snapshots", packed by
-   `research/tools/dumppack.py`); faster than playing the route is a save at
-   each scene start, loaded one after another in one run
-   (docs/games/muramasa.md "Per-scene snapshots": 881 scenes in 41 min).
-   `research/tools/scene_check.py` compares each scene's objects at its first
-   page with our engine's sprites there through a per-game adapter
-   (Muramasa's: `research/nitroplus/scene_objects.py`).
-3. **load_dump**: `Exe.load_dump(prefix)` maps a dump over the image, putting
-   the exe's code and import slots back from the file (imports stay stubs;
-   Win32 stubs pop their stdcall arguments; FS points at a thread block for
-   MSVC's SEH prologs).
+   marker (`ntrace.sh --probe <file> --dumps <dir>`), holding the object mutex
+   and stopping the game clock. Run at 1x. Dumps go under
+   `research/<engine>/local/` and often answer alone: read the object's fields
+   before and after. `--scene-dumps` dumps at every scene start
+   (docs/games/django.md "Memory snapshots"; docs/games/muramasa.md
+   "Per-scene snapshots"); `research/tools/scene_check.py` compares each
+   scene's objects with our sprites through a per-game adapter.
+3. **load_dump**: `Exe.load_dump(prefix)` maps a dump over the image (imports
+   stay stubs; FS points at a thread block for MSVC's SEH prologs).
 4. **Step the frame function**: `research/tools/sched_harness.py` stubs the
-   clock to +1/fps per frame, the heap from an arena and the CRT's TLS. An
-   engine adapter queues actions through the exe's own job code, calls the
-   per-frame stepper N times and reads x, y, alpha per frame. Django's:
-   `research/nitroplus/sched_django.py <exe> <dumps> [--jobs N] [--cases]`;
-   by default it steps every dump in a pool of worker processes
-   (`sched_harness.pool_map`, one Unicorn per process, ~130 MB each; 20
-   dumps: 2.1 s with 1 worker, 0.3 s with 20); `--cases` runs the four overlap
-   cases and checks each against the case's later dump.
+   clock (+1/fps per frame), heap and CRT TLS. An engine adapter queues actions
+   through the exe's own job code, steps the frame function N times and reads
+   x, y, alpha. Django's: `research/nitroplus/sched_django.py <exe> <dumps>
+   [--jobs N] [--cases]`.
 5. **Into tests**: the numbers become fixtures of the converter's unit tests
    and `(scheduler)` rows marked seen in the findings table.
 
-**Per-frame state of the original** (Django's `ntrace.sh --frames`,
-docs/games/django.md "Per-frame state trace"): objects' x, y, alpha each
-frame, compared with our motion samples by `research/tools/frame_diff.py`.
+**Per-frame state of the original** (Django's `ntrace.sh --frames`): objects'
+x, y, alpha each frame, compared with our motion samples by
+`research/tools/frame_diff.py`.
 
 **Further: the interpreter from a dump** (timeboxed prototype, 2026-10-19,
-`research/nitroplus/interp.py`): scene dumps name the process and script
-context of the statement they stopped on (`th`, `ctx` in the `dump` record).
-It runs Muramasa.exe's `run_statement` (`0x470a50`) on them in the thread
-loop's order (`0x4708b0`) and gets past the chain's `Load(i+1);`, but the new
-frame then runs nothing: script files are read on another thread, text goes
-through the main thread's message queue and frames step on the render thread.
-It needs a cooperative scheduler over one Unicorn (context and stack per
-thread, switched at waits), file calls served from the real archives, and
-sound lengths. Generic fixes already in `exe_call.py`: stubs inside the image
-at odd x86 addresses (a Thumb mask), stdcall argument counts from the
-mingw-w64 import libraries, `EncodePointer`/`DecodePointer`, the CRT's
-per-thread data.
-
-Worked example, Django's FadeFade (dja010_01:76-78: an unwaited 16 s `Move`,
-then `Fade(0)` and a 1 s fade in): the probe run took 40 s and wrote 20 dumps
-of ~94 MB; `load_dump` maps one in 0.1 s. The Move is queued with 960 steps,
-still at step 0 after the 0 ms fade (no frame passed), at step 63 after the
-1 s fade in and 126 after another second: the pan goes on (#564 fixed our
-converter). Stepping `0x436040` from that dump moves x one step a frame.
-Prior art: AFL-Unicorn's `unicorn_dumper`, "what the fuzz", Snapchange.
+`research/nitroplus/interp.py`): runs Muramasa.exe's `run_statement` on a scene
+dump; it stalls after `Load(i+1);` (file reads, text and frames sit on other
+threads) and needs a cooperative scheduler over one Unicorn. Worked example:
+Django's FadeFade (dja010_01:76-78) showed an unwaited 16 s `Move` going on
+through the 0 ms fade (#564).
 
 ### Marking what a finding rests on
 
@@ -277,9 +239,9 @@ check that settles it (code, then a dry run or oracle, then a wine frame). A
 negative search says what it searched ("not found in the 1.0.2 scripts"),
 never "absent". Name the executable build for every decompile address (the
 game document's "Executables" table; the export writes the input's sha256 to
-`sha256.txt`). The game's Status keeps a short "Open questions" list; reports
-and PR bodies end by marking each original question answered, partly answered
-or open.
+`sha256.txt`). The Status keeps a short "Open questions" list; reports and PR
+bodies end by marking each original question answered, partly answered or
+open.
 
 ### Mapping the whole exe
 
@@ -291,13 +253,11 @@ and `names.tsv` in passes, from what the corpus uses, not by browsing:
 2. **Recover code that isn't a function yet.** Code reached only through a
    function pointer is missed (Muramasa: 76 per-object callbacks behind
    `Fade`, `Request`, `SetShade`, `CreateEffect`). Collect label addresses
-   (`grep -ho '&LAB_[0-9a-f]*' decomp/*.c`, not only `= &LAB_`: casts
-   `(code *)&LAB_` and arguments are callbacks too), append them to the names
-   file as `cb_<addr>` and rerun (`ApplyNames` disassembles each and creates
-   the function); repeat until no new address appears (a standing step). Skip
-   `puStack_`/`pcStack_` frame stores and `return &LAB_<odd>` (mid
-   instruction). Some hits are junk: SEH handlers (`004f8xxx` in Muramasa)
-   and very large pixel blitters (don't read 400 KB of blitter).
+   (`grep -ho '&LAB_[0-9a-f]*' decomp/*.c`: casts and arguments are callbacks
+   too), append them to the names file as `cb_<addr>` and rerun (`ApplyNames`
+   creates the functions); repeat until no new address appears. Skip
+   `puStack_`/`pcStack_` frame stores and `return &LAB_<odd>`. Some hits are
+   junk: SEH handlers and very large pixel blitters.
 3. **Name the CRT helpers early** (Muramasa's `FUN_004d3be0` is `_ftol2`;
    Ghidra loses the x87 maths around it, so a value can look like it comes
    from nowhere). See step 20.
@@ -311,108 +271,84 @@ and `names.tsv` in passes, from what the corpus uses, not by browsing:
    text tag and `Request` action: use count in the corpus, what the exe does
    (and where), what the converter does, whether the dry run's "not
    converted" notes list it. Work only on rows where exe and converter differ
-   and the corpus uses the feature. Skip libraries (libpng, zlib, libjpeg:
-   recognise them from strings). Coverage is per argument and behaviour: a
-   row is "converted" only when every argument and behaviour is, else
+   and the corpus uses the feature. Skip libraries (libpng, zlib, libjpeg).
+   A row is "converted" only when every argument and behaviour is, else
    "partial" with what is left. Every engine's built-in dispatch notes each
    argument a call passes that the converter doesn't read (`<Builtin> argument
-   <i> ignored`; an argument known to change nothing goes in a short table
-   with the value it covers and why: Nitroplus's `UNREAD_HARMLESS`), so the
-   dry run's notes list the partial rows. Give each row where it goes: data
-   for an engine piece (`spmotion` keys, an `spcurve` table, `cons_rule.dll`
-   masks), Lua (logic, processes), or a new engine command (§10; only this
-   needs an engine PR).
+   <i> ignored`; arguments known to change nothing go in a short table, as
+   Nitroplus's `UNREAD_HARMLESS`). Give each row where it goes: data for an
+   engine piece (`spmotion` keys, an `spcurve` table, `cons_rule.dll` masks),
+   Lua, or a new engine command (§10; only this needs an engine PR).
 6. **Special values and units, per argument.** For every argument or field the
    converter reads, look in the decompile for comparisons against constants
    before use (`== -1`, `-32766`/`-32767`, `0x8000`, `0xFFFF`, `-100000`, `0`),
    record each special value's meaning in the game document, and handle each
-   (Tsukihime: motion key fields of -32766 mean "no key, interpolate"; we used
-   them as values and pictures flew to -86829 while the metrics counted the
-   field as converted). Record each argument's unit (ms or frames; px at which
-   scale; percent or 1/256; degrees) and packed fields (two halves of one
-   value, e.g. fields 8 and 9 as one i32 whose skip value is -100000).
+   (Tsukihime: motion key fields of -32766 mean "no key, interpolate"; used as
+   values, pictures flew to -86829). Record each argument's unit (ms or
+   frames; px at which scale; percent or 1/256; degrees) and packed fields.
 7. **Census the output.** `python3 -I research/tools/argcensus.py
    out/<game>/0.txt` lists per command argument the count, range, top values
-   and sentinel-like or huge values (`--self-test`). Run it on each new dry
-   run and explain every flagged value from the exe or the data; the value
-   audit only covers literals in our own code.
+   and sentinel-like or huge values. Run it on each new dry run and explain
+   every flagged value from the exe or the data.
 8. **Triage rule.** An off-screen, invisible or out-of-range trace finding is
    "the original's data" only when you have SEEN that in its code or data. A
    picture more than a screen away mid-motion is always checked.
 9. **Dry-run parity.** A dry run's `0.txt` must equal the full build's with the
-   same flags, file names included (once a dry run named UI pictures `.png`
-   while the build wrote `.webp`). Check once per new media option.
+   same flags, file names included. Check once per new media option.
 10. **What keeps running.** List what the original updates every frame during
     effects, waits and fades (movies, motions, particles, sounds) and check
-    ours does too (a movie stood still during a fade).
+    ours does too.
 11. **Motion easing.** Record each motion's and fade's curve (linear, ease
     in/out, the exe's table), not only its key values.
 12. **Branches, not just arguments.** Per handler, list the branches an
-    argument picks (`_FADS` type 0/1, `_STEC` modes), which the game's data
-    reaches, and count each (command, branch) in the metrics (a follow-up for
-    the metrics code).
+    argument picks (`_FADS` type 0/1, `_STEC` modes) which the game's data
+    reaches, and count each (command, branch) in the metrics.
 13. **Hidden state.** What a new picture inherits (alpha, zoom, blend,
     priority), what each command leaves unchanged, what a scene change or a
     load resets.
 14. **Coordinates and colour from the drawing code.** Origin, anchor of zoom
-    and rotation, the original's resolution against ours, rounding; sRGB or
-    linear blending (the `_STEC` bug), premultiplied alpha, each blend's
-    formula from the shader.
+    and rotation, resolution, rounding; sRGB or linear blending, premultiplied
+    alpha, each blend's formula from the shader.
 15. **Timing and blocking.** Per timed command: does the script wait, go on,
     or wait part of the time; ms or frames, at what frame rate; what a click
-    does mid-effect (finish, cancel, skip). Then **overlap**, which a
-    per-argument row can't show: what an unwaited action does while later
-    commands run (keeps going, snaps to its end, restarts), what a wait or
-    sync does to actions in flight, what a 0 ms action does to them. Map it
-    from the exe's scheduler as `(scheduler)` rows in the findings table
-    (`research/tools/ghidra/callmap.py <export> --names <names.tsv> --tsv`
-    drafts them: per built-in, the queue, job, wait and frame functions it
-    reaches, callbacks stored as pointers included; rows stay inferred until
-    code or a snapshot shows them). List the game's own script helpers that
-    chain timed built-ins (Django's `FadeFade`, function.nss:887) and give the
-    converter a test or dry-run check of the composed output (Django lost 16 s
-    pans to a 0 ms fade's sync; only the trace diff caught it). One
-    `(scheduler)` row per question of `findings_lint.py`'s `QUESTIONS`
-    (unwaited goes on, 0 ms on in-flight, wait on in-flight, replace or delete
-    while moving), the question in the second column; the last column names
-    its check, a test (`file.rs::fn`) or a ledger reason (`ledger: "<reason>"`),
-    and the lint checks the name exists. Missing rows warn up to the game's
-    `SCHED_MAX`, which only goes down.
+    does mid-effect (finish, cancel, skip). Then **overlap**: what an unwaited
+    action does while later commands run (keeps going, snaps to its end,
+    restarts), what a wait or sync does to actions in flight, what a 0 ms
+    action does to them. Map it from the exe's scheduler as `(scheduler)` rows
+    in the findings table (`research/tools/ghidra/callmap.py <export> --names
+    <names.tsv> --tsv` drafts them; rows stay inferred until code or a
+    snapshot shows them). List the game's own script helpers that chain timed
+    built-ins and test the composed output (Django: FadeFade lost 16 s pans to
+    a 0 ms fade's sync). One `(scheduler)` row per question of
+    `findings_lint.py`'s `QUESTIONS` (unwaited goes on, 0 ms on in-flight,
+    wait on in-flight, replace or delete while moving), the question in the
+    second column; the last column names its check, a test (`file.rs::fn`) or
+    `ledger: "<reason>"`. Missing rows warn up to the game's `SCHED_MAX`, which
+    only goes down.
 16. **Track inferred findings to the end.** A machine-readable table per game
     (`docs/games/<game>.findings.tsv`, or a section): every argument and
     branch marked seen, inferred or unknown; an inferred row becomes seen only
     by a decompile lookup. It starts as soon as the dry run's metrics exist
     (`tests/snapshots/<game>.metrics.json`, from `tests/snapshot.sh
     --update`): one row per kind, the kind in the first column.
-    `research/tools/findings_lint.py` (CI's check job) ties the two: every
-    kind needs a row, every row names a kind, a kind in `NO_ROW` that gets a
-    row must leave `NO_ROW`, `NO_ROW_MAX` per game only goes down, and
-    `OPEN_MAX` does the same for rows marked inferred or unknown. A new game
-    has no `NO_ROW` entry and a ceiling of 0: its table covers every kind from
-    the first PR.
+    `research/tools/findings_lint.py` (CI) ties the two: every kind needs a
+    row, every row names a kind; `NO_ROW_MAX` and `OPEN_MAX` per game (rows
+    inferred or unknown) only go down. A new game has no `NO_ROW` entry and
+    ceiling 0: its table covers every kind from the first PR.
 17. **Write the results back.** Commit `names.tsv` with comments, fold the
     decoded semantics into the engine's built-ins reference
     (`research/nitroplus/builtins.md` for Nitroplus), put the gaps in the game
     document's Status. Every command the dry run counts gets a row in
-    `docs/engines/README.md` (what the original does in one plain sentence,
-    and how it converts; `findings_lint.py` checks it).
-    - **names.tsv is the index, a standing rule**: before reading a function,
-      `grep research/<engine>/names.tsv` for it; for every function you read,
-      add a line (address, name, one-line comment) in the same PR as the
-      finding. Findings rows cite names from it.
-    - **Audit when the mapping is done**: a second agent re-derives 10 random
-      "seen" rows (fixed seed, stated in the report) and up to 10 `left_out`
-      kinds from the decompile and checks each row's converter column against
-      the code. Verdicts: confirmed, wrong, unsupported, stale; a wrong row is
-      downgraded to inferred or unknown. (Done 2026-10-18 for Django, Saihate,
-      Tsukihime: 30 of 30 confirmed.)
-    - **Tools for reaching a moment and comparing builds**:
-      `engine/tools/cons_explore.py` plays every route by taking the untaken
-      choices; `engine/tools/cons_trace_vars.py` turns a trace into a `--vars`
-      file for `--goto <label> --vars F`; `research/tools/test_saves.py` makes
-      saves at chosen scenes; `scene_ab.py` compares a scene under two engines
-      or scripts; `txtdiff.py` compares two `0.txt` by label; `argcensus.py`
-      (step 7).
+    `docs/engines/README.md` (one plain sentence on what the original does, and
+    how it converts; `findings_lint.py` checks it). `names.tsv` is the index:
+    `grep` it before reading a function; for every function you read, add a
+    line (address, name, comment) in the same PR. **Audit when the mapping is
+    done**: a second agent re-derives 10 random "seen" rows (fixed seed, stated
+    in the report) and up to 10 `left_out` kinds from the decompile (confirmed,
+    wrong, unsupported, stale; a wrong row goes back to inferred or unknown).
+    Tools for reaching a moment and comparing builds:
+    `engine/tools/cons_explore.py`, `cons_trace_vars.py`,
+    `research/tools/test_saves.py`, `scene_ab.py`, `txtdiff.py`.
 
 Items 18-24 reach the original itself; use them only after code and the
 oracle above leave a real doubt (wine rules: `CLAUDE.md`).
@@ -420,244 +356,134 @@ oracle above leave a real doubt (wine rules: `CLAUDE.md`).
 18. **Wine API log with timestamps** (steps 10 and 15, sound in the
     checklist). Log only the calls that answer the question, to a file in
     `research/<engine>/local/`: `WINEDEBUG=+timestamp,+relay wine game.exe 2>
-    local/relay.log` (lines carry the thread id), with `RelayInclude` set in
-    the prefix (`wine reg add 'HKCU\Software\Wine\Debug' /v RelayInclude /d
-    'kernel32.Sleep;kernel32.QueryPerformanceCounter;winmm.timeGetTime;user32.PeekMessageA;dsound.DirectSoundCreate;ddraw.DirectDrawCreate;d3d9.Direct3DCreate9'`;
-    `module.function`, `;`-separated, no spaces). Count and space the calls
-    with `grep`/`awk`; never read the log whole. The `ret=` address of each
-    `Call` line tells call sites apart: group by it to find the frame loop
-    (the site called once a frame). COM methods (`Present`, `Flip`, a sound
-    buffer's `Play`) are vtable calls the relay never sees: count frames from
-    the game's own pacing call and get sound from `WINEDEBUG=+timestamp,+dsound`
-    (`IDirectSoundBufferImpl_Play`, `_Stop`, `_SetVolume`; drop the mixer's
-    lines). (最果てのイマ, wine 11: 2.3 MB a minute; the frame loop `0x406f30`
-    calls `Sleep(period - work)` from one site, 30.1 frames a second, the
-    period from a table by a frame-rate setting
-    (`docs/games/saihate-no-ima.findings.tsv`); `QueryPerformanceCounter` never
-    called. Source: CodeWeavers, "Working on Wine, part 4".)
+    local/relay.log`, with `RelayInclude` set in the prefix (`wine reg add
+    'HKCU\Software\Wine\Debug' /v RelayInclude /d
+    'kernel32.Sleep;winmm.timeGetTime;user32.PeekMessageA;dsound.DirectSoundCreate;d3d9.Direct3DCreate9'`;
+    `module.function`, `;`-separated). Count with `grep`/`awk`; never read the
+    log whole. Group `Call` lines by `ret=` address to find the frame loop. COM
+    methods (`Present`, a sound buffer's `Play`) are vtable calls the relay
+    never sees: count frames from the game's own pacing call, get sound from
+    `WINEDEBUG=+timestamp,+dsound`. (最果てのイマ: `docs/games/saihate-no-ima.findings.tsv`.)
 19. **Breakpoint trace of the original** (argument values, call order and
     frame counts, in place of screenshots).
     `research/tools/wine_bptrace.py names.tsv [name ...] -o bp.gdb` turns
     `names.tsv` into a gdb command file: a breakpoint per function printing
     its address, the time and the first stack arguments as JSON, then
-    continuing. Run `winedbg --gdb --no-start 'C:\<dir>\game.exe'` (the Windows
-    path; a bare name fails; it prints the port on stderr), then `gdb -batch
-    -ex 'target remote localhost:PORT' -x bp.gdb > bp.log` (connect first: the
-    file ends with `continue`), drive the game, and fold the log with
-    `wine_bptrace.py --fold bp.log` (one line per run of hits of one function:
-    first and last time, count). A row it confirms is "seen" (step 16). Only
-    32-bit x86 stack arguments; works on a 32-bit exe under wine 11's WoW64.
-    (最果てのイマ, `docs/games/saihate-no-ima.md` "Running the original under
-    wine".)
-    - Break on the script's handlers and their per-frame callbacks: the time
-      from one handler to the next is what the script waits, and the
-      callback's count is that wait in frames.
-    - Don't break on the frame loop: each stop costs a few ms (30.7 frames a
-      second with handler breakpoints only, 24 with one in the frame loop) and
-      Saihate's clock measures from the end of the last `Sleep`, so waits
-      count right in frames but stretch in seconds.
-    - Every handler that waits hands over on the next frame: each waited
-      command takes one frame more than its time (0x66 500 ms: 530 ms, 16
-      frames).
+    continuing. Run `winedbg --gdb --no-start 'C:\<dir>\game.exe'` (it prints
+    the port), then `gdb -batch -ex 'target remote localhost:PORT' -x bp.gdb >
+    bp.log` (connect first), drive the game, and fold the log with
+    `wine_bptrace.py --fold bp.log`. A row it confirms is "seen". Only 32-bit
+    x86 stack arguments. (最果てのイマ, `docs/games/saihate-no-ima.md`.) Break on
+    the script's handlers and per-frame callbacks (the time from one handler
+    to the next is the wait; the callback count that wait in frames), not on
+    the frame loop (each stop costs a few ms: 30.7 frames a second without,
+    24 with). A waited command takes one frame more than its time.
 20. **Library signatures in Ghidra** (steps 3 and 5). The export's analysis
-    already runs the Function ID analyzer (the bundled `vs2012`..`vs2019` and
-    `vsOlder` `.fidbf` databases in `Ghidra/Features/FunctionID/data` name MSVC
-    CRT functions such as `_ftol2`, `memcpy`, `_strlen`); look for those labels
-    in `functions.tsv` before naming a CRT helper by hand. zlib, libpng and
-    libjpeg are not bundled: attach the extra `.fidbf` once in the Ghidra GUI
-    (Tools, Function ID, Attach existing FidDb; kept in the user's settings, so
-    the headless run uses it; delete `<outdir>/project` to re-analyze). The
-    extra databases are untested. (最果てのイマ, VS2008: it named 18 statically
-    linked CRT helpers (`__allmul`, `__alldiv`, `__SEH_prolog4`,
-    `__security_check_cookie`, `_atexit` …); `ghidra.log` says "Function ID".)
+    already runs the Function ID analyzer (bundled `.fidbf` databases name
+    MSVC CRT functions such as `_ftol2`, `memcpy`): look for those labels in
+    `functions.tsv` before naming a CRT helper by hand. zlib, libpng and
+    libjpeg are not bundled (attach an extra `.fidbf` in the Ghidra GUI, then
+    delete `<outdir>/project`); untested.
 21. **Carrying names between builds** (Muramasa JP/EN, Django versions,
-    Tsukihime 1.0.0/1.0.2). Match the two executables' functions with Ghidra's
-    Version Tracking (exact-bytes and exact-instructions correlators first,
-    then the combined-reference ones), `ghidriff old.exe new.exe`, or BinDiff
-    on two exports; take high-similarity matches, write the new address next to
-    the old name in the other build's `names.tsv`, review the rest by hand.
-    Every finding says which build it was seen in (the game document's
-    executables table); a name carried over by matching is "inferred" (step 16)
-    until its decompile is read. Untested (none of these tools is installed
-    here; 最果てのイマ has one build).
+    Tsukihime 1.0.0/1.0.2). Match the executables' functions with Ghidra's
+    Version Tracking, `ghidriff` or BinDiff; take high-similarity matches,
+    write the new address next to the old name in the other build's
+    `names.tsv`, review the rest by hand. A name carried over is "inferred"
+    (step 16) until its decompile is read. Untested (tools not installed).
 22. **A trace DLL in the original** (the debug trace's records from the
     original itself: every script command with its time, page and choice,
     while the game plays by itself). Once the dispatch table and the wait's
-    input check are named (steps 1 and 17), a small DLL (mingw
-    `i686-w64-mingw32-gcc`) replaces each table entry with a stub that logs the
-    instruction and jumps on, counts frames by hooking the frame loop's `Sleep`
-    in the import table, and patches the input check's first bytes to turn on
-    the game's own auto mode and take choices as its click code does. A
-    launcher starts the exe suspended and loads the DLL with
-    `CreateRemoteThread(LoadLibraryA)`: no game file is touched; works under
-    wine 11's WoW64. Cheaper than step 19 (no stop per hit, frame times stay
-    true) and runs for hundreds of pages unattended. 最果てのイマ:
-    `research/xuse/tracedll/` (`xtrace.sh`, docs/games/saihate-no-ima.md
-    "Running the original under wine").
-    - An engine that runs source text (Nitroplus NSS) has no dispatch table:
-      redirect the interpreter's calls (a 5-byte `call rel32` at the call site
-      to a stub that logs and jumps to the callee) and take "at" as
-      `<file>:<line>` in the text the exe loaded (check it against the file:
-      装甲悪鬼村正's loaded text turns the CR LF of a text block's header and
-      code lines into LF LF). Its waits are timed in ms by the process's own
-      thread, not frames: log `ms`, diff with `--ms`. Turn auto mode on by
-      patching one script line in place (lines must not move) where the script
-      itself unlocks it. 装甲悪鬼村正: `research/nitroplus/tracedll/`
-      (`ntrace.sh`, docs/games/muramasa.md "Running the original under wine").
-      A packed exe: hook the unpacked one under wine.
+    input check are named (steps 1 and 17), a small mingw DLL replaces each
+    table entry with a stub that logs the instruction and jumps on, counts
+    frames by hooking the frame loop's `Sleep`, and patches the input check to
+    turn on the game's own auto mode and take choices. A launcher starts the
+    exe suspended and loads the DLL with `CreateRemoteThread(LoadLibraryA)`: no
+    game file is touched. Cheaper than step 19; runs for hundreds of pages
+    unattended. 最果てのイマ: `research/xuse/tracedll/` (`xtrace.sh`,
+    docs/games/saihate-no-ima.md "Running the original under wine").
+    - Source-text engine (Nitroplus NSS): no dispatch table; redirect the
+      interpreter's calls (a `call rel32` to a stub) and take "at" as
+      `<file>:<line>` of the loaded text (Muramasa's turns CR LF into LF LF).
+      Waits are in ms: log `ms`, diff with `--ms`. Auto mode: patch one script
+      line in place. `research/nitroplus/tracedll/` (docs/games/muramasa.md).
     - Random hangs under wine: find what the threads wait on (`winedbg`,
-      `attach`, `bt all`; hook the waits in the DLL and log who takes the lock)
-      before blaming timing. (続・殺戮のジャンゴ pauses script threads with
-      `SuspendThread`, and wine hands a mutex to a suspended thread that was
-      waiting for it, so every thread waits; the DLL makes the threads suspend
-      themselves between waits, docs/games/django.md.)
-    - A Switch game under Ryubing: an ExeFS mod, a `main` NSO whose text
-      segment is lengthened over the padding before the rodata page to hold a
-      hook branched to from the dispatcher's loop head, logging each command
-      through `svcOutputDebugString` (Ryubing's log, with its clock: `--ms`). No
-      GDB stub (a stop per command stalls the game). Input from the log: press
-      A when the last command has sat on a text wait a second. 月姫:
-      `research/typemoon/switchtrace/` (docs/games/tsukihime.md "Testing").
-    - A Vita game under Vita3K: an eboot patch (`patch/<TITLEID>.txt`)
-      branching from each hooked function's first push to code in a function
-      nothing calls, which `printf`s the record (a TTY line in Vita3K's log).
-      Its GDB stub polls every 100 ms and its breakpoints re-hit. 俺たちに翼は
-      ない: `research/oretsuba/vpatch.py` (docs/games/oretsuba.md "Testing").
+      `attach`, `bt all`) before blaming timing (Django: wine hands a mutex to
+      a suspended thread).
+    - Switch under Ryubing: an ExeFS mod logging through
+      `svcOutputDebugString` (`research/typemoon/switchtrace/`,
+      docs/games/tsukihime.md "Testing"). Vita under Vita3K: an eboot patch
+      that `printf`s the record (`research/oretsuba/vpatch.py`,
+      docs/games/oretsuba.md "Testing").
+
 23. **Diff the two traces**: with the converter's `--source-map <file>` (each
-    0.txt line's `<script>:<instruction>`; the engine's lowering fills
+    0.txt line's `<script>:<instruction>`; the lowering fills
     `Script::source_map`, as `xuse/convert.rs`'s `lower_script` does),
     `research/tools/trace_diff.py orig.jsonl ours.jsonl --map <file>` pairs
     pages by the instruction that shows them and prints, per page, the text
     that differs, the instructions one side ran and the other didn't
     (`--merge-into OP[,OP]`: a `missing` one whose ops ours emits under the
-    next command of the page, if that is one of those ops, counts as `merged`;
-    one the map has lines from that gave no trace record, as `quiet`), and
-    times from one command to the next off by more than a frame. Ours: a
-    `--dry-run` build's `--trace --auto-play N --real-time` (no click then ends
-    an effect, so times are real), with the original's choices. Times use the
-    original's frame count (`--fps`), not its clock (wine once stalled 134 s
-    between two frames). A `missing` command that had nothing to change (a
-    `csp -1` with no sprites) is no finding: ours writes an `ev` only for a
-    change. 最果てのイマ: docs/games/saihate-no-ima.md "Trace diff". Where the
-    compiler runs the script at convert time (Nitroplus NSS), mark each op
-    with the statement being run when it is pushed (a function's ops with the
-    function's own line), a text page with its text block, and sounds flushed
-    after a statement with that statement (docs/games/muramasa.md "Trace
-    diff"). Triage by size: `--top N` prints the N `time` findings with the
-    largest |difference| first (`reftrace.sh summary` shows the top 5); triage
-    anything over 1 s before the rest. A lost motion can also show as a
-    `missing` `Move` (Django's 16 s `FadeFade`, dja010_01:77): read the
-    `missing` timed ops of those pages too.
+    next command counts as `merged`; one with no trace record, `quiet`), and
+    times off by more than a frame. Ours: a `--dry-run` build's `--trace
+    --auto-play N --real-time` with the original's choices; times use the
+    original's frame count (`--fps`). A `missing` command with nothing to
+    change (a `csp -1` with no sprites) is no finding. NSS: mark each op with
+    the statement being run when it is pushed (docs/games/muramasa.md "Trace
+    diff"); Saihate: docs/games/saihate-no-ima.md "Trace diff". `--top N`
+    prints the N largest `time` findings; triage anything over 1 s first. A
+    lost motion can show as a `missing` `Move`: read the `missing` timed ops
+    too.
 
     **Reference traces** (a full trace of the original, few tokens):
     `research/tools/reftrace.sh <game>` (saihate, muramasa, muramasa-en,
-    django, oretsuba, tsukihime) builds our dry run, `ours.map` and our trace on
-    the same route, then starts the original's run in the background under a
-    3 GB `systemd-run --user --scope` memory cap through `headless-run.sh` into
-    `out/<game>-reftrace/` (git-ignored). Game folders come from the
-    `~/.config/conscripter-convert/games` links; per-machine route inputs
-    (`saihate-route.arg`, `<mura|django>-choose.txt`, the patched `*-patch/`
-    dirs, oretsuba's `keys.sh`) from `$CD` (default `out/reftrace`); other
-    variables are at the top of the script. `reftrace.sh status <game>` prints
-    at most 5 lines (running, pages, last scene, minutes since progress, free
-    RAM); `reftrace.sh summary <game>` at most 20 (pages, how far, top
-    `trace_diff.py` kinds, the 5 largest `time` findings). Rhythm: one `status`
-    ~5 min after the start (setup problems show then), then every 30-60 min,
-    `summary` at the end. A watchdog resumes 最果てのイマ from its last save
-    after 10 min without progress; for the others it logs the stall to
-    `watchdog.log`. 続・殺戮のジャンゴ runs at `SPEED=1` (at `SPEED=8` its full
-    run stalled on several pages, 2026-10-18; the speed hook is the suspected
-    cause, unconfirmed). 装甲悪鬼村正's first H-mode screen (`sys_hmode.nss`,
-    near page 4884) waits in a `select` for a click a clickless run never
-    gives: `mura-patch/` holds a copy with that line's `select{` made `if(0){`
-    (one line, so the trace's lines hold), and `function_magiccube.nss` (the
-    立方陣 puzzle after `md05_025`) one whose line 261 `select{` is
-    `$立方陣正解=true;$Loop_end=false;$Answer=true;if(0){` (solved, so the route
-    goes on to `md05_025end`). The other selects outside the story files are
-    menus, the title or the quick bar, which a clickless run never opens.
+    django, oretsuba, tsukihime) builds our dry run, `ours.map` and trace on the
+    same route, then starts the original's run in the background (3 GB
+    `systemd-run --user --scope` cap) into `out/<game>-reftrace/` (git-ignored).
+    Game folders: the `~/.config/conscripter-convert/games` links; per-machine
+    route inputs (`*-route.arg`, `*-choose.txt`, patched `*-patch/` dirs,
+    `keys.sh`): `$CD` (default `out/reftrace`). `reftrace.sh status <game>`
+    once ~5 min after the start, then every 30-60 min; `summary <game>` at the
+    end. A watchdog resumes 最果てのイマ from its last save after 10 min without
+    progress; others log to `watchdog.log`. Django runs at `SPEED=1` (`SPEED=8`
+    stalled). Game-specific: docs/games/muramasa.md.
 
-    **Trace speeds** (2026-10-17, 40 pages from each trace's start; wall
-    seconds a page once the game runs, plus 20-30 s of start-up). A wine
-    original runs faster with `SPEED=N` (`xtrace.sh`, `ntrace.sh`):
-    `research/tools/trace_speed.h` gives the exe a clock N times as fast
-    (`timeGetTime`, `GetTickCount`, `QueryPerformanceCounter`) and divides its
-    waits by N (`Sleep`, `Wait*` timeouts, `timeSetEvent`, `SetTimer`); the
-    records' `ms` (and xtrace's frame count `f`) are in that game time, so they
-    diff as a 1x run's. "Same times": the share of command-to-command steps of
-    the fast run within two frames of a 1x run's (`difflib`-paired by `at`).
-    Not scaled, so off in a fast run: what the exe doesn't time by those
-    clocks, wine's sound (a wait on a voice lasts its real length, N times too
-    long in game time) and loading (a `CreateTexture` costs N times its real
-    time). `trace_diff.py` reads `speed` from the trace's meta record (or
-    `--orig-speed N`) and counts a time finding whose step holds a `WaitText`,
-    `CreateSound`/`SE`/`BGM`, `CreateTexture`, `CreateMovie` or `LoadImage` as
-    `fast-voice` (not listed).
+    **Trace speeds**: `SPEED=N` (`xtrace.sh`, `ntrace.sh`;
+    `research/tools/trace_speed.h`) gives a wine original a clock N times as
+    fast and divides its waits by N; the records' `ms`/`f` are game time, so
+    they diff as 1x. Measured (wall seconds a page, 1x then fast; share of
+    steps within two frames of 1x): 最果てのイマ 3.8, `SPEED=4` 1.0 (17/17;
+    `SPEED=8` off by up to 10 frames); 装甲悪鬼村正 3.1, `SPEED=8` 0.45 (97 %);
+    続・殺戮のジャンゴ 7.0, `SPEED=8` 0.9 (93 %); 月姫 2.5, `IDLEA=0.3` 1.4
+    (91 %); ours with `--real-time` 0.08 (times kept; without it not
+    comparable). Wine's sound and loading are not scaled: `trace_diff.py`
+    (`speed` from the meta record, or `--orig-speed N`) counts a time finding
+    whose step holds `WaitText`, `CreateSound`/`SE`/`BGM`, `CreateTexture`,
+    `CreateMovie` or `LoadImage` as `fast-voice` (not listed).
 
-    | Game | Run | 1x | Fast | Same times |
-    |---|---|---|---|---|
-    | 最果てのイマ | original, `xtrace.sh` | 3.8 | `SPEED=4`: 1.0 | 17/17 steps within 2 frames (`f`); `SPEED=8` (0.6) is off by up to 10 frames: the frame loop can't keep up |
-    | 装甲悪鬼村正 | original, `ntrace.sh` | 3.1 | `SPEED=8`: 0.45 (`SPEED=4`: 0.8) | 97 % (two 1x runs: 100 %, worst 75 ms); off: `WaitText` on a voiced page, `CreateTexture` |
-    | 続・殺戮のジャンゴ | original, `ntrace.sh` | 7.0 | `SPEED=8`: 0.9 (`SPEED=4`: 1.8) | 93 %; off: `WaitAction` of the text decoration, `CreateTexture`, `CreateMovie` |
-    | 月姫 | original, `switch-emu.sh` + hook | 2.5 (`IDLEA=1`) | `IDLEA=0.3`: 1.4 | 91 %, step ratio 1.00 (the clock is untouched); a refresh rate of 400 % (`--vsync-mode Custom --custom-refresh-rate 400`) gives 1.1 but the game then runs only ~1.7x, by no fixed factor: times not comparable, not used |
-    | any | ours, `--trace --auto-play N` | 0.08 (`--real-time`) | 0.03 (without) | `--real-time` keeps the times (headless, its waits take no wall time); without it times are not comparable |
+    **Full-route reference trace**: trace one canonical route of the original
+    whole (fewest forced choices, forced by script, save or key driver, never
+    by hand; auto mode; resume from a save after 10 minutes without a page)
+    and diff later builds against it (ours: same choices via `--choose` or
+    `--taken`, `--trace --auto-play 0`). Keep the gzipped traces in
+    `out/<game>-reftrace/`, uncommitted; Status gets how far it got and the top
+    `trace_diff.py` kinds.
 
-    A whole 装甲悪鬼村正 route (23k pages) is ~3 h of original trace at
-    `SPEED=8`, against 20 h at 1x. Skip mode (text and order only) wasn't
-    needed.
-
-    **Full-route reference trace** (2026-10-18): one canonical route of the
-    original, traced whole, as the reference later builds are diffed against.
-    Pick the route from the game's route map (fewest forced choices, e.g. every
-    first option where that reaches an ending); force the original's choices by
-    its script, a save or the key driver (a choice wait the trace hook logs:
-    press to the wanted option), never by hand; auto mode or the trace's own
-    idle presses, shots off (or one every 10 minutes to see a stall); stop
-    after 10 minutes without a new page and resume from a save. Ours: the same
-    choices (`--choose '*label:line=N'`, or `--taken` with `avoid` lines),
-    `--trace --auto-play 0` (`--real-time` only when times are wanted: as long
-    as the original's run). Keep the traces gzipped in `out/<game>-reftrace/`
-    (never committed); in the game document: how far the route got, the
-    commands, the top `trace_diff.py` kinds as Status items.
-
-    **Picture diff** (2026-10-18): the same pages' frames, as numbers. The
-    original's: `ntrace.sh --shots <dir> [--shot-delay MS]` saves the game
-    window as lossless WebP `MS` of game time (default 1000) after each text
-    block starts, as `<dir>/<pg>.webp` (pg: the block's first page; one frame
-    per block, not per page). Ours: `--trace --auto-play N --real-time
-    --shot-every 1 --shot-dir <dir>` (`--real-time`: without it auto-play cuts
-    every effect and motion to its end; ~0.9 MB a page: keep N small, or
+    **Picture diff**: the same pages' frames, as numbers. Original:
+    `ntrace.sh --shots <dir> [--shot-delay MS]`. Ours: `--trace --auto-play N
+    --real-time --shot-every 1 --shot-dir <dir>` (~0.9 MB a page: small N, or
     `--shot-pages`). Then `research/tools/picdiff.py orig.jsonl <orig dir>
     ours.jsonl <our dir> --map <source map> --ms --thread 0 --mask WxH+X+Y`
-    pairs pages as `trace_diff.py` does, paints the `--mask` boxes black in both
-    (the text window and our own UI, which differ on purpose) and prints per
-    page the differing pixels (AE: a channel off by more than `--fuzz`, default
-    2 %; lossless shots of one picture give 0), their percent, RMSE and the box
-    they lie in (one text window wide: the window sits elsewhere; whole frame:
-    the picture), worst first, with ORIG | OURS | differing-in-red views of the
-    `--top` 5. Lossy WebP (fc.sh's default, q80) needs `--fuzz 15` (our own
-    frames re-encoded at q80 have 4 % of pixels off by over 6 %, 0.2 % over
-    15 %). Limits: the original's frame is a fixed time into the block, ours the
-    page's click wait (text typed out, click-wait icon up), so text still
-    typing or a move still running differs by timing; a second run with another
-    `--shot-delay` tells (a difference at both is real). (装甲悪鬼村正, first 80
-    pages, mask `130x576+447+0`: 24 compared, 13 identical, 3 differ only in a
-    text-window-wide box outside the mask, 8 over the whole frame, same at 1 s
-    and 4 s. Causes: a `Plain` cover shown again drew the live screen (fixed);
-    a pan cut by auto-play (right with `--real-time`); the exe's blur floors;
-    typing progress; `docs/games/muramasa.md`.)
+    pairs pages as `trace_diff.py` does, blacks out the masks (text window, our
+    UI) and prints per page the differing pixels (`--fuzz`, default 2 %; lossy
+    q80 needs 15), RMSE and box, worst first. A difference that moves with
+    another `--shot-delay` is timing; one at both is real.
+
 24. **Which branches the original runs** (marks for the findings table, step
-    16). The trace DLL (step 22) also arms one-shot breakpoints: an `int3` on
-    every code address of `names.tsv` and of the findings table's source
-    column, restored at its first hit by a vectored exception handler, which
-    logs a `hit` record. Each address costs one exception once, so the run
-    keeps its speed. Arm instruction starts only (check each against `objdump
-    -d`; an `int3` inside an instruction breaks the game). A script then marks
-    every row by its addresses (`runs: <hit>; not: <never hit>`, or `never
-    runs`), or by its opcodes in the `cmd` records when it cites no address. A
-    "never runs" holds for the traced runs only: it settles a `left_out` row
-    when the runs cover where the script uses it. 最果てのイマ:
-    `research/xuse/cover.py` (`addrs`, which `xtrace.sh` runs, and `mark
-    trace.jsonl... --write`, which fills the table's last column).
+    16). The trace DLL (step 22) also arms one-shot `int3` breakpoints on the
+    code addresses of `names.tsv` and of the findings table's source column,
+    restored at the first hit by a vectored exception handler, which logs a
+    `hit` record. Arm instruction starts only (check against `objdump -d`). A
+    script marks each row `runs: <hit>; not: <never hit>` or `never runs` (for
+    the traced runs only). 最果てのイマ: `research/xuse/cover.py`.
 
 ### Checklist: behaviours to map
 
@@ -677,32 +503,25 @@ document:
 
 ### Covering the scripts too
 
-The rest of a game is in its own scripts and data: the helper libraries the
-story calls (`function*.nss`), system screens (`sys_*.nss`), boot scripts, ini
-files (`System.ini`) and, for a port, its own system scripts (the English
-Muramasa's `sys_*.nut`). Each gets an answer in the same coverage table as the
-exe's rows:
+The rest of a game is in its own scripts and data (helper libraries, `sys_*`
+screens, boot scripts, ini files, a port's own system scripts). Each gets a row
+in the same coverage table as the exe's:
 
-1. **List every script and data file** in the archives with a status: compiled
-   by the run (story files, helpers they call), replaced by a screen of ours
-   (name the function: `sys_config.nss` → `screens.rs` `settings`), read for
-   data (ini files, tables), or not used (say why: debug, unreachable). A file
+1. **List every script and data file** with a status: compiled by the run,
+   replaced by a screen of ours (name the function: `sys_config.nss` →
+   `screens.rs` `settings`), read for data, or not used (say why). A file
    with no status is a gap. For NSS, `nss route` lists unreachable story files.
 2. **List every name the scripts call**, built-in or script-defined, with its
-   corpus count (`nss refs` for names nothing defines, `nss builtins` for how
-   they are called) and what the converter does with it. The dry run's "not
-   converted or approximated" notes (`built-in X`, `skipped: no function X`,
-   `Request …`) cover only code the run reaches; code it never reaches (system
-   scripts, functions only they call) needs its row from the static count.
-3. **The same for other vocabularies:** system variables (`$SYSTEM_…`), text
-   tags (`<I>`, `<center>`, `<CLICK>`), `Request` actions, ini keys, and any
-   string the scripts pass that the exe matches (names of effects, actions,
-   sounds).
+   corpus count (`nss refs`, `nss builtins`) and what the converter does with
+   it. The dry run's "not converted" notes cover only code the run reaches;
+   code it never reaches (system scripts) needs its row from the static count.
+3. **The same for other vocabularies:** `$SYSTEM_…` variables, text tags,
+   `Request` actions, ini keys, strings the exe matches.
 4. **Plan from the rows that differ**, as for the exe. Rows replaced by our own
    screens are checked against the original's screens (step 7), not line by
    line.
-5. **Write it back** like the exe's results: gaps in the game document's
-   Status, semantics in the engine's built-ins reference.
+5. **Write it back**: gaps in the game document's Status, semantics in the
+   engine's built-ins reference.
 
 ## 3. Lowering to the IR
 
