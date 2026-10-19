@@ -300,7 +300,7 @@ mod tests {
         m.motion("c.nss", 500);
         m.ours_ms = [("a.nss".to_string(), 1000), ("b.nss".to_string(), 300), ("c.nss".to_string(), 500)].into();
         assert_eq!(m.parity()[0], ("a.nss", 17000, 1000, 16000));
-        let json = m.json("g", "e", "c", "d");
+        let json = m.json("g", "e", "doc", "c", "d");
         assert!(json.ends_with("\"parity\": {\"source_ms\": 17500, \"ours_ms\": 1800, \"short_ms\": 16000, \"scenes_short\": 1},\n\"parity_worst\": [[\"a.nss\", 17000, 1000]]\n}\n"), "{json}");
     }
 
