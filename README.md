@@ -2,6 +2,8 @@
 
 Web player and more: [blankiekun.github.io](https://blankiekun.github.io/?app=cons#cons)
 
+**Want to play a game? Start with [`docs/play.md`](docs/play.md)**: the GUI, your device, or the browser, step by step.
+
 Converts Japanese visual novels you own into games that run on
 [CONscripter](https://github.com/blankiekun/CONscripter), our fork of the
 open-source ONScripter-Yuri engine (an NScripter clone). The converted game
@@ -18,7 +20,7 @@ reads a game's archives, images, audio and compiled scripts and writes a
 |---|---|---|---|
 | 最果てのイマ COMPLETE | the PC install (`Farthest2015.exe`, `HD/`, `CD/`) | Playable | [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md) |
 | 装甲悪鬼村正 | the PC install (`Muramasa.exe` and the `.npa` archives) | Playable | [`docs/games/muramasa.md`](docs/games/muramasa.md) |
-| Full Metal Daemon Muramasa (English, Steam) | the English install, plus the Japanese 装甲悪鬼村正 install | Early | [`docs/games/muramasa-en.md`](docs/games/muramasa-en.md) |
+| Full Metal Daemon Muramasa (English, Steam) | the English install, plus the Japanese 装甲悪鬼村正 install | Story plays | [`docs/games/muramasa-en.md`](docs/games/muramasa-en.md) |
 | 続・殺戮のジャンゴ -地獄の賞金首- | the PC install, updated to 1.01 | Story plays | [`docs/games/django.md`](docs/games/django.md) |
 | 俺たちに翼はない (PS Vita) | the Vita package with its CPK files decrypted | Story plays | [`docs/games/oretsuba.md`](docs/games/oretsuba.md) |
 | 月姫 -A piece of blue glass moon- (Switch) | the RomFS and `exefs/main` of version 1.0.2, or the English fan patch's RomFS on top of it | In progress | [`docs/games/tsukihime.md`](docs/games/tsukihime.md) |
