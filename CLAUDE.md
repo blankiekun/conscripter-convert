@@ -190,6 +190,11 @@ on each later turn; several agents run at once.
 - **Delegation** (team lead only): `docs/lead.md`.
 - **Reports at most 10 lines**; the detail goes in the PR body. Every
   line of a report stays in the lead's context.
+- **No agent past 100k context** (the user, 2026-10-19): at ~80k commit
+  and push the WIP, write HANDOFF.md in your worktree, report, stop; the
+  lead starts a fresh agent from it. `.claude/hooks/context_cap.py` says
+  so after every tool call. Only a task planned over the cap before
+  dispatch (its prompt says so) goes on.
 
 ## Releasing CONscripter
 
