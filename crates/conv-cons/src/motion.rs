@@ -177,9 +177,16 @@ pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: Motio
 
 /// [`emit2`] on sprite `slot`.
 pub(crate) fn emit_slot(out: &mut String, slot: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32, ids: &mut BTreeMap<(u8, u32), u32>) {
+    emit_cmd(out, "spmotion", slot, keys, end, fade, curve, ids);
+}
+
+/// [`emit_slot`] with `cmd`: `spmotion`, or `spmotionadd` for an
+/// [`conv_core::ir::Op::SpriteMotionAdd`] (no fade folded into it).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_cmd(out: &mut String, cmd: &str, slot: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32, ids: &mut BTreeMap<(u8, u32), u32>) {
     if keys.is_empty() {
         let keep = if matches!(end, MotionEnd::Keep) { ",2" } else { "" };
-        writeln!(out, "spmotion {slot}{keep}").unwrap();
+        writeln!(out, "{cmd} {slot}{keep}").unwrap();
         return;
     }
     let mode = match end {
@@ -204,7 +211,7 @@ pub(crate) fn emit_slot(out: &mut String, slot: u32, keys: &[MotionKey], end: Mo
             }
         })
         .collect();
-    writeln!(out, "spmotion {slot},{mode},{}", keys.join(",")).unwrap();
+    writeln!(out, "{cmd} {slot},{mode},{}", keys.join(",")).unwrap();
 }
 
 #[cfg(test)]
