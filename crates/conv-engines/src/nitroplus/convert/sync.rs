@@ -146,10 +146,12 @@ impl Compiler<'_, '_> {
         let cover_tone = frozen.and_then(|p| self.objects.values().filter(|o| matches!(o.kind, Kind::Cover { .. }) && o.opacity >= 1000 && o.priority == p).map(|o| o.filters((1000, 1000))).find(|f| !f.is_empty()));
         let under = |n: &String| frozen.is_some_and(|p| self.objects.get(n).is_none_or(|o| o.priority <= p));
         let retone = cover_tone.as_ref().is_some_and(|c| self.shown.iter().any(|(n, s)| under(n) && s.tint.as_ref() != Some(&toned(self.objects.get(n), s, c))));
+        // (Only the script's own time: what runs on unwaited under the
+        // cover isn't seen, and the exe goes on; the cockpit gauges'
+        // processes under mc03_020vsad's covers, `絵Cloud*` in function.nss.)
         if frozen.is_some() && nothing_above && !retone {
-            self.held(ms, blocking, &why);
-            if ms > 0 {
-                self.ops.push(Op::Wait { ms });
+            if blocking > 0 {
+                self.ops.push(Op::Wait { ms: blocking });
             }
             return;
         }
@@ -545,12 +547,19 @@ impl Compiler<'_, '_> {
         // script goes on).
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(&t)) = (*layer, timed.get(name)) else { continue };
-            let ((dx, dy), grown) = (from.get(name).copied().unwrap_or_default(), zoom_from.get(name).filter(|z| z.0 == 0 || z.1 == 0));
+            let faded = from_zero.contains(name) && fades.get(name) == Some(&t) && t > blocking;
+            // (Or zoomed from another size: from it, faded in too when the
+            // fade takes as long; ma04_018vs:365's `Zoom` from 1200 as it is shown.)
+            let resized = size_from.get(name).filter(|z| now.image != SCREEN_UNDER && z.0 > 0 && z.1 > 0 && self.objects.get(name).is_some_and(|o| o.zoom != **z) && (faded || !fades.contains_key(name)));
+            // (Or along a path, `BezierMove`: from its start; the FadeFR jitters of
+            // mc04_008:138's `Plain` copy.)
+            let path_from = paths.get(name).and_then(|p| p.last()).map(|k| (-i64::from(k.x), -i64::from(k.y)));
+            let ((dx, dy), grown) = (from.get(name).copied().or(path_from).unwrap_or_default(), zoom_from.get(name).filter(|z| z.0 == 0 || z.1 == 0).or(resized));
             // (Not moved at all too, so that a `Random` pick of 0 leaves
             // the sprite as the other picks: moved by the engine.)
             // (A copy of the screen also as it zooms: a picture's zoom is in its image.)
             let grab_zoom = size_from.get(name).filter(|z| now.image == SCREEN_UNDER && z.0 > 0 && z.1 > 0 && **z != now.zoom).copied();
-            if t == 0 || !from.contains_key(name) && grown.is_none() && grab_zoom.is_none() || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) {
+            if t == 0 || !from.contains_key(name) && path_from.is_none() && grown.is_none() && grab_zoom.is_none() || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) && (grown.is_some() || grab_zoom.is_some()) {
                 continue;
             }
             let now = Shown { layer, ..now.clone() };
@@ -558,7 +567,6 @@ impl Compiler<'_, '_> {
             // buttons flying in): from its angle, and from 0 when the fade
             // takes as long and outlasts the wait.
             let angle = angle_from.get(name).copied().unwrap_or(now.angle);
-            let faded = from_zero.contains(name) && fades.get(name) == Some(&t) && t > blocking;
             let mut start = Shown { x: now.x + dx, y: now.y + dy, angle, opacity: if faded { 0 } else { now.opacity }, ..now.clone() };
             if let Some(z) = grab_zoom {
                 let (w, h) = (now.w * z.0 / now.zoom.0.max(1), now.h * z.1 / now.zoom.1.max(1));
@@ -585,9 +593,10 @@ impl Compiler<'_, '_> {
                 let shift = |w: i64, v: i64, from: i64, to: i64| (w / 2 - v) * (from - to) / 1000;
                 let key = |ms, x, y, zoom, zoom_y| MotionKey { ms, x, y, zoom, zoom_y, angle: 0, opacity: 256, ease: None };
                 let start = key(0, (dx + shift(o.w, vx, zx, o.zoom.0)) as i32, (dy + shift(o.h, vy, zy, o.zoom.1)) as i32, z(zx, sx), z(zy, sy));
+                let start = MotionKey { opacity: if faded && resized.is_some() { 0 } else { 256 }, ..start };
                 (vec![start, key(t, 0, 0, 100, 100)], MotionEnd::Keep)
             } else {
-                let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t) else { continue };
+                let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t).map(|op| along(op, paths.remove(name))) else { continue };
                 (from_end(keys), end)
             };
             if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {

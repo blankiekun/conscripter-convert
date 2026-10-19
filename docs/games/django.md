@@ -574,7 +574,7 @@ Open:
   0 ms headless) or a gap put on the next record. `extra`:
   `call_chapter`, and `{...}` blocks inside text (their `MusicStart`s
   not seen on the original's thread 0).
-- Time ledger (dry-run notes, `nitroplus/convert/sync.rs`): 131 syncs
+- Time ledger (dry-run notes, `nitroplus/convert/sync.rs`): 127 syncs
   wait up to 1 s longer than the script asked for an action the exe
   runs on (`unwaited action held the script`; 62 in `TypeBegin`'s
   `WaitAction("$boxtype")`, function.nss:503-505, which waits only for
