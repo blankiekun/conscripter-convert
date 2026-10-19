@@ -489,9 +489,6 @@ Open:
   hangs under wine when a script `Save` runs from a process (the files
   stay empty) and on timed actions; a template saved on a page from the
   menu is needed first.
-- A 0 ms `Move` on a picture whose move runs stops it where it is in the
-  exe (snapshot oracle); ours lets it run to its end (ignored test
-  `a_zero_ms_move_stops_the_one_in_flight_where_it_is`, `nitroplus/convert/tests/scheduler.rs`).
 - `spgrab` (engine #32, merged) could draw a move that changes picture
   as a copy fading out over the moved picture: not used yet.
 - `RemainTime` on a sound returns its whole length, not the rest
@@ -571,6 +568,21 @@ Open:
       the wait; the six such calls take 0 ms.
 
 ## History
+
+### A 0 ms `Move` stops the move in flight (2026-10-18)
+
+The exe stops a running move where it has got to when a 0 ms `Move`
+comes (snapshot oracle); ours let the engine's motion run to its end
+and moved on from there. `Compiler::stop_move` now puts the picture
+where its run has got to (on the straight line: an eased run is
+elsewhere) and the next sync places it there (`lsp` ends the
+`spmotion`). A picture made again since keeps nothing. A 0 ms `Fade`
+already stopped one (`msp` ends the motion first). Tests:
+`a_zero_ms_move_stops_the_one_in_flight_where_it_is`,
+`a_zero_ms_fade_stops_the_one_in_flight_at_its_value`
+(`nitroplus/convert/tests/scheduler.rs`). For that the compiler's
+clock now counts a move the script waits for (`SpriteMove`), and a
+`WaitAction` on a picture or making it again ends its run.
 
 ### Timing parity (2026-10-18)
 

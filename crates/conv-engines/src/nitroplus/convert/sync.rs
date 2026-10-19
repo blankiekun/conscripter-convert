@@ -9,6 +9,27 @@ impl Compiler<'_, '_> {
         std::mem::take(&mut self.pending_ms).min(ms)
     }
 
+    /// Stops `name`'s engine move still running: the picture is put where
+    /// it has got to, and placed there by the next sync.
+    /// shortcut: the point on a straight line at its time (an eased move is elsewhere).
+    pub(super) fn stop_move(&mut self, name: &str) {
+        let clock = self.sound_clock();
+        // (Still the picture it moves: one made again since has no move.)
+        let ours = |r: &&Run| self.shown.get(name).is_some_and(|s| s.source == r.to.source && (s.x, s.y) == (r.to.x, r.to.y));
+        let Some(r) = self.runs.get(name).filter(|r| r.at + u64::from(r.ms) > clock).filter(ours) else { return };
+        let done = (clock - r.at) as i64;
+        // (By its centre: a zoom over the same time ends at once, about it.)
+        let centre = |s: &Shown| s.whole.map_or((s.x + s.w / 2, s.y + s.h / 2), |(x, y, w, h)| (x + w / 2, y + h / 2));
+        let ((x0, y0), (x1, y1)) = (centre(&r.from), centre(&r.to));
+        let at = |a: i64, b: i64| (b - a) * done / i64::from(r.ms) - (b - a);
+        let (dx, dy) = (at(x0, x1), at(y0, y1));
+        if let Some(o) = self.objects.get_mut(name) {
+            (o.x, o.y) = (o.x + dx, o.y + dy);
+        }
+        self.runs.remove(name);
+        self.motion_until.remove(name);
+    }
+
     /// Shows the changes since the last sync, as a cross-fade over `ms`,
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     pub(super) fn sync(&mut self, ms: u32) {

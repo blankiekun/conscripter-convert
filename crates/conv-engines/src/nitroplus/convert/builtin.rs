@@ -521,6 +521,11 @@ impl Compiler<'_, '_> {
                     }
                     return Value::Null;
                 }
+                // A 0 ms move stops one in flight where it is (the exe, seen by
+                // the snapshot oracle): moved on from there.
+                if ms == 0 {
+                    targets.iter().for_each(|t| self.stop_move(t));
+                }
                 let mut from = Vec::new();
                 for t in &targets {
                     let (screen_w, screen_h) = self.frame(t);
@@ -1050,6 +1055,8 @@ impl Compiler<'_, '_> {
                 // from): waited for to its end.
                 if !matches!(arg(0), Value::Null) {
                     for t in self.matching(&arg(0)) {
+                        // (Ended: a 0 ms move after it stops nothing.)
+                        self.runs.remove(&t);
                         if self.unwaited_motions.remove(&t) && let Some(s) = self.shown.get(&t) {
                             self.ops.push(Op::MotionWait { layer: s.layer });
                         }
