@@ -714,9 +714,9 @@ write-ups, the route-run table and the old queue are in "History"
 with gaps, 8,594 left out on purpose.
 
 Japanese and English in one build (in progress, `docs/string-tables.md`):
-every build writes its text in tables; the `--english` build compiles
-the Japanese too (`text.en.txt`, `text.ja.txt`). Next: Japanese base,
-`layer\en\` and `layer\uncensored\`, language and pictures rows, EN font.
+the `--english` build is the Japanese game plus the English code and
+text per language, English pictures in `layer\en\`. Next:
+`layer\uncensored\`, language and pictures rows, EN font.
 
 Testing notes: other agents stop engines with `pkill -x conscripter`; run
 ours through a symlink with another name (`--engine out/conscripter-mura`).

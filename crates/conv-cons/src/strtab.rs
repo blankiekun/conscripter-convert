@@ -26,6 +26,8 @@ pub const LOG: char = 'l';
 /// A whole command line holding text (a choice plate's, placed by its width).
 pub const PLATE: char = 'p';
 pub const WINDOW: char = 'w';
+/// A line of code that differs between two editions ([`merge`]).
+pub const DIFFERS: char = 'x';
 
 /// One table line: its kind, place, count of its kind at that place, ID
 /// and text (a 0.txt line, or a string's contents as written in quotes).
@@ -153,6 +155,152 @@ pub fn translated(rows: &[Row], other: &[Row]) -> (String, usize) {
     (out, kept)
 }
 
+/// One edition's emitted script for [`merge`]: the script, its line map
+/// ([`crate::Emitted::lines`]) and its rows.
+pub struct Edition<'a> {
+    pub script: &'a str,
+    pub lines: &'a [(usize, Option<conv_core::ir::SourceLoc>)],
+    pub rows: &'a [Row],
+}
+
+/// What [`merge`] made.
+#[derive(Debug, Default)]
+pub struct Merged {
+    pub script: String,
+    /// The base's table, then the other's.
+    pub tables: (String, String),
+    /// Text rows whose place the other lacks (they keep the base's text).
+    pub kept: usize,
+    /// Runs of lines from one source instruction whose code differs (or
+    /// that only one edition has), and their lines, now table lines.
+    pub blocks: usize,
+    pub lines: usize,
+}
+
+/// A script's runs of lines by source instruction: (place, lines).
+fn runs<'a>(e: &Edition<'a>) -> Vec<(String, Vec<&'a str>)> {
+    let lines: Vec<&str> = e.script.lines().collect();
+    let mut starts: Vec<(usize, String)> = e.lines.iter().map(|(n, at)| (n - 1, at.as_ref().map_or("-".to_string(), |a| format!("{}:{}", a.file, a.index)))).collect();
+    starts.insert(0, (0, "<start>".to_string()));
+    let mut out: Vec<(String, Vec<&str>)> = Vec::new();
+    for (i, (from, place)) in starts.iter().enumerate() {
+        let to = starts.get(i + 1).map_or(lines.len(), |s| s.0).min(lines.len());
+        let part = &lines[(*from).min(to)..to];
+        match out.last_mut() {
+            Some(last) if last.0 == *place => last.1.extend_from_slice(part),
+            _ if part.is_empty() => {}
+            _ => out.push((place.clone(), part.to_vec())),
+        }
+    }
+    out
+}
+
+/// Pairs the runs of `a` and `b` by place, in order: (Some, Some) for a
+/// pair, else a run only one has. Greedy: after a mismatch the nearest
+/// place both have (within a window) resumes the pairing.
+fn align(a: &[(String, Vec<&str>)], b: &[(String, Vec<&str>)]) -> Vec<(Option<usize>, Option<usize>)> {
+    const WINDOW: usize = 400;
+    let (mut i, mut j, mut out) = (0, 0, Vec::new());
+    while i < a.len() || j < b.len() {
+        if i < a.len() && j < b.len() && a[i].0 == b[j].0 {
+            out.push((Some(i), Some(j)));
+            (i, j) = (i + 1, j + 1);
+            continue;
+        }
+        let resync = (1..WINDOW).find_map(|d| (0..=d).find(|&x| i + x < a.len() && j + d - x < b.len() && a[i + x].0 == b[j + d - x].0).map(|x| (x, d - x)));
+        let (x, y) = resync.unwrap_or((a.len() - i, b.len() - j));
+        out.extend((i..i + x).map(|k| (Some(k), None)));
+        out.extend((j..j + y).map(|k| (None, Some(k))));
+        (i, j) = (i + x, j + y);
+    }
+    out
+}
+
+/// Two editions of one game in one script (the user's decision,
+/// 2026-10-18: each language plays exactly like its original): the text
+/// by ID as [`translated`], and each run of lines from one source
+/// instruction whose code differs between them (or that only one has) as
+/// per-language table lines, the shorter padded with empty lines. The
+/// `language` lines stay in the script (the engine reads the first).
+pub fn merge(base: Edition, other: Edition) -> Merged {
+    let is_ref = |l: &str| l.strip_prefix('^').is_some_and(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'));
+    // a run's code with its text lines' places in it
+    let code = |run: &[&str]| -> Vec<String> { run.iter().map(|l| if is_ref(l) { "^".to_string() } else { l.to_string() }).collect() };
+    let refs = |run: &[&str]| -> Vec<String> { run.iter().filter(|l| is_ref(l)).map(|l| l[1..].to_string()).collect() };
+    let own = (table(base.rows), table(other.rows));
+    let (other_table, kept) = translated(base.rows, other.rows);
+    // the other's text of each base row: by place ([`translated`]), then
+    // where a run pairs up, its k-th line and the strings of its code
+    let mut other_text: HashMap<String, String> = other_table.lines().filter_map(|l| l.split_once('\t')).map(|(a, b)| (a.to_string(), b.to_string())).collect();
+    let own_other: HashMap<&str, &str> = other.rows.iter().map(|r| (r.id.as_str(), r.text.as_str())).collect();
+    let mut differs = (String::new(), String::new());
+    let (ra, rb) = (runs(&base), runs(&other));
+    let mut ids = Strings::tables(true);
+    for r in base.rows {
+        ids.ids.insert(u64::from_str_radix(&r.id, 16).unwrap_or(0), String::new());
+    }
+    let mut m = Merged { kept, ..Default::default() };
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    for (x, y) in align(&ra, &rb) {
+        let a = x.map_or(&[][..], |i| &ra[i].1[..]);
+        let b = y.map_or(&[][..], |j| &rb[j].1[..]);
+        let (ca, ka, kb) = (code(a), refs(a), refs(b));
+        if x.is_some() && y.is_some() && ca == code(b) {
+            for (ia, ib) in ka.iter().zip(&kb) {
+                if let Some(t) = own_other.get(ib.as_str()) {
+                    other_text.insert(ia.clone(), t.to_string());
+                }
+            }
+            for l in &ca {
+                for id in l.split("\"^").skip(1).map(|r| r.split('"').next().unwrap_or("")) {
+                    if let Some(t) = own_other.get(id) {
+                        other_text.insert(id.to_string(), t.to_string());
+                    }
+                }
+            }
+            for l in a {
+                m.script.push_str(l);
+                m.script.push('\n');
+            }
+            continue;
+        }
+        let place = x.map_or(&rb[y.unwrap_or(0)].0, |i| &ra[i].0);
+        let n = seen.entry(place.clone()).or_insert(0);
+        *n += 1;
+        ids.at = format!("{place}\u{1}{n}");
+        let filled = |run: &[&str], t: &str| -> Vec<String> { if run.is_empty() { vec![] } else { fill(&run.join("\n"), t).lines().map(str::to_string).collect() } };
+        let (mut fa, mut fb) = (filled(a, &own.0), filled(b, &own.1));
+        m.blocks += 1;
+        // the `language` line stays in the script, where the base has it
+        let is_language = |l: &String| l.trim_start().starts_with("language \"");
+        let (ia, ib) = (fa.iter().position(is_language), fb.iter().position(is_language));
+        let (tail_a, tail_b) = match (ia, ib) {
+            (Some(i), Some(j)) => (fa.split_off(i + 1), fb.split_off(j + 1)),
+            _ => (vec![], vec![]),
+        };
+        let language = ia.zip(ib).map(|_| (fa.pop().unwrap_or_default(), fb.pop()));
+        for (part_a, part_b, after) in [(&fa, &fb, language.as_ref().map(|l| &l.0)), (&tail_a, &tail_b, None)] {
+            for k in 0..part_a.len().max(part_b.len()) {
+                let (la, lb) = (part_a.get(k).map_or("", String::as_str), part_b.get(k).map_or("", String::as_str));
+                let id = ids.id(DIFFERS, la);
+                writeln!(m.script, "^{id}").unwrap();
+                writeln!(differs.0, "{id}\t{la}").unwrap();
+                writeln!(differs.1, "{id}\t{lb}").unwrap();
+                m.lines += 1;
+            }
+            if let Some(l) = after {
+                writeln!(m.script, "{l}").unwrap();
+            }
+        }
+    }
+    let mut en = String::new();
+    for r in base.rows {
+        writeln!(en, "{}\t{}", r.id, other_text.get(&r.id).map_or("", String::as_str)).unwrap();
+    }
+    m.tables = (own.0 + &differs.0, en + &differs.1);
+    m
+}
+
 /// The language a script's text starts in: its first `language "xx"`.
 pub fn first_language(script: &str) -> Option<&str> {
     script.lines().find_map(|l| l.trim_start().strip_prefix("language \"")?.split('"').next())
@@ -220,6 +368,33 @@ mod tests {
         assert_eq!(Strings::default().lines(TEXT, "あ\\"), "あ\\");
         assert_eq!(Strings::tables(false).lines(WINDOW, "setwindow3 1"), "setwindow3 1");
         assert_eq!(first_language("*define\nlanguage \"en\"\ngame\n"), Some("en"));
+    }
+
+    #[test]
+    fn merge_keeps_each_edition() {
+        use conv_core::ir::SourceLoc;
+        let at = |i| Some(SourceLoc { file: "a.nss".into(), index: i });
+        // place 1: same code, text by ID; place 2: code differs; place 3: only the English has it
+        let mut ja = Strings::tables(false);
+        ja.at = "a.nss:1".into();
+        let t1 = ja.lines(TEXT, "　一\\");
+        ja.at = "a.nss:2".into();
+        let t2 = ja.lines(TEXT, "　二\\");
+        let ja_script = format!("*define\nlanguage \"ja\"\ngame\n*start\nbg 1\n{t1}\nlsp 1,\"a.png\",10,0\n{t2}\nend\n");
+        let ja_lines = vec![(5, at(1)), (7, at(2)), (9, None)];
+        let mut en = Strings::tables(false);
+        en.at = "a.nss:1".into();
+        let e1 = en.lines(TEXT, "`One\\");
+        en.at = "a.nss:2".into();
+        let e2 = en.lines(TEXT, "`Two\\");
+        let en_script = format!("*define\nlanguage \"en\"\ngame\n*start\nbg 1\n{e1}\nlsp 1,\"a.png\",99,0\n*en_only\n{e2}\nquake 1\nend\n");
+        let en_lines = vec![(5, at(1)), (7, at(2)), (10, at(3)), (11, None)];
+        let m = merge(Edition { script: &ja_script, lines: &ja_lines, rows: &ja.rows }, Edition { script: &en_script, lines: &en_lines, rows: &en.rows });
+        let blank = |s: String| s.lines().filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n") + "\n";
+        assert_eq!(blank(fill(&m.script, &m.tables.0)), fill(&ja_script, &table(&ja.rows)));
+        assert_eq!(blank(fill(&m.script, &m.tables.1)).replace("language \"ja\"", "language \"en\""), fill(&en_script, &table(&en.rows)));
+        assert!(m.script.contains("language \"ja\"") && m.script.contains("bg 1") && m.script.contains(&t1));
+        assert_eq!(m.blocks, 3, "the define (its language line), place 2 and place 3");
     }
 
     #[test]
