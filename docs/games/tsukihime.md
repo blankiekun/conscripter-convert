@@ -691,6 +691,24 @@ Manual: none for the game. The NSP's `Manual` NCA holds only legal and
 support HTML (`legalinfo.xml`), so reference screens must come from the
 emulator trace or footage.
 
+### Memory dumps through Ryubing's GDB stub (2026-10-19)
+
+`--enable-gdb-stub --gdb-stub-port 55555` on the `switch-emu.sh` command
+line (headless reads the flag, not `Config.json`'s `enable_gdb_stub`).
+Then `research/tools/gdbdump.py 127.0.0.1:55555 <prefix> --get-info` writes
+a dump in our format. The stub has no memory map, but `monitor get info`
+lists the modules (here `nnrtld`, `knife1.nss` 1.3 MB, `glslc`,
+`multimedia`, `nnSdk`) and the layout (heap 0x655a800000-0x66da7fffff).
+Measured: the modules, 16.2 MB, read at 1.2 MB/s in 4 KB packets (with
+TCP_NODELAY: without it each packet waited ~130 ms on the delayed ACK).
+**The heap is not read yet.** A read of unmapped memory makes the emulator
+log an invalid access, and the stub then stops answering (one run) or
+the emulator aborts when the client goes (another). The heap's first
+probe at its start hung it, and there is no command that lists the
+mapped pages. Left: find the mapped heap pages first, from pointers in
+the threads' registers (`qXfer:threads`, `g`) and the modules' data,
+before reading.
+
 ### The original under a Switch emulator (Ryubing)
 
 Step 1, the boot check (2026-10-17): **boots to the title** at full

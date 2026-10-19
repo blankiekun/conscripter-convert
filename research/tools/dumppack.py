@@ -72,6 +72,14 @@ class Memory:
                 self._put(int(f[0], 16), blob[int(f[4], 16):int(f[4], 16) + int(f[1], 16)])
 
     def _put(self, addr, data):  # page by page, so a scene's pages replace the base's
+        if addr & 0xfff or len(data) & 0xfff:  # not page-aligned (a GDB stub's chunks): byte ranges into the pages
+            for i in range(len(data)):
+                a = addr + i
+                pg = self.pages.get(a >> 12)
+                if not isinstance(pg, bytearray):
+                    pg = self.pages[a >> 12] = bytearray(pg if pg is not None else bytes(4096))
+                pg[a & 0xfff] = data[i]
+            return
         for i in range(0, len(data), 4096):
             self.pages[(addr + i) >> 12] = data[i:i + 4096]
 

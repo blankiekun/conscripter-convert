@@ -621,6 +621,23 @@ runs" (`engine/tools/cons_trace_check.py t.jsonl --script 0.txt
 Finished work, moved out of "Status" so a session reads only the open
 state.
 
+
+### Memory dumps through Vita3K's GDB stub (2026-10-19)
+
+`gdbstub: true` in `<emu>/home/config/Vita3K/config.yml`; the stub listens
+on port 2159 once the log says `GDB Server is listening`. It takes **one**
+connection only, so wait on the log line, not with a test connection.
+`research/tools/gdbdump.py 127.0.0.1:2159 <prefix> --scan
+10000:fffe0000:10000` probes a byte every 64 KB (the stub refuses reads
+outside allocated memory with `EAA`; it has no memory map) and dumps the
+readable stretches. Measured, 50 s after boot (the title): two regions,
+0x80000000 (4.6 MB, the system modules' tables: `SceLibKernel`, …) and
+0x81000000 (5.6 MB, the eboot with its data: `/media/List1.png`, the
+image descriptors), 10.4 MB in 5 s for the scan and the dump together.
+`dumppack.Memory` and `exe_call.load_dump` read it. The emulator ran on
+after the dump. Not looked at yet: where the game keeps its objects
+(their pages may sit in these regions, in the eboot's .bss).
+
 ### Status as it stood before the 2026-10-18 prune
 
 #### Queue (2026-10-16)
