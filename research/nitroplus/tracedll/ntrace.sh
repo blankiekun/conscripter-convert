@@ -170,6 +170,9 @@ alive() { kill -0 $wpid 2>/dev/null || { [ $EXE_NAME = Django.exe ] && pgrep -x 
 export NTRACE_OUT='C:\ntrace\trace.jsonl' NTRACE_PAGES=$PAGES TRACE_SPEED=${SPEED:-1}
 [ -n "$DUMPS" ] && { mkdir -p "$DUMPS"; export NTRACE_DUMPS="Z:${DUMPS//\//\\}"; }
 [ -n "$SDUMPS" ] && { mkdir -p "$SDUMPS"; export NTRACE_SCENE_DUMPS="Z:${SDUMPS//\//\\}"; }
+# the game's window: the biggest one shown (no window manager, no frame)
+game_window() { for w in $(xdotool search --onlyvisible --name . 2>/dev/null); do
+    eval "$(xdotool getwindowgeometry --shell "$w")"; echo "$((WIDTH * HEIGHT)) $w"; done | sort -n | tail -1 | cut -d' ' -f2; }
 # a click after 60 s without a record (a text block's pages are all logged
 # as it starts, so a long one is quiet), should the game still stop or wait
 # at an ending (logged in $NTRACE_HOME/clicks.log)
@@ -203,9 +206,6 @@ if [ -n "$SHOTS" ]; then  # the shots the DLL asks for (ntrace.c, NTRACE_SHOT_RE
      rm -f "$REQ"
    done) &
 fi
-# the game's window: the biggest one shown (no window manager, no frame)
-game_window() { for w in $(xdotool search --onlyvisible --name . 2>/dev/null); do
-    eval "$(xdotool getwindowgeometry --shell "$w")"; echo "$((WIDTH * HEIGHT)) $w"; done | sort -n | tail -1 | cut -d' ' -f2; }
 [ -n "$CLICKS" ] && (sleep 5; while alive; do w=$(game_window); [ -n "$w" ] && xdotool mousemove --window "$w" 500 300 click 1
   sleep "$(awk "BEGIN{print $CLICKS/1000}")"; done) >/dev/null 2>&1 &
 end=$((SECONDS + SECS))
