@@ -28,6 +28,8 @@
 # --clicks MS: a click in the game's window every MS (real time).
 # --scene-at page: the scene dumps at each file's first text block instead
 # (装甲悪鬼村正).
+# --frames: Django: an "obj" record per changed object each frame (ntrace.c
+# NTRACE_FRAMES; research/tools/frame_diff.py compares them with ours).
 #
 # --shots: at each text block, MS of game time (default 1000) after it
 # starts, the game's window is saved as DIR/<pg>.webp, lossless (pg: the
@@ -67,7 +69,7 @@ while [ $# -gt 0 ]; do case $1 in
   --probe) PROBE=$(realpath "$2"); shift 2;; --dumps) DUMPS=$(realpath -m "$2"); shift 2;;
   --scene-dumps) SDUMPS=$(realpath -m "$2"); shift 2;;
   --saves) SAVES=$(realpath "$2"); shift 2;; --clicks) CLICKS=$2; shift 2;;
-  --scene-at) export NTRACE_SCENE_AT=$2; shift 2;; *) sed -n '2,41p' "$0"; exit 2;; esac; done
+  --scene-at) export NTRACE_SCENE_AT=$2; shift 2;; --frames) export NTRACE_FRAMES=1; shift;; *) sed -n '2,43p' "$0"; exit 2;; esac; done
 EXE_NAME=Muramasa.exe; [ -f "$GAME/Django.exe" ] && EXE_NAME=Django.exe
 [ -n "$OUT" ] && [ -f "$GAME/$EXE_NAME" ] || { echo "need -o and GAME=<folder of Muramasa.exe or Django.exe>" >&2; exit 2; }
 [ $EXE_NAME = Muramasa.exe ] || [ -f "$EXE" ] || { echo "Django: need EXE=<the unpacked 1.01 Django.exe>" >&2; exit 2; }

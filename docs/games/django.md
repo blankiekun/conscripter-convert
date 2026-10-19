@@ -311,6 +311,24 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   `winedbg` and a log of who took the mutex). With the pointer nudged
   as above, 50 pages ran without a click (2026-10-17); should it stop
   for 60 s, the script clicks.
+- **Per-frame state trace** (2026-10-19): `ntrace.sh --frames` writes an
+  `obj` record each frame for every shown object whose state changed:
+  x, y and alpha as drawn that frame (+0x3ec/+0x3f0, render +0x14); zoom
+  and rotation as the last Zoom/Rotate asked (+0x484, +0x4c8: their
+  targets, not mid-motion values); the creating call (+0x180) on its
+  first record; `gone`. It hooks the frame thread's call of step_objects
+  (`0x435d4b`). A probe checked it: Move 500 ms in 30 frames, then the
+  Fade frame by frame, Zoom 1500/2500 and Rotate 33 as asked. Played
+  scene by scene from saves: `scene_saves.py --at end` puts the next
+  `Load` at the end of each scene's entry block. Three scenes
+  (dja001_02-04, 268 pages with `--clicks 700`, 400 s at 1x) gave 36,449
+  `obj` records (4.6 MB). `research/tools/frame_diff.py` compares them with
+  our `--real-time` trace's `sample` records. Pages pair by the
+  instruction that shows them (99 of 268 paired); motions match by
+  picture. First run: missing 46, extra 171, end 12, duration 13, path
+  16. Much of `extra` and `path` is our pre-zoomed copies, whose
+  `sample` gives the centre of the scaled box: a known limit of the
+  pairing, to refine before the counts mean much.
 - **Memory snapshots** (2026-10-18): `ntrace.sh --probe
   research/nitroplus/sched_probe.nss --dumps
   research/nitroplus/local/dumps --pages 2 --seconds 240` runs the probe's

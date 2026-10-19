@@ -15,7 +15,8 @@ scene with `Load(i+1);` as the first statement of its _MAIN scene, so the
 scene starts, ntrace.sh --scene-dumps dumps it at that statement, and the
 next save loads (--at page: after every text block of the file instead,
 the first one run going on, for `ntrace.sh --scene-at page --clicks`; a
-scene with no text block is left out). scene_chain.py runs the chain. Every edit stays on its line. Prints the manifest
+scene with no text block is left out; --at end: at the end of the entry
+block, so each scene plays through first, for `ntrace.sh --frames`). scene_chain.py runs the chain. Every edit stays on its line. Prints the manifest
 (slot, scene) as TSV.
 """
 import argparse
@@ -34,7 +35,7 @@ def main():
         p.add_argument(a)
     p.add_argument("--only", help="scene files (regex on the name; default: the game's story scenes)")
     p.add_argument("--max", type=int, default=0)
-    p.add_argument("--at", choices=["start", "page"], default="start",
+    p.add_argument("--at", choices=["start", "page", "end"], default="start",
                    help="where the next Load goes: the _MAIN scene's first statement, or after the scene's first text block")
     a = p.parse_args()
     tab = ns.table(a.exe)
@@ -51,6 +52,9 @@ def main():
             at = m and m.end()
             if at and a.at == "page":  # after every </PRE> of the file: the first one run goes on
                 at = [m.end() for m in re.finditer(rb"</PRE>", t)] or None
+            elif at and a.at == "end":  # before the entry block's closing brace: the scene plays to its end first
+                at = ns.block_end(t.decode("cp932"), t.decode("cp932").index("{", len(t[:at - 1].decode("cp932")) - 1))
+                at = len(t.decode("cp932")[:at].encode("cp932"))
             if at:
                 scenes.append((f, t, at if isinstance(at, list) else [at]))
     scenes = scenes[:a.max or None]

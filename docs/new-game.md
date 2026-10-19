@@ -273,6 +273,11 @@ take that state from one short run and step the exe's own code on it:
 5. **Into tests**: the numbers become fixtures of the converter's unit
    tests and `(scheduler)` rows marked seen in the findings table.
 
+**Per-frame state of the original** (Django's `ntrace.sh --frames`,
+docs/games/django.md "Per-frame state trace"): the objects' x, y and
+alpha each frame, compared with our engine's motion samples by
+`research/tools/frame_diff.py`.
+
 **Further: the interpreter from a dump** (a timeboxed prototype,
 2026-10-19: `research/nitroplus/interp.py`). Scene dumps name the
 process and script context of the statement they stopped on (`th`,
