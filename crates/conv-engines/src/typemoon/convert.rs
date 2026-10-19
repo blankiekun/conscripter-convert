@@ -314,6 +314,26 @@ const LEFT_OUT: &[(&str, &str)] = &[
     ("_PGST", "the page a load replays to; CONscripter's saves restore the state"),
 ];
 
+/// An opcode's channel in `metrics.json`'s score (the findings rows say
+/// what each does).
+pub fn channel(kind: &str) -> crate::metrics::Channel {
+    use crate::metrics::Channel::*;
+    match kind {
+        "_ZM" | "_MSAD" | "_WNTY" | "_CLO2" | "_CLO3" | "_CLO4" | "_CLO5" | "_SELR" | "_SELD" | "_SELA" | "_SELS" | "_GOTS" => Text,
+        "_SEPL" | "_SEFD" | "_SESP" | "_SEVL" | "_MPLY" | "_MFAD" | "_MVOL" | "_VPLY" | "_VPL2" => Sound,
+        "_STCH" | "_SCH2" | "_STCC" | "_STCP" | "_STBR" | "_STEC" | "_SACL" | "_SBAS" | "_SNX2" | "_SNX3" | "_SOXY" | "_SPRD" | "_STNS" | "_STPV" | "_STRR" | "_STTR"
+        // an overlay of a kind not known yet (findings rows: open)
+        | "_XRSM" | "_XSTP" => Picture,
+        "_FADS" | "_FADE" | "_STMA" | "_STZ4" | "_STGS" | "_STRT" | "_STRA" | "_STCL" | "_SHOK" | "_SHAF" | "_SQK2" | "_SHK2" | "_SSW2" | "_SQS2" | "_SHS2" | "_SSS2" | "_MSQK" | "_FCLN" | "_FCSP" | "_SGMA"
+        | "_SPMA" => Motion,
+        "_WTTM" | "_VCWT" | "_STCF" | "_TOMW" | "_WTSV" => Timing,
+        "_TOMP" => Movie,
+        "_IF__" | "_IFNX" | "_IFP4" | "_IFSC" | "_IFUR" | "_WKST" | "_WKAD" | "_WKOR" | "_GOTO" | "_ZZ" | "_ZY" | "_JUMP" | "_RDST" | "_RDAS" | "_RDED" | "_RTST" | "_RTM_" | "_RTM2" | "_RTMN" | "_END_"
+        | "_ATSV" | "_PGST" | "_NOP_" | "_SNX4" | "_FANX" | "_STQK" | "_TRPY" | "_SPFC" | "_SPRC" | "_STCG" => None,
+        _ => Unclassed,
+    }
+}
+
 /// Why a converted call is only in part: each argument passed and not
 /// read (`<command> argument <i> ignored`, or `option <n>` for a backquote
 /// option).

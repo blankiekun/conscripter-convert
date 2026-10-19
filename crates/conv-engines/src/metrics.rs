@@ -28,6 +28,85 @@ pub struct Kind {
     pub unmeasured: usize,
     /// Each reason with the number of calls it was noted on.
     pub reasons: BTreeMap<String, usize>,
+    /// [`credit`] "as decided": a loss the user chose ([`DROPPED`]) counts
+    /// as done.
+    pub decided: f64,
+    /// Left-out calls the user chose to drop: lost "as original".
+    pub dropped: usize,
+}
+
+/// A reason's prefix for what the user chose to drop: done "as decided"
+/// (the headline `score`), lost "as original".
+pub const DROPPED: &str = "user dropped: ";
+
+/// What a player gets from a call: `score`'s channels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    Text,
+    Sound,
+    Picture,
+    Motion,
+    Timing,
+    Movie,
+    /// Not in an engine's table yet: scored, so it shows and gets classed.
+    Unclassed,
+    /// Flow, flags, bookkeeping: weighs nothing.
+    None,
+}
+
+impl Channel {
+    const SCORED: [Channel; 7] = [Channel::Text, Channel::Sound, Channel::Picture, Channel::Motion, Channel::Timing, Channel::Movie, Channel::Unclassed];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Channel::Text => "text",
+            Channel::Sound => "sound",
+            Channel::Picture => "picture",
+            Channel::Motion => "motion",
+            Channel::Timing => "timing",
+            Channel::Movie => "movie",
+            Channel::Unclassed => "unclassed",
+            Channel::None => "none",
+        }
+    }
+
+    /// The user's weights (2026-10-18), renormalised over the channels a
+    /// game has.
+    fn weight(self) -> f64 {
+        match self {
+            Channel::Text => 0.30,
+            Channel::Sound => 0.25,
+            Channel::Picture => 0.20,
+            Channel::Motion => 0.12,
+            Channel::Timing => 0.08,
+            Channel::Movie | Channel::Unclassed => 0.05,
+            Channel::None => 0.0,
+        }
+    }
+}
+
+/// Each engine's table of its kinds' channels, by the engine's name.
+fn channels(engine: &str) -> fn(&str) -> Channel {
+    match engine {
+        "nitroplus" => crate::nitroplus::convert::channel,
+        "mages" => crate::mages::convert::channel,
+        "typemoon" => crate::typemoon::convert::channel,
+        "xuse" => crate::xuse::build::channel,
+        _ => |_| Channel::Unclassed,
+    }
+}
+
+/// `score`: per channel, the calls' credit over the calls measured
+/// (left-out and unmeasured ones in neither), in per cent; the total
+/// weighs the channels present. "As decided" (the headline) counts the
+/// user's drops as done; `as_original` counts them as lost.
+#[derive(Debug, PartialEq)]
+pub struct Score {
+    pub total: f64,
+    pub as_original: f64,
+    pub channels: Vec<(Channel, f64)>,
+    /// Channels with calls this build can't judge, or with none measured.
+    pub unmeasured: Vec<Channel>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -117,7 +196,11 @@ impl Metrics {
         reasons.dedup();
         k.weighted += share(args, &reasons);
         match credit(args, &reasons) {
-            Some(c) => k.credit += c,
+            Some(c) => {
+                k.credit += c;
+                let chosen: Vec<String> = reasons.iter().filter(|r| !r.starts_with(DROPPED)).cloned().collect();
+                k.decided += credit(args, &chosen).unwrap_or(c);
+            }
             None => k.unmeasured += 1,
         }
         k.gaps += usize::from(!reasons.is_empty());
@@ -132,6 +215,7 @@ impl Metrics {
         let k = self.kinds.entry(kind.to_string()).or_default();
         k.calls += 1;
         k.left_out += 1;
+        k.dropped += usize::from(why.starts_with(DROPPED));
         *k.reasons.entry(why.to_string()).or_default() += 1;
     }
 
@@ -148,6 +232,8 @@ impl Metrics {
             k.weighted += o.weighted;
             k.credit += o.credit;
             k.unmeasured += o.unmeasured;
+            k.decided += o.decided;
+            k.dropped += o.dropped;
             for (r, n) in o.reasons {
                 *k.reasons.entry(r).or_default() += n;
             }
@@ -191,17 +277,48 @@ impl Metrics {
         self.kinds.values().map(|k| k.left_out).sum()
     }
 
+    /// The [`Score`], each kind in the channel `channel` gives it.
+    pub fn score(&self, channel: fn(&str) -> Channel) -> Score {
+        // per channel: decided, original, calls measured, dropped left-out calls, unmeasured calls
+        let mut sums = [(0.0, 0.0, 0usize, 0usize, 0usize); 7];
+        for (name, k) in &self.kinds {
+            let Some(i) = Channel::SCORED.iter().position(|&c| c == channel(name)) else { continue };
+            let s = &mut sums[i];
+            (s.0, s.1) = (s.0 + k.decided, s.1 + k.credit);
+            s.2 += k.calls - k.left_out - k.unmeasured;
+            (s.3, s.4) = (s.3 + k.dropped, s.4 + k.unmeasured);
+        }
+        let (mut channels, mut unmeasured) = (Vec::new(), Vec::new());
+        let (mut w, mut decided, mut original) = (0.0, 0.0, 0.0);
+        for (&c, &(d, o, n, dropped, um)) in Channel::SCORED.iter().zip(&sums) {
+            if um > 0 || (n == 0 && c != Channel::Unclassed) {
+                unmeasured.push(c);
+            }
+            if n == 0 {
+                continue;
+            }
+            let (d, o) = (100.0 * d / n as f64, 100.0 * o / (n + dropped) as f64);
+            channels.push((c, d));
+            w += c.weight();
+            (decided, original) = (decided + c.weight() * d, original + c.weight() * o);
+        }
+        let total = |x: f64| if w > 0.0 { x / w } else { 100.0 };
+        Score { total: total(decided), as_original: total(original), channels, unmeasured }
+    }
+
     /// The JSON the dry run writes: `commit` and `commit_date` each on a
     /// line of their own (`tests/snapshot.sh` compares without them), the
     /// kinds by gaps, each with its [`TOP`] reasons.
     pub fn json(&self, game: &str, engine: &str, engine_doc: &str, commit: &str, commit_date: &str) -> String {
+        let channel = channels(engine);
+        let score = self.score(channel);
         let (calls, gaps) = self.totals();
         let left_out = self.left_out_total();
         // "left_out" only when there are some, so other games' files stay as they were.
         let lo = |n: usize| if n > 0 { format!(", \"left_out\": {n}") } else { String::new() };
         let um = |n: usize| if n > 0 { format!(", \"unmeasured\": {n}") } else { String::new() };
         let mut s = format!(
-            "{{\n\"game\": {},\n\"engine\": {},\n\"engine_doc\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}, \"credit\": {:.1}{}}},\n\"kinds\": {{",
+            "{{\n\"game\": {},\n\"engine\": {},\n\"engine_doc\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}, \"credit\": {:.1}{}, \"score\": {{\"total\": {:.2}, \"as_original\": {:.2}, \"channels\": {{{}}}, \"unmeasured\": [{}]}}}},\n\"kinds\": {{",
             q(game),
             q(engine),
             q(engine_doc),
@@ -211,13 +328,17 @@ impl Metrics {
             lo(left_out),
             self.weighted_total(),
             self.credit_total(),
-            um(self.unmeasured_total())
+            um(self.unmeasured_total()),
+            score.total,
+            score.as_original,
+            score.channels.iter().map(|(c, v)| format!("{}: {v:.2}", q(c.name()))).collect::<Vec<_>>().join(", "),
+            score.unmeasured.iter().map(|c| q(c.name())).collect::<Vec<_>>().join(", ")
         );
         let mut kinds: Vec<_> = self.kinds.iter().collect();
         kinds.sort_by(|a, b| b.1.gaps.cmp(&a.1.gaps).then(b.1.calls.cmp(&a.1.calls)).then(a.0.cmp(b.0)));
         for (i, (name, k)) in kinds.iter().enumerate() {
             s += &format!(
-                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}, \"credit\": {:.1}{}}}",
+                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}, \"credit\": {:.1}{}, \"channel\": {}}}",
                 if i > 0 { "," } else { "" },
                 q(name),
                 k.calls,
@@ -226,7 +347,8 @@ impl Metrics {
                 top(&k.reasons),
                 k.weighted,
                 k.credit,
-                um(k.unmeasured)
+                um(k.unmeasured),
+                q(channel(name).name())
             );
         }
         s += &format!("\n}},\n\"outside_calls\": {}", top(&self.outside));
@@ -339,7 +461,7 @@ mod tests {
         assert_eq!(m.kinds["Fade"].gaps, 0);
         assert_eq!(m.outside["text tag <x>"], 1);
         let json = m.json("g", "e", "doc", "abc", "2026-10-16");
-        assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8, \"credit\": 2.8}"), "{json}");
+        assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8, \"credit\": 2.8, \"score\": "), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
         assert!(!json.contains("parity"), "{json}");
     }
@@ -364,7 +486,7 @@ mod tests {
         m.left_out("opcode 0x30", "the debug menu");
         assert_eq!((m.totals(), m.left_out_total()), ((2, 0), 1));
         let json = m.json("g", "e", "doc", "c", "d");
-        assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1, \"weighted\": 1.0, \"credit\": 1.0}"), "{json}");
+        assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1, \"weighted\": 1.0, \"credit\": 1.0, \"score\": "), "{json}");
         assert!(json.contains("\"calls\": 2, \"gaps\": 0, \"left_out\": 1, \"reasons\""), "{json}");
     }
 
@@ -375,6 +497,28 @@ mod tests {
         assert_eq!(super::share(4, &r(&["_MPLY argument 1 ignored", "_MPLY option 17 ignored", "approximated"])), 0.5);
         assert_eq!(super::share(2, &r(&["not converted"])), 0.0);
         assert_eq!(super::share(0, &r(&["approximated"])), 1.0);
+    }
+
+    #[test]
+    fn score_weighs_channels_and_the_users_drops() {
+        use super::{Channel::*, DROPPED};
+        let mut m = Metrics::default();
+        m.call("Fade", 2, vec![]);
+        m.call("Fade", 2, vec![format!("{DROPPED}Fade argument 1 ignored")]);
+        m.left_out("Fade", &format!("{DROPPED}the user's choice"));
+        m.left_out("Fade", "unreachable");
+        m.call("LoadText", 1, vec!["approximated".into()]);
+        m.call("CreateMovie", 7, vec!["CreateMovie: no movies in this build".into()]);
+        m.call("SetAlias", 2, vec!["not converted".into()]);
+        let s = m.score(crate::nitroplus::convert::channel);
+        assert_eq!(s.channels, [(Text, 50.0), (Motion, 100.0)]);
+        assert_eq!(s.unmeasured, [Sound, Picture, Timing, Movie]);
+        // (0.30 x 50 + 0.12 x 100) / 0.42; as original motion is (1 + 0.5 + 0) / 3.
+        assert!((s.total - 27.0 / 0.42).abs() < 1e-9, "{s:?}");
+        assert!((s.as_original - 21.0 / 0.42).abs() < 1e-9, "{s:?}");
+        let json = m.json("g", "nitroplus", "doc", "c", "d");
+        assert!(json.contains("\"score\": {\"total\": 64.29, \"as_original\": 50.00, \"channels\": {\"text\": 50.00, \"motion\": 100.00}, \"unmeasured\": [\"sound\", \"picture\", \"timing\", \"movie\"]}}"), "{json}");
+        assert!(json.contains("\"channel\": \"motion\"}"), "{json}");
     }
 
     #[test]
@@ -397,6 +541,6 @@ mod tests {
         m.call("CreateMovie", 7, r(&["CreateMovie: no movies in this build"]));
         m.call("Rotate", 3, r(&["Rotate about z"]));
         let json = m.json("g", "e", "doc", "c", "d");
-        assert!(json.contains("\"weighted\": 2.0, \"credit\": 0.5, \"unmeasured\": 1}"), "{json}");
+        assert!(json.contains("\"weighted\": 2.0, \"credit\": 0.5, \"unmeasured\": 1, \"score\": "), "{json}");
     }
 }
