@@ -130,7 +130,7 @@ the feature goes into the engine, not an approximation in the converter
   `SaveGrid: ...`, `Django choices: ...`.
 - Update the game document's "Status" in the same commit as the work it
   describes. When an item is done, move its write-up from "Status" to
-  "History".
+  `docs/history/<game>.md`.
 - Base your branch on `main` and bring later `main` in by merging, not
   rebasing: other branches build on shared history.
 - Stage files by name. Don't commit `out/`, local paths or anything from
