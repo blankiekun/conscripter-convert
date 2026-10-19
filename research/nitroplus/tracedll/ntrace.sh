@@ -15,6 +15,12 @@
 # --patch: the .nss files in DIR go into the patched nss.npa too (choices
 # that take themselves: research/nitroplus/force_choices.py).
 #
+# Django: --probe FILE runs the NSS statements in FILE (UTF-8, `//`
+# comments) where the start script unlocks the menu, before the story, all
+# on that one line; --dumps DIR writes the memory dumps its
+# `Delete("__dump_<label>");` statements ask for into DIR (ntrace.c,
+# NTRACE_DUMPS; research/nitroplus/sched_probe.nss is such a probe).
+#
 # --shots: at each text block, MS of game time (default 1000) after it
 # starts, the game's window is saved as DIR/<pg>.webp, lossless (pg: the
 # block's first page), for research/tools/picdiff.py; the game is not
@@ -45,11 +51,12 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
 H=${NTRACE_HOME:-$repo/out/ntrace}
-OUT= PAGES=60 SECS=900 SHOT= SHOTS= DELAY=1000 CAP=200 PATCH=
+OUT= PAGES=60 SECS=900 SHOT= SHOTS= DELAY=1000 CAP=200 PATCH= PROBE= DUMPS=
 while [ $# -gt 0 ]; do case $1 in
   -o) OUT=$2; shift 2;; --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;;
   --shot) SHOT=$2; shift 2;; --shots) SHOTS=$(realpath -m "$2"); shift 2;; --shot-delay) DELAY=$2; shift 2;;
-  --cap-mb) CAP=$2; shift 2;; --patch) PATCH=$(realpath "$2"); shift 2;; *) sed -n '2,27p' "$0"; exit 2;; esac; done
+  --cap-mb) CAP=$2; shift 2;; --patch) PATCH=$(realpath "$2"); shift 2;;
+  --probe) PROBE=$(realpath "$2"); shift 2;; --dumps) DUMPS=$(realpath -m "$2"); shift 2;; *) sed -n '2,33p' "$0"; exit 2;; esac; done
 EXE_NAME=Muramasa.exe; [ -f "$GAME/Django.exe" ] && EXE_NAME=Django.exe
 [ -n "$OUT" ] && [ -f "$GAME/$EXE_NAME" ] || { echo "need -o and GAME=<folder of Muramasa.exe or Django.exe>" >&2; exit 2; }
 [ $EXE_NAME = Muramasa.exe ] || [ -f "$EXE" ] || { echo "Django: need EXE=<the unpacked 1.01 Django.exe>" >&2; exit 2; }
@@ -83,16 +90,17 @@ npa="python3 -I $repo/research/nitroplus/npa.py $key $GAME/nss.npa"
 x=$H/patch/x; rm -rf "$H/patch"; mkdir -p "$x" "$H/patch/nss"
 if [ $EXE_NAME = Django.exe ]; then
 $npa "$x" 'boot.nss' >/dev/null; $npa "$x" 'dja000_*' >/dev/null
-python3 -I - "$x" "$H/patch/nss" <<'PY'
-import pathlib, sys
-src, dst = map(pathlib.Path, sys.argv[1:])
+python3 -I - "$x" "$H/patch/nss" "$PROBE" <<'PY'
+import pathlib, re, sys
+src, dst = map(pathlib.Path, sys.argv[1:3])
+probe = ' '.join(re.sub(r'//.*', '', l).strip() for l in open(sys.argv[3], encoding='utf-8')) if sys.argv[3] else ''
 # (file, old, new): each once, on its own line, so no line moves
 for name, old, new in [('boot.nss', '\t$Logo += 0;', '\t$Logo = 1;'),
                        ('boot.nss', '\t\tTitleSelect();', '\t\t$TitleSelect=1;'),
                        ('boot.nss', '#SYSTEM_product_code="ZokuSatsurikunoJyango";',
                         '#SYSTEM_product_code="ZokuSatsurikunoJyango";#SYSTEM_window_full=false;'),
                        ('dja000_*', '\t$SYSTEM_menu_lock = 0;\r\n\r\n\tcall_scene @->main_root;',
-                        '\t$SYSTEM_menu_lock = 0;$SYSTEM_text_auto=true;\r\n\r\n\tcall_scene @->main_root;')]:
+                        '\t$SYSTEM_menu_lock = 0;$SYSTEM_text_auto=true;' + probe + '\r\n\r\n\tcall_scene @->main_root;')]:
     f = next(dst.glob(name), None) or next(src.rglob(name))
     t = f.read_bytes()
     o, n = old.encode('cp932'), new.encode('cp932')
@@ -142,6 +150,7 @@ rm -f "$C/ntrace/trace.jsonl" "$H/clicks.log" "$C/ntrace/shot.req"
 # Django.exe counts too (a run then lasts --seconds)
 alive() { kill -0 $wpid 2>/dev/null || { [ $EXE_NAME = Django.exe ] && pgrep -x Django.exe >/dev/null; }; }
 export NTRACE_OUT='C:\ntrace\trace.jsonl' NTRACE_PAGES=$PAGES TRACE_SPEED=${SPEED:-1}
+[ -n "$DUMPS" ] && { mkdir -p "$DUMPS"; export NTRACE_DUMPS="Z:${DUMPS//\//\\}"; }
 if [ $EXE_NAME = Django.exe ]; then
   (cd "$M" && wine explorer /desktop=ntrace,1024x768 'C:\ntrace\xlaunch.exe' 'C:\game\Django.exe' 'C:\ntrace\ntrace.dll') > "$H/wine.log" 2>&1 &
   wpid=$!

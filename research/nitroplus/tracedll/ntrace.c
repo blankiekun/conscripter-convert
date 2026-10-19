@@ -39,12 +39,24 @@
  *                 DLL writes its first page's number into it (unless one is
  *                 still pending) and goes on; ntrace.sh --shots takes the
  *                 screen a moment later and deletes it (research/tools/picdiff.py)
+ *   NTRACE_DUMPS  Windows path of a folder: Django's statement
+ *                 `Delete("__dump_<label>")` (a name nothing has) writes the
+ *                 process's memory there as <label>.bin, with <label>.map
+ *                 (a line per region: base, size, protect, type, offset in
+ *                 the .bin, all hex) and a "dump" record. Committed, readable
+ *                 regions: private, mapped, and the exe's image (its globals);
+ *                 other modules' images and regions over NTRACE_DUMP_MAX_MB
+ *                 (default 64) are left out (map lines with offset "-").
+ *                 Taken holding the object mutex, every other thread
+ *                 suspended and the game clock held (trace_speed.h): the
+ *                 game sees no time pass. research/tools/exe_call.py loads it.
  */
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <tlhelp32.h>
 #include "../../tools/trace_speed.h"
 
 #define CALL_DISPATCH 0x470b7c
@@ -165,6 +177,63 @@ static int call_name(const unsigned char *p) {
     return n;
 }
 
+static char dump_dir[MAX_PATH];
+static DWORD dump_max = 64 << 20;
+static HANDLE *obj_mutex;
+
+static void put_line(HANDLE f, const char *fmt, ...) {
+    char b[256];
+    va_list a;
+    va_start(a, fmt);
+    int n = wvsprintfA(b, fmt, a);
+    va_end(a);
+    DWORD w;
+    WriteFile(f, b, n, &w, NULL);
+}
+
+/* the process's memory into dump_dir as <label>.bin/.map (NTRACE_DUMPS);
+ * no CRT calls while the other threads are stopped */
+static void dump(const unsigned char *label, int n) {
+    char name[64], path[MAX_PATH + 80];
+    HANDLE th[512];
+    int nth = 0, held = obj_mutex && WaitForSingleObject(*obj_mutex, 2000) == WAIT_OBJECT_0;
+    long t = ms();
+    DWORD me = GetCurrentThreadId(), pid = GetCurrentProcessId(), w;
+    LONGLONG total = 0;
+    lstrcpynA(name, (const char *)label, n + 1 < (int)sizeof name ? n + 1 : (int)sizeof name);
+    speed_hold(1);
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    THREADENTRY32 te = {sizeof te};
+    for (BOOL ok = Thread32First(snap, &te); ok && nth < 512; ok = Thread32Next(snap, &te))
+        if (te.th32OwnerProcessID == pid && te.th32ThreadID != me &&
+            (th[nth] = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te.th32ThreadID)))
+            SuspendThread(th[nth++]);
+    CloseHandle(snap);
+    wsprintfA(path, "%s\\%s.bin", dump_dir, name);
+    HANDLE bin = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+    wsprintfA(path, "%s\\%s.map", dump_dir, name);
+    HANDLE map = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+    HMODULE exe = GetModuleHandleA(NULL);
+    MEMORY_BASIC_INFORMATION m;
+    for (char *a = (char *)0x10000; a < (char *)0x7fff0000 && VirtualQuery(a, &m, sizeof m); a = (char *)m.BaseAddress + m.RegionSize) {
+        if (m.State != MEM_COMMIT || m.Protect & (PAGE_NOACCESS | PAGE_GUARD) || !m.Protect) continue;
+        if (m.Type == MEM_IMAGE && m.AllocationBase != exe) continue;
+        if (m.RegionSize > dump_max) {
+            put_line(map, "%08x %08x %x %x -\n", (unsigned)m.BaseAddress, (unsigned)m.RegionSize, (unsigned)m.Protect, (unsigned)m.Type);
+            continue;
+        }
+        put_line(map, "%08x %08x %x %x %x\n", (unsigned)m.BaseAddress, (unsigned)m.RegionSize, (unsigned)m.Protect, (unsigned)m.Type, (unsigned)total);
+        WriteFile(bin, m.BaseAddress, m.RegionSize, &w, NULL);
+        total += m.RegionSize;
+    }
+    CloseHandle(bin);
+    CloseHandle(map);
+    while (nth--) ResumeThread(th[nth]), CloseHandle(th[nth]);
+    speed_hold(0);
+    if (held) ReleaseMutex(*obj_mutex);
+    fprintf(out, "{\"t\":\"dump\",\"pg\":%ld,\"ms\":%ld,\"label\":\"%s\",\"bytes\":%lld,\"locked\":%d}\n", pages, t, name, total, held);
+}
+
 /* a statement about to be dispatched: *pos its text */
 void __cdecl nt_cmd(unsigned char *th, unsigned char **pos, unsigned char *ctx) {
     unsigned char *p = *pos;
@@ -180,6 +249,11 @@ void __cdecl nt_cmd(unsigned char *th, unsigned char **pos, unsigned char *ctx) 
         fputs(",\"op\":", out);
         put_str(p, n, 0);
         fputs("}\n", out);
+        if (dump_dir[0] && !strncmp((const char *)p, "Delete(\"__dump_", 15)) {
+            const unsigned char *l = p + 15, *e = l;
+            while (*e && *e != '"') e++;
+            dump(l, e - l);
+        }
         fflush(out);
     }
     LeaveCriticalSection(&lock);
@@ -344,7 +418,6 @@ static BOOL WINAPI nt_get_message(MSG *m, HWND h, UINT lo, UINT hi) {
  * wine). So a thread waiting for that mutex waits in 5 ms steps, and a
  * SuspendThread meant for it is carried out by the thread itself between
  * two steps, without the mutex. */
-static HANDLE *obj_mutex;
 static CRITICAL_SECTION sus_lock;
 static struct { DWORD id; int state; } sus[256]; /* state: 1 waiting, 2 suspend asked for, 3 suspending itself */
 
@@ -442,6 +515,8 @@ static void install(void) {
     InitializeCriticalSection(&lock);
     if ((p = getenv("NTRACE_PAGES"))) max_pages = atol(p);
     if ((p = getenv("NTRACE_SHOT_REQ"))) lstrcpynA(shot_req, p, sizeof shot_req);
+    if ((p = getenv("NTRACE_DUMPS"))) lstrcpynA(dump_dir, p, sizeof dump_dir), sp_force = 1;
+    if ((p = getenv("NTRACE_DUMP_MAX_MB"))) dump_max = atol(p) << 20;
     int django = !memcmp((void *)D_AFTER_LAYOUT, "\x83\xc4\x1c\x85\xc0", 5) && *(unsigned char *)D_CALL_DISPATCH == 0xe8 &&
                  *(unsigned char *)D_CALL_ENTER1 == 0xe8 && *(unsigned char *)D_CALL_ENTER2 == 0xe8;
     fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"%s (ntrace)\",\"max_pages\":%ld,\"speed\":%ld}\n",
