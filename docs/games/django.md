@@ -560,6 +560,16 @@ Open:
 
 ## History
 
+### Timing parity (2026-10-18)
+
+The dry run's `metrics.json` now holds a timing parity (`parity`, the
+dry run's `--parity-report` per scene): 450 s short in 76 scenes before
+the FadeFade fix (below), 301 s in 74 with it (dja010_01: 31.8 s short,
+then 0.8 s). The worst left: dja048_01 (44 s), dja011_03 (25 s),
+dja047_01 (21 s), dja043_02 (18 s), dja027_01 (16 s): each a lost or
+shortened motion, or parallel fades the count reads twice. Not looked
+at yet.
+
 ### FadeFade after an unwaited motion (2026-10-18)
 
 `FadeFade` (function.nss:887) is `Fade(n, 0, 0, null, true)` then the

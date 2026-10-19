@@ -206,7 +206,18 @@ through a file with `sed`.
   `--update`, and explain each changed game's 0.txt in the PR body.
   It prints each game's `gaps`/`left_out` change and exits 2 when either
   rose against `<game>.metrics.json`, unless `--accept-gaps` (say why in
-  the PR). CI also runs `dropped_lint.py` and `findings_lint.py`, each
+  the PR). The same holds for the timing parity's `short_ms`
+  (`metrics.json` `parity`: per scene, the motion time the source's
+  timed moves, fades, zooms, turns and shakes ask for against the time
+  `0.txt` animates there, through the source map; the scenes short of it
+  summed). A rise is a motion or fade the conversion lost (Django's
+  `FadeFade`: a running 16 s pan swallowed by a 0 ms fade's sync). The
+  dry run's `--parity-report <file>` lists every scene, worst first.
+  It reads only shortfalls: a scene where ours animates more (looping
+  motions the source runs from the exe's tables, a `print` over many
+  pictures) hides a loss, so it bites most in NSS (each picture's fade
+  counted per picture) and least in TYPE-MOON (`_STMA` motions not
+  counted on the source side). CI also runs `dropped_lint.py` and `findings_lint.py`, each
   with a per-game ceiling that only goes down.
   The snapshot holds a sha256 per other file the dry run writes
   (`screens/*.lua`, `ons_args`), so it names the screen a shared change
