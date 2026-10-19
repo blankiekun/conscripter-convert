@@ -91,10 +91,10 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     // every engine's folders, the warp maps of its transitions and the screens
     let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS, LAYERS]).collect();
     let output_dirs = &output_dirs[..];
-    check_output(&output, output_dirs, !loose && !dry_run)?;
+    check_output(&output, output_dirs, loose, dry_run)?;
     let font = read_font(font.as_deref())?;
     let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format(small)?, webp };
-    let Built { mut ir, notes, mut metrics, engine, engine_doc, picture_dirs, audio_dirs, package, translation } = compile(&opts)?;
+    let Built { mut ir, notes, mut metrics, engine, engine_doc, picture_dirs, audio_dirs, package, translation, asset_errors } = compile(&opts)?;
     ir.version = Some(version::line());
     // the engine fills the text from the table of the script's first `language`
     if ir.language.is_empty() {
@@ -214,7 +214,11 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         }
     }
     let files = if dry_run { dry_run_files(picture_dirs, webp.is_some()) } else { dir_files(&output)? };
-    summary(&output, &ir, lost, notes, Some(Some(&files)))
+    summary(&output, &ir, lost, notes, Some(Some(&files)))?;
+    if asset_errors > 0 {
+        bail!("{asset_errors} asset errors (\"asset error:\" above)");
+    }
+    Ok(())
 }
 
 /// `--audio-codec` and `--audio-quality`, for every convert command.
@@ -342,10 +346,14 @@ pub fn reencode_audio(output: &Path, dirs: &[&str], format: AudioFormat) -> Resu
 /// Fails if one of the asset folders `dirs` is already in `output`:
 /// packing deletes them afterwards, so a build never starts with folders
 /// that might hold someone's own files. Loose builds and dry runs don't
-/// pack (`packs` false).
-pub fn check_output(output: &Path, dirs: &[&str], packs: bool) -> Result<()> {
+/// pack. A dry run fails on a full build's folder (its `default.ttf`): its
+/// script and loose menus would replace the build's.
+pub fn check_output(output: &Path, dirs: &[&str], loose: bool, dry_run: bool) -> Result<()> {
     fs::create_dir_all(output)?;
-    if let Some(d) = dirs.iter().find(|d| packs && output.join(d).exists()) {
+    if dry_run && output.join("default.ttf").exists() {
+        bail!("{} holds a full build; dry-run into another folder", output.display());
+    }
+    if let Some(d) = dirs.iter().find(|d| !loose && !dry_run && output.join(d).exists()) {
         bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
     }
     Ok(())
@@ -576,6 +584,34 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(report.contains("cg\\missing.png") || report.contains("cg/missing.png"), "{report}");
         assert!(!report.contains("a.png"), "{report}");
+    }
+
+    #[test]
+    fn check_output_guards_folders_and_full_builds() {
+        let dir = std::env::temp_dir().join(format!("conv-check-output-test-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("cg")).unwrap();
+        // a packing build refuses an asset folder already there; loose builds and dry runs don't pack
+        assert!(super::check_output(&dir, &["cg"], false, false).is_err());
+        assert!(super::check_output(&dir, &["cg"], true, false).is_ok());
+        assert!(super::check_output(&dir, &["cg"], false, true).is_ok());
+        // a dry run refuses a full build's folder
+        std::fs::write(dir.join("default.ttf"), b"").unwrap();
+        assert!(super::check_output(&dir, &["cg"], false, true).is_err());
+        assert!(super::check_output(&dir, &["cg"], true, false).is_ok());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn pack_archives_the_folders_and_deletes_them() {
+        let dir = std::env::temp_dir().join(format!("conv-pack-test-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("cg/sub")).unwrap();
+        std::fs::write(dir.join("cg/sub/a.png"), b"A").unwrap();
+        std::fs::write(dir.join("0.txt"), b"*start\nend\n").unwrap();
+        super::pack(&dir, &["cg", "absent"]).unwrap();
+        assert!(!dir.join("cg").exists() && !dir.join("script.hash").exists());
+        let names = conv_cons::nsa::read_names(&dir.join("arc.nsa")).unwrap();
+        assert_eq!(names, ["cg\\sub\\a.png", conv_cons::nsa::SCRIPT_HASH]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

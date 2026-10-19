@@ -199,9 +199,6 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         }
         _ => None,
     };
-    for e in assets.out.errors.iter().chain(en_assets.iter().flat_map(|a| &a.out.errors)) {
-        println!("  asset error: {e}");
-    }
     if std::env::var_os("NSS_TRACE").is_some() {
         let mut flags: Vec<_> = base.flags.iter().map(|(name, &v)| (v.global, v.index, conv_core::alloc::number(v, convert::GLOBAL_BORDER), name)).collect();
         flags.sort();
@@ -248,10 +245,14 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
             std::fs::write(opts.output.join("default.en.ttf"), f)?;
         }
     }
+    for e in assets.out.errors.iter().chain(en_assets.iter().flat_map(|a| &a.out.errors)) {
+        println!("  asset error: {e}");
+    }
+    let asset_errors = assets.out.errors.len() + en_assets.iter().map(|a| a.out.errors.len()).sum::<usize>();
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
     let mut metrics = base.metrics;
     metrics.merge(port);
-    Ok(Built { ir, notes: base.notes, metrics, engine: "nitroplus", engine_doc: "nitroplus-nss", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None, translation })
+    Ok(Built { ir, notes: base.notes, metrics, engine: "nitroplus", engine_doc: "nitroplus-nss", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None, translation, asset_errors })
 }
 
 /// Writes `cons_archives.txt` (each script folder and its archive) and
