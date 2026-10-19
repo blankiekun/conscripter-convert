@@ -87,7 +87,10 @@ bullet you need.
 - One function of the exe without the game: `research/tools/.venv/bin/python
   -I research/tools/exe_call.py <exe> <addr|*table+4*i> [args] --ret
   float` (PE, Vita ELF, Switch NSO under Unicorn; `docs/new-game.md`,
-  "Running one exe function").
+  "Running one exe function"). Setup, once per machine:
+  `research/tools/setup-venv.sh` (makes `research/tools/.venv` with
+  unicorn 2.1.4 and runs exe_call's self-test,
+  `research/tools/test_exe_call.py`, which CI runs too).
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
   file X:..." on stderr.
 
