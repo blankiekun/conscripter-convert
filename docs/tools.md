@@ -219,8 +219,9 @@ through a file with `sed`.
   On a conflict in `tests/snapshots/` never take one side: rebase, rerun
   `--update`, and explain each changed game's 0.txt in the PR body.
   It prints each game's `gaps`/`left_out` change and exits 2 when either
-  rose against `<game>.metrics.json`, unless `--accept-gaps` (say why in
-  the PR). The same holds for the timing parity's `short_ms`
+  rose against `<game>.metrics.json`, or a channel of its `score` (or the
+  total) fell by over 0.01 (`research/tools/score_fell.py`), unless
+  `--accept-gaps` (say why in the PR). The same holds for the timing parity's `short_ms`
   (`metrics.json` `parity`: per scene, the motion time the source's
   timed moves, fades, zooms, turns and shakes ask for against the time
   `0.txt` animates there, through the source map; the scenes short of it
