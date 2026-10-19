@@ -332,6 +332,29 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   pages pair; missing 48, extra 213 (168 of them pre-zoomed copies still
   unmatched), end 29, path 33, duration 24, zoom 4, copy 13. The whole
   route runs overnight (2026-10-19, `scene_chain.py --quiet 120`).
+- **The whole route, frame by frame** (2026-10-19): all 159 story scenes
+  played from saves (`scene_saves.py --at end`, `scene_chain.py --quiet
+  120`, `ntrace.sh --frames --clicks 700`, 1x, capped at 1.5 GB). It took
+  42 segments, every scene reached, about 5 h 20 min, 9,380 s of game
+  time, and 781 MB with the scene dumps. That is 5,654 pages and 708,368
+  `obj` records. Ours: the full build (`--source-map`) in a scratch run,
+  `--goto conv_title_start --auto-play 0 --real-time` with a `--choose` at
+  each choice plate: 9,176 pages in 353 s. `frame_diff.py <segments>
+  <ours> --map <map> --groups 15`: 5,576 of 5,654 pages pair. Missing
+  1,656, extra 2,149, end 740, path 943, duration 688, zoom 174; copy 265
+  are not differences. The largest groups, to triage (Next 4):
+  1. missing `color:…` (414): the original's colour boxes fade
+     (`CreateColor` + `Fade`); ours draws most as a screen transition, not a
+     sprite, so the pairing sees none. Check what is real.
+  2. extra `cg/sys/windowframe.png` (174): our text window's frame sprite
+     moves; the original's isn't an object that moves.
+  3. missing `frame03`/`frame04` (89): the face windows' frames
+     (`@LoadFrame`), drawn otherwise in ours.
+  4. missing `cg/sys/push/長押しメッセージN.png` (40, dja050): the
+     "hold" prompts' blink.
+  5. extra pre-zoomed copies (`system/zoom/…`, about 150 over many
+     pictures) and backgrounds that move in ours, but not as the original
+     moves them in the same page window.
 - **Memory snapshots** (2026-10-18): `ntrace.sh --probe
   research/nitroplus/sched_probe.nss --dumps
   research/nitroplus/local/dumps --pages 2 --seconds 240` runs the probe's
@@ -573,6 +596,8 @@ Open:
    original's frames.
 3. Extras: film the doors and the rifle beside the original once wine
    is next used (ours from the scripts' times only).
+4. The whole-route frame diff ("Running the original under wine", "The
+   whole route, frame by frame"): triage its five largest groups.
 4. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
    kinds, 18,947 notes at the 2026-10-16 dry run), most visible first;
    what the original does is from the scripts and

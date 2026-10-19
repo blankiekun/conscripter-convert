@@ -653,7 +653,10 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   (ids 1, 12-17, 111, 112) change state about 60 times, but none moves
   between two pages; ours has no sprite motion there either (only
   effects), so no motion differs. The parts of the game with moving
-  pictures need a save to reach them.
+  pictures need a save to reach them. Not pursued (2026-10-19): the
+  reference route's 17,274 pages hold no key-frame motion (`0x86`); the
+  moving pictures are fx animations (`0x8b`) and screen effects, whose
+  timing `trace_diff.py` already compares, so `--frames` stays as it is.
 - **Trace speed**: `SPEED=4 GAME=<install> research/xuse/tracedll/xtrace.sh
   ...` plays 1.0 s a page instead of 3.8, its `f` and `ms` in game time
   (17 of 17 timed steps within 2 frames of a 1x run); `SPEED=8` drifts
