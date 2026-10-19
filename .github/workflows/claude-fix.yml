@@ -85,20 +85,26 @@ jobs:
 
             Notes from blankiekun: ${{ github.event.client_payload.notes || '(none)' }}
 
-      # Also when Claude failed, so its session still reaches Discord
-      - name: Hand over the change
+      # Also when Claude failed, so its session still reaches Discord. The key's step runs
+      # only openssl (by full path): git reads hooks, filters and config Claude may have
+      # written, so it runs after, in a step without the key.
+      - name: Encrypt the session
         if: ${{ !cancelled() && steps.claude.outcome != 'skipped' }}
         env:
           SESSION: ${{ steps.claude.outputs.execution_file }}
           KEY: ${{ secrets.REPORT_SECRET }}
         run: |
-          [ -f .bug-report/pr.md ] || echo "Claude didn't write pr.md." > .bug-report/pr.md
           mkdir -p /tmp/out
-          cp .bug-report/pr.md /tmp/out/pr.md
           # Artifacts of a public repository can be downloaded by anyone, and the session
           # holds the player's report (and whatever Claude printed): encrypted until the
           # publish job, on a fresh runner, has checked it for secrets.
-          [ ! -f "$SESSION" ] || openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in "$SESSION" -out /tmp/out/session.json.enc
+          [ ! -f "$SESSION" ] || /usr/bin/openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in "$SESSION" -out /tmp/out/session.json.enc
+
+      - name: Hand over the change
+        if: ${{ !cancelled() && steps.claude.outcome != 'skipped' }}
+        run: |
+          [ -f .bug-report/pr.md ] || echo "Claude didn't write pr.md." > .bug-report/pr.md
+          cp .bug-report/pr.md /tmp/out/pr.md
           git add -A
           git diff --cached --binary > /tmp/out/change.patch
 
