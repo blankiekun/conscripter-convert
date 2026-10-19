@@ -10,8 +10,9 @@ OURS: CONscripter's --trace of a --real-time --auto-play run, whose
 "sample" records give each moving sprite every few frames (engine/DEBUG.md).
 MAP: the converter's --source-map. Pages pair by the instruction that shows
 them (in order, any distance ahead: a run may start earlier). Between two
-paired pages, each object the original moves (two records differing in x,
-y or alpha) is a motion, matched to our sprite showing the same picture
+paired pages (one window), each object the original moves (two records differing in x,
+y or alpha) is a motion, matched to our sprite showing the same picture in that window
+or the one before or after it (the two runs' page times differ)
 (research/tools/scene_check.py's key). Kinds: missing (ours doesn't move
 it), extra (ours moves a picture the original doesn't), copy (a second
 sprite of a picture both move, as our cross-fades between zooms make;
@@ -101,42 +102,48 @@ def at_fraction(seq, f):
 
 
 def compare(o_pages, o_objs, u_pages, u_samples, tol_px=4, tol_ms=50):
-    finds = []
+    """motions per paired page window, matched by picture within the same
+    window or the next/previous one (page timing differs between the two)"""
+    finds, om_all, um_all = [], [], []
     pairs = pair(o_pages, u_pages)
-    for (i, k), (i2, k2) in zip(pairs, pairs[1:] + [(len(o_pages), len(u_pages))]):
+    for w, ((i, k), (i2, k2)) in enumerate(zip(pairs, pairs[1:] + [(len(o_pages), len(u_pages))])):
         # to the next paired page, at most WINDOW ms (the last page's runs on to the end of the trace)
         olo = o_pages[i]["ms"]
         ohi = min(o_pages[i2]["ms"] if i2 < len(o_pages) else olo + WINDOW, olo + WINDOW)
         ulo = u_pages[k]["ms"]
         uhi = min(u_pages[k2]["ms"] if k2 < len(u_pages) else ulo + WINDOW, ulo + WINDOW)
-        om = motions(o_objs, olo, ohi, "n")
-        um = motions(u_samples, ulo, uhi, "n")
-        left = dict(um)
         page = o_pages[i]["at"]
-        for name, seq in om.items():
-            kk = key(seq[0]["pic"])
-            cand = [n for n, s in left.items() if key(s[0]["pic"]) == kk]
-            if not cand:
-                finds.append(("missing", page, f"{name} {seq[0]['pic']} {seq[0]['x']},{seq[0]['y']} -> {seq[-1]['x']},{seq[-1]['y']} over {seq[-1]['ms'] - seq[0]['ms']} ms"))
-                continue
-            n = min(cand, key=lambda n: abs((left[n][0]["ms"] - ulo) - (seq[0]["ms"] - olo)))
-            us = left.pop(n)
-            if zoomed(us[0]["pic"]):  # our pre-zoomed copy: its box's corner isn't the object's; compare how far it moved
-                dx, dy = us[0]["x"] - seq[0]["x"], us[0]["y"] - seq[0]["y"]
-                us = [dict(r, x=r["x"] - dx, y=r["y"] - dy) for r in us]
-            if abs(us[-1]["x"] - seq[-1]["x"]) > tol_px or abs(us[-1]["y"] - seq[-1]["y"]) > tol_px:
-                finds.append(("end", page, f"{seq[0]['pic']}: original {seq[-1]['x']},{seq[-1]['y']}, ours {us[-1]['x']},{us[-1]['y']}"))
-            do, du = seq[-1]["ms"] - seq[0]["ms"], us[-1]["ms"] - us[0]["ms"]
-            if abs(do - du) > tol_ms:
-                finds.append(("duration", page, f"{seq[0]['pic']}: original {do} ms, ours {du} ms"))
-            if not zoomed(us[0]["pic"]) and abs(us[-1].get("z", 100) - seq[-1].get("z", 100)) > TOL_ZOOM:
-                finds.append(("zoom", page, f"{seq[0]['pic']}: original {seq[-1]['z']:.0f} %, ours {us[-1]['z']:.0f} %"))
-            gap = max(max(abs(a - b) for a, b in zip(at_fraction(seq, f / 10), at_fraction(us, f / 10))) for f in range(11))
-            if gap > tol_px:
-                finds.append(("path", page, f"{seq[0]['pic']}: {gap} px apart at the same fraction"))
-        shown = {key(q[0]["pic"]) for q in om.values()}  # a second sprite of a picture the original moves: our cross-fade copy
-        finds += [("copy" if key(s[0]["pic"]) in shown else "extra", page, f"{s[0]['pic']} {s[0]['x']},{s[0]['y']} -> {s[-1]['x']},{s[-1]['y']}")
-                  for s in left.values()]
+        om_all += [(w, page, name, seq) for name, seq in motions(o_objs, olo, ohi, "n").items()]
+        um_all += [(w, page, n, seq) for n, seq in motions(u_samples, ulo, uhi, "n").items()]
+    left = list(um_all)
+    keys_o = {}
+    for w, page, name, seq in om_all:
+        keys_o.setdefault(key(seq[0]["pic"]), set()).add(w)
+    for w, page, name, seq in om_all:
+        kk = key(seq[0]["pic"])
+        cand = [c for c in left if key(c[3][0]["pic"]) == kk and abs(c[0] - w) <= 1]
+        if not cand:
+            finds.append(("missing", page, f"{name} {seq[0]['pic']} {seq[0]['x']},{seq[0]['y']} -> {seq[-1]['x']},{seq[-1]['y']} over {seq[-1]['ms'] - seq[0]['ms']} ms"))
+            continue
+        c = min(cand, key=lambda c: (abs(c[0] - w), zoomed(c[3][0]["pic"])))
+        left.remove(c)
+        us = c[3]
+        if zoomed(us[0]["pic"]):  # our pre-zoomed copy: its box's corner isn't the object's; compare how far it moved
+            dx, dy = us[0]["x"] - seq[0]["x"], us[0]["y"] - seq[0]["y"]
+            us = [dict(r, x=r["x"] - dx, y=r["y"] - dy) for r in us]
+        if abs(us[-1]["x"] - seq[-1]["x"]) > tol_px or abs(us[-1]["y"] - seq[-1]["y"]) > tol_px:
+            finds.append(("end", page, f"{seq[0]['pic']}: original {seq[-1]['x']},{seq[-1]['y']}, ours {us[-1]['x']},{us[-1]['y']}"))
+        do, du = seq[-1]["ms"] - seq[0]["ms"], us[-1]["ms"] - us[0]["ms"]
+        if abs(do - du) > tol_ms:
+            finds.append(("duration", page, f"{seq[0]['pic']}: original {do} ms, ours {du} ms"))
+        if not zoomed(us[0]["pic"]) and abs(us[-1].get("z", 100) - seq[-1].get("z", 100)) > TOL_ZOOM:
+            finds.append(("zoom", page, f"{seq[0]['pic']}: original {seq[-1]['z']:.0f} %, ours {us[-1]['z']:.0f} %"))
+        gap = max(max(abs(a - b) for a, b in zip(at_fraction(seq, f / 10), at_fraction(us, f / 10))) for f in range(11))
+        if gap > tol_px:
+            finds.append(("path", page, f"{seq[0]['pic']}: {gap} px apart at the same fraction"))
+    for w, page, n, s in left:  # a second sprite of a picture the original moves there: our cross-fade copy
+        near = any(abs(x - w) <= 1 for x in keys_o.get(key(s[0]["pic"]), ()))
+        finds.append(("copy" if near else "extra", page, f"{s[0]['pic']} {s[0]['x']},{s[0]['y']} -> {s[-1]['x']},{s[-1]['y']}"))
     return pairs, finds
 
 
