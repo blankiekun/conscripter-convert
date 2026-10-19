@@ -646,9 +646,14 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   (+0x184/+0x188), `a` (opacity 0-256, +0x1b2), `sx`/`sy` (scale in percent,
   +0x1a8/+0x1ac) and `r` (+0x1b0, mod 3600), as the key-frame motion
   (`0x417580`) and `0x40f160`/`0x40f100` write them. The first 6 pages (102
-  s at 1x) show the opening's objects at 100 % and opacity 256. Not yet
-  compared with ours: `frame_diff.py` pairs objects by picture name, and this
-  trace has only slot numbers.
+  s at 1x) show the opening's objects at 100 % and opacity 256.
+  `frame_diff.py` matches these nameless objects to our motions by where
+  they start (within 64 px). First compare (2026-10-19), the first 300 pages
+  at `SPEED=4` (337 s): 298 of 300 pages pair. The original's 10 objects
+  (ids 1, 12-17, 111, 112) change state about 60 times, but none moves
+  between two pages; ours has no sprite motion there either (only
+  effects), so no motion differs. The parts of the game with moving
+  pictures need a save to reach them.
 - **Trace speed**: `SPEED=4 GAME=<install> research/xuse/tracedll/xtrace.sh
   ...` plays 1.0 s a page instead of 3.8, its `f` and `ms` in game time
   (17 of 17 timed steps within 2 frames of a 1x run); `SPEED=8` drifts
