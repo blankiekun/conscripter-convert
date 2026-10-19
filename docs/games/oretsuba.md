@@ -518,7 +518,8 @@ four after-stories. Messages, voices, sprites, characters and their
 motions, transitions, effects, movies, title and START's story menu,
 button bar, save/load, backlog, settings (the Vita's look and
 defaults), the CG gallery, music room and movie room, boot logos. Web
-build tested headless. Output 960×544.
+build tested headless. Output 960×544. Dry-run gaps 947 (`:SpriteMax`
+read as the eboot does: ignored on moves and actions).
 
 **Open:**
 - Looks against the original (needs Vita frames; Vita3K is shaky, so

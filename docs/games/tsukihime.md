@@ -940,8 +940,9 @@ Flowchart and Movie. The Ending List replays the lessons (History,
    chapter start (`_SELA`, `_ATSV`/`_WTSV`), the
    scenes' read flags (`_RDED(1..532)`, for the Flowchart; the
    lessons' are done, History 2026-10-18 "lesson read flags"), the
-   `_SELD`'s choice number. `_FANX`, `_STQK` and `_TRPY` have no case in the
-   exe: the next converter PR adds them to `LEFT_OUT`.
+   `_SELD`'s choice number. (`_FANX`, `_STQK`, `_TRPY`, `_NOP_` and the
+   picture cache `_SPFC`/`_SPRC` are in `LEFT_OUT`: the exe draws
+   nothing for them.)
 7. The first launch's prologue (ours: straight to the title). Leads:
    flag 485 unread sends the title's setup (`FUN_00190180`) down the
    first-launch branch (`DAT_00be0e98`) and the game mode

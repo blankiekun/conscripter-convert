@@ -265,6 +265,13 @@ impl Compiler<'_, '_> {
                     }
                 }
                 if children.is_empty() {
+                    // Nothing moves: the tempo is moot, and a wait of no
+                    // time (or none) loses nothing (findings row MoveCamera
+                    // wait); a timed wait stays a gap.
+                    drop(arg(5));
+                    if arg(1).int() <= 0 || !arg(6).truthy() {
+                        drop(arg(6));
+                    }
                     return Value::Null;
                 }
                 self.set_tempo(tempo(&arg(5)), &children);

@@ -298,6 +298,15 @@ const UNREAD_HARMLESS: &[(&str, usize, &str)] = &[
 const LEFT_OUT: &[(&str, &str)] = &[
     // `script_command` (0x177790) has no case for it: the Switch exe does nothing.
     ("_SNX4", "the Switch exe ignores it"),
+    ("_FANX", "the Switch exe ignores it"),
+    ("_STQK", "the Switch exe ignores it"),
+    ("_TRPY", "the Switch exe ignores it"),
+    // Its case does nothing.
+    ("_NOP_", "the Switch exe ignores it"),
+    // A cache of pictures loaded ahead (FUN_001b6a20) and its release:
+    // nothing drawn; CONscripter loads a picture when it shows it.
+    ("_SPFC", "a picture cache: the engine loads pictures as they show"),
+    ("_SPRC", "a picture cache: the engine loads pictures as they show"),
     // `script_command` stores the page in the state (+0x8c4) for the save; its
     // only reader is the load (`FUN_00182330` → `FUN_00182c60`), which replays
     // the script until `_PGST` reaches the saved page. CONscripter's saves
@@ -1772,6 +1781,12 @@ mod tests {
         let (a, b) = (Some("pic/a.webp".to_string()), Some("pic/b.webp".to_string()));
         // a (10) under b (20); a raised to 50 goes over b; b at 0 isn't drawn.
         assert_eq!(drawn, [(38, b.clone()), (39, a.clone()), (38, a.clone()), (39, b), (38, None), (39, a)]);
+    }
+
+    #[test]
+    fn opcodes_the_exe_skips_are_left_out() {
+        let c = compile(&game("_FANX(1,0,0);_STQK();_SPFC(1,img1);_SPRC();"));
+        assert_eq!((c.metrics.totals(), c.metrics.left_out_total()), ((4, 0), 4));
     }
 
     #[test]

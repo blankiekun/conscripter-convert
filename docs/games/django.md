@@ -547,8 +547,9 @@ Open:
       eased fade; ours linear. Hard to see.
    2. `Rotate` 5, tempo (42 left): read for turns about x or y over
       time; the rest are about z (`spmotion` straight) or in loops.
-   3. No-change candidates: `MoveCamera` 6 (15, a camera with no
-      children yet: nothing moves) and `CreateEffect` 2-3 (1, the
+   3. No-change candidate: (`MoveCamera` 5-6 on a camera with no
+      children read, not noted, when its wait loses nothing: 15 gaps
+      gone) `CreateEffect` 2-3 (1, the
       `Sepia` effect at 0,0 over the whole screen; Muramasa's undrawn
       effects pass 0 too). Left noted.
 5. Sounds kept until their end (`convert/sounds.rs`): the sound clock
