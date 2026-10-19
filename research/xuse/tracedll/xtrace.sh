@@ -3,7 +3,7 @@
 # and write its JSONL trace. Headless: own Xvfb, ja_JP locale, null audio.
 #
 #   xtrace.sh -o trace.jsonl [--save SLOT.bin] [--choices 12,34|none]
-#             [--route 16=0,18=1,...] [--pages N] [--seconds S] [--shot NAME.png] [--no-cover]
+#             [--route 16=0,18=1,...] [--pages N] [--seconds S] [--shot NAME.png] [--no-cover] [--frames]
 #
 # SPEED=N runs the game N times as fast (its clock and waits scaled by
 # research/tools/trace_speed.h; "ms" and "f" stay in game time, so the
@@ -20,7 +20,8 @@
 # that label; xtrace.c XTRACE_ROUTE): the whole game's heroine links are
 # in docs/games/saihate-no-ima.md, "Reference trace". Unless --no-cover, research/xuse/cover.py
 # addrs arms one-shot breakpoints ("hit" records; cover.py mark turns them
-# into the findings table's marks). Records: research/xuse/tracedll/xtrace.c.
+# into the findings table's marks). --frames: an "obj" record per changed
+# object each frame (xtrace.c XTRACE_FRAMES). Records: research/xuse/tracedll/xtrace.c.
 set -e
 [ -n "${HEADLESS:-}" ] || exec "$(dirname "$0")/../../../research/tools/headless-run.sh" "$0" "$@"
 here=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +31,7 @@ OUT= SAVE= CHOICES= ROUTE= PAGES=200 SECS=600 SHOT= COVER=1
 while [ $# -gt 0 ]; do case $1 in
   -o) OUT=$2; shift 2;; --save) SAVE=$2; shift 2;; --choices) CHOICES=$2; shift 2;; --route) ROUTE=$2; shift 2;;
   --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;; --no-cover) COVER=; shift;;
-  --shot) SHOT=$2; shift 2;; *) sed -n '2,25p' "$0"; exit 2;; esac; done
+  --shot) SHOT=$2; shift 2;; --frames) export XTRACE_FRAMES=1; shift;; *) sed -n '2,26p' "$0"; exit 2;; esac; done
 [ -n "$OUT" ] && [ -d "$GAME/HD" ] || { echo "need -o and GAME=<install folder>" >&2; exit 2; }
 
 mkdir -p "$H/build"
