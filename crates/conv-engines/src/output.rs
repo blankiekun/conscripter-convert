@@ -20,6 +20,18 @@ pub fn written() -> BTreeSet<String> {
     WRITTEN.lock().unwrap().clone()
 }
 
+/// Writes `data` to `path`, making its folders, through `<path>.part`: an
+/// interrupted build leaves no truncated file that [`Output::have`] would keep.
+pub fn write_file(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    let mut part = path.as_os_str().to_owned();
+    part.push(".part");
+    let result = path.parent().map_or(Ok(()), fs::create_dir_all).and_then(|_| fs::write(&part, data)).and_then(|_| fs::rename(&part, path));
+    if result.is_err() {
+        let _ = fs::remove_file(&part);
+    }
+    result
+}
+
 /// The output directory of a build, as the asset banks write into it.
 pub struct Output {
     pub root: PathBuf,
@@ -34,7 +46,7 @@ impl Output {
         Output { root: root.to_path_buf(), dry_run: false, errors: Vec::new() }
     }
 
-    /// Writes `data` to `rel` (relative to the root), making its folders.
+    /// Writes `data` to `rel` (relative to the root), as [`write_file`].
     /// A failure goes to [`Output::errors`].
     pub fn write(&mut self, rel: &str, data: &[u8]) {
         record(rel);
@@ -42,8 +54,7 @@ impl Output {
             return;
         }
         let dest = self.root.join(rel);
-        let result = dest.parent().map_or(Ok(()), fs::create_dir_all).and_then(|_| fs::write(&dest, data));
-        if let Err(e) = result {
+        if let Err(e) = write_file(&dest, data) {
             self.errors.push(format!("{}: {e}", dest.display()));
         }
     }
@@ -134,6 +145,7 @@ mod tests {
         out.dry_run = false;
         out.write_png("a/c.png", &image::RgbaImage::new(3, 2));
         assert_eq!(image_size(&fs::read(dir.join("a/c.png")).unwrap()), Some((3, 2)));
+        assert!(!dir.join("a/c.png.part").exists());
         assert!(out.errors.is_empty());
         fs::remove_dir_all(&dir).unwrap();
     }
