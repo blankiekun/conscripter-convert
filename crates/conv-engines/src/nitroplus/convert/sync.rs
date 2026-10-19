@@ -18,8 +18,11 @@ impl Compiler<'_, '_> {
         let ours = |r: &&Run| self.shown.get(name).is_some_and(|s| s.source == r.to.source && (s.x, s.y) == (r.to.x, r.to.y));
         let Some(r) = self.runs.get(name).filter(|r| r.at + u64::from(r.ms) > clock).filter(ours) else { return };
         let done = (clock - r.at) as i64;
-        let at = |a: i64, b: i64| a + (b - a) * done / i64::from(r.ms) - b;
-        let (dx, dy) = (at(r.from.x, r.to.x), at(r.from.y, r.to.y));
+        // (By its centre: a zoom over the same time ends at once, about it.)
+        let centre = |s: &Shown| s.whole.map_or((s.x + s.w / 2, s.y + s.h / 2), |(x, y, w, h)| (x + w / 2, y + h / 2));
+        let ((x0, y0), (x1, y1)) = (centre(&r.from), centre(&r.to));
+        let at = |a: i64, b: i64| (b - a) * done / i64::from(r.ms) - (b - a);
+        let (dx, dy) = (at(x0, x1), at(y0, y1));
         if let Some(o) = self.objects.get_mut(name) {
             (o.x, o.y) = (o.x + dx, o.y + dy);
         }
