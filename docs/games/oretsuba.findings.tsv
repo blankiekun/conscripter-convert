@@ -1,4 +1,4 @@
-# 俺たちに翼はない (PS Vita) eboot mapping: one row per task argument or branch the 463 scenes use (docs/new-game.md step 16).
+# 俺たちに翼はない (PS Vita) eboot mapping: one row per task argument or branch the 463 scenes use (docs/new-game-reference.md, "Findings table").
 # Exe: the decrypted eboot.bin of PCSG00299 (Ghidra, code at 0x81000000; scene_load 0x8102840a reads a task, 0x8100da30 starts it, task_run 0x81021070 runs it).
 # mark: seen (decompile, data or dry run shows it), inferred (names, layout), unknown. check: the cheapest way to settle an open row. Uses: [TaskN] blocks in SCRIPT.cpk's scenes.
 # Units: the game updates at 30 fps (0x810009b4 waits 2 vblanks a frame, 0x8104ffe4 passes mode 2); every script time counts 60 fps frames, halved into updates (time × 30/60) or turned into ms (time × 1000/60).

@@ -46,7 +46,7 @@ Decompile:
 
 12,567 functions; `research/nitroplus/en-names.tsv` (1,806 rows) names
 them (Muramasa.exe's are in `names.tsv`). The registrations were read
-from objdump's disassembly (`docs/new-game.md` §2, "Mapping the whole
+from objdump's disassembly (`docs/new-game-reference.md`, "Mapping the whole
 exe").
 
 - **Map:** 0x401960 `app_main` (reads `system.npk`'s `system.dat`,

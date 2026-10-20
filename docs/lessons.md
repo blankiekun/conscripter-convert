@@ -57,7 +57,7 @@ apply them are in `docs/new-game.md`.
   whole exe" into a bounded list of differences actually used; code
   reached only through function pointers has to be turned into functions
   before the decompiled output shows what a built-in does
-  (`docs/new-game.md` §2, "Mapping the whole exe").
+  (`docs/new-game-reference.md`, "Mapping the whole exe").
 - **What the original does is a question for its code, not the user.**
   "Does a new BGM cut the one fading out?" waited a day on the user; the
   decompiles answered it in an hour. Rebuild a missing Ghidra export
@@ -70,7 +70,7 @@ apply them are in `docs/new-game.md`.
   placed, but its size, which clips them, was never read; the user saw
   the cockpit's tapes run the whole screen. Coverage is per argument and
   behaviour, and the built-in dispatch notes every argument it doesn't
-  read (`docs/new-game.md` step 5).
+  read (`docs/new-game-reference.md`, "Route simulation").
 - **Read the scripts' comments.** (俺たちに翼はない) Ports often keep the original's names
   in comments next to the numbers that replaced them (`:Texture 0 //
   BG_BLACK`, `:Voice 22562 // TAK1004`). Checking every commented number
@@ -99,7 +99,7 @@ apply them are in `docs/new-game.md`.
   run-time rules, the converted `0.txt`) and diff page by page,
   including the wrong-order clicks the walkthrough warns about. Static
   reading and spot runs missed a link that stayed clickable after a
-  jump skipped its record (`docs/new-game.md` step 11).
+  jump skipped its record (`docs/new-game-reference.md`, "Route simulation").
 - **Whole-corpus runs find what single scenes don't.** (村正) Two engine-killing
   bugs only showed on the full game: more than 254 transition effects
   (`effect` numbers stop at 255) and a half-width character in vertical
@@ -127,7 +127,7 @@ apply them are in `docs/new-game.md`.
   before and after each overlap case took one 40 s wine run. The dumps
   answered the FadeFade question outright (the pan's step counter went
   on through `Fade(0)`), and the exe's own frame function then steps
-  them under Unicorn with no further wine (`docs/new-game.md`,
+  them under Unicorn with no further wine (`docs/new-game-reference.md`,
   "Snapshot oracle").
 - **Measure reference screenshots** for layout (text box, name plate).
 - **A wine prefix shares the user's home by default** (Documents etc.

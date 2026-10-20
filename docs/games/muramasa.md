@@ -252,7 +252,7 @@ when the compiler changes):
 
 ## Testing
 
-- **Logic:** the dry run. **Route check** (`docs/new-game.md` step 11):
+- **Logic:** the dry run. **Route check** (`docs/new-game-reference.md`, "Route simulation"):
   `nstrace.py` runs `0.txt`'s control flow along each committed path and
   checks every file-to-file step against the route map; every ending
   and five bad ends are reached. `PUZZLE 1`/`PUZZLE 0` in a path solves
@@ -313,7 +313,7 @@ The last resort (CLAUDE.md, Rules). Also the recipe for 続・殺戮のジャン
   title with no logos, uncomment `//$Logo = true;` in `0_boot.nss`. Or
   write a save that goes to any scene ("Save format"); `Load(3);` after
   `#play_speed_plus = #SYSTEM_play_speed;` in `0_boot.nss` loads it.
-- **Trace DLL** (`docs/new-game.md` step 22): `GAME=<game>
+- **Trace DLL** (`docs/new-game-reference.md`, "Trace DLL"): `GAME=<game>
   research/nitroplus/tracedll/ntrace.sh -o orig.jsonl --pages 60` plays
   from `ma00_000` with no clicks and writes a `cmd` record per call
   statement (`op`, `at` = `<file>:<line>`, `ms`, `th`, 0 the story) and
@@ -326,7 +326,7 @@ The last resort (CLAUDE.md, Rules). Also the recipe for 続・殺戮のジャン
   `if(0){` and the 立方陣's (`function_magiccube.nss` line 261) into
   `$立方陣正解=true;$Loop_end=false;$Answer=true;if(0){`, each on its
   own line.
-- **Trace diff** (`docs/new-game.md` step 23): build with
+- **Trace diff** (`docs/new-game-reference.md`, "Trace diff"): build with
   `--source-map`, run ours, diff:
 
   ```sh
@@ -381,7 +381,7 @@ python3 -I research/tools/nitroplus_save.py write <game>/Muramasa.exe <saves>/00
 ## Per-scene snapshots
 
 A memory dump of the original at the start of every story scene, from
-saves (`docs/new-game.md`, "Snapshot oracle"):
+saves (`docs/new-game-reference.md`, "Snapshot oracle"):
 
 ```sh
 python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa <nss>

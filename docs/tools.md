@@ -18,9 +18,9 @@ Read the bullet you need.
 - A new Windows game's first look and its one logged wine run:
   `research/tools/firstcontact/first_contact.py <install>` (report,
   hooks) and `fc.sh <install>` (API-level trace, capped WebP shots);
-  `docs/new-game.md` step 0.3.
+  `docs/new-game.md` step 3.
 - Debug trace (reference: `engine/DEBUG.md`;
-  recipes: `docs/new-game.md`, "Checking a build with the debug
+  recipes: `docs/new-game-reference.md`, "Checking a build with the debug
   trace"): `--trace t.jsonl --auto-play 0 --save-dir <scratch>` plays
   the game by itself, headless with `SDL_VIDEODRIVER=dummy` (no Xvfb),
   and writes one JSON line per page, per command that changed the
@@ -48,21 +48,21 @@ Read the bullet you need.
   button with no picture (Django at its first choice plate, page 559).
   Runs are left in `out/playback/<game>`; `--self-test` checks the
   compare.
-- Against the original (a trace of it, `docs/new-game.md` steps 22-23):
+- Against the original (a trace of it, `docs/new-game-reference.md`, "Trace DLL" and "Trace diff"):
   `research/tools/trace_diff.py orig.jsonl ours.jsonl --map <the
   build's --source-map file>` prints the pages' text, command and time
   differences (`--self-test` tests it). A wine original's trace
   (`xtrace.sh`, `ntrace.sh`) runs N times as fast with `SPEED=N`, its
   times still comparable (4 for 最果てのイマ, 8 for the Nitroplus games);
-  the Switch one with `IDLEA=0.3` (`docs/new-game.md`, "Trace speeds").
+  the Switch one with `IDLEA=0.3` (`docs/new-game-reference.md`, "Trace speeds").
 - Picture diff per page against the original: `ntrace.sh --shots <dir>`
   (a frame per text block) and our `--shot-every 1`, then
   `research/tools/picdiff.py orig.jsonl <dir> ours.jsonl <dir> --map
   <map> --ms --thread 0 --mask <text window>`: differing pixels, RMSE
   and their box per page, worst first, views of the worst
-  (`docs/new-game.md`, "Picture diff"; lossy WebP: `--fuzz 15`).
+  (`docs/new-game-reference.md`, "Picture diff"; lossy WebP: `--fuzz 15`).
 - Frames mid-effect: the trace's `--shot-effects 25,50,75`. Patched-script
-  runs: `docs/new-game.md` step 9 and "When the trace
+  runs: `docs/new-game-reference.md`, "Matching the original" and "When the trace
   can't do it". Anything that needs a display (Xvfb, wine, Vita3K,
   Ryujinx) runs only through `research/tools/headless-run.sh <cmd>
   [args...]`: it starts its own Xvfb on a free display (`-displayfd`),
@@ -97,7 +97,7 @@ Read the bullet you need.
   `＼`) and `--enc:sjis`.
 - One function of the exe without the game: `research/tools/.venv/bin/python
   -I research/tools/exe_call.py <exe> <addr|*table+4*i> [args] --ret
-  float` (PE, Vita ELF, Switch NSO under Unicorn; `docs/new-game.md`,
+  float` (PE, Vita ELF, Switch NSO under Unicorn; `docs/new-game-reference.md`,
   "Running one exe function"). Setup once per machine:
   `research/tools/setup-venv.sh` (unicorn, and the self-test).
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
@@ -106,7 +106,7 @@ Read the bullet you need.
 ## Manuals
 
 Each platform keeps the manual in a known place; check it before asking
-for screenshots (`docs/new-game.md` step 9). Extract into
+for screenshots (`docs/new-game-reference.md`, "Matching the original"). Extract into
 `research/<engine>/local/manual/`.
 
 - **PC**: a PDF/HTML/CHM in the install or on the disc (`find <install>
@@ -178,14 +178,14 @@ through a file with `sed`.
   `research/tools/shots.py find <words>` first, `shots.py add` every
   new shot; a quick check from a generated save may run at once (Rules),
   anything longer: park a doubt only the original can settle in
-  `research/<engine>/local/film-list.md` (docs/new-game.md, "Film
+  `research/<engine>/local/film-list.md` (docs/new-game-reference.md, "Film
   list"). A hook refuses wine/Xvfb/Vita3K/Ryujinx run outside
   `research/tools/headless-run.sh`.
 - **Wine prefix**: a scratch `WINEPREFIX` per game; replace its
   `drive_c/users/<user>/{Documents,Desktop,...}` symlinks with real
   folders before the first run (games save there); run through
   `headless-run.sh` with `LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8`; reach the
-  moment by patching scripts or saves (`docs/new-game.md`). Stop wine
+  moment by patching scripts or saves (`docs/new-game-reference.md`, "Matching the original"). Stop wine
   (`wineserver -k`) when done.
 
 ## Build and test details

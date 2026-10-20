@@ -44,7 +44,7 @@ OTHER = {
     "oretsuba": {"Action", "voice"},
 }
 # ceiling per game for rows marked inferred or unknown (status/mark column): lower it as rows become seen, never raise it
-OPEN_MAX = {"django": 6, "muramasa-en": 4, "muramasa": 33, "saihate-no-ima": 1, "oretsuba": 15, "tsukihime": 35}
+OPEN_MAX = {"django": 6, "muramasa-en": 4, "muramasa": 33, "saihate-no-ima": 1, "oretsuba": 15, "tsukihime": 32}
 # the overlap questions every game with timed actions answers in `(scheduler)` rows
 QUESTIONS = ("unwaited goes on", "0 ms on in-flight", "wait on in-flight", "replace or delete while moving")
 # ceiling per game of questions with no `(scheduler)` row: a warning up to it, a failure over it.

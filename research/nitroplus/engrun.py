@@ -1,5 +1,5 @@
 """Skip runs of a converted 装甲悪鬼村正 in CONscripter, one per route
-(docs/new-game.md step 10): the engine plays each ending of the choice
+(docs/new-game-reference.md, "Engine pieces"): the engine plays each ending of the choice
 paths, every page drawn, so that engine exits deep in the
 game show up.
 

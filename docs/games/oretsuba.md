@@ -22,7 +22,7 @@ target/release/conscripter-convert build <game> -o out/oretsuba-cons \
 
 Full build about 4 minutes, a 1.7 GB `arc.nsa` plus 12 MP4s.
 Web build: loose files (`mages convert <game> -o out/oretsuba-web
---loose`, 2.2 GB, 27,472 files), then `docs/new-game.md` step 12 with
+--loose`, 2.2 GB, 27,472 files), then `docs/new-game-reference.md`, "The web build", with
 the index made `--lazyload`.
 
 ### Decrypting the package

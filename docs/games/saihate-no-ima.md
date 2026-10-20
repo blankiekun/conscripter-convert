@@ -219,7 +219,7 @@ variables: update it before its next use).
   (format in its docstring; 999 = screenshot). `--goto conv_link2`
   jumps to a label after FIRST START. It can't answer `systemcall`
   menus.
-- **Debug trace** (`docs/new-game.md`): `--trace t.jsonl --trace-ignore
+- **Debug trace** (`docs/new-game-reference.md`, "Checking a build with the debug trace"): `--trace t.jsonl --trace-ignore
   22-48,lsp2:12-23 --auto-play 0`, then
   `engine/tools/cons_trace_check.py t.jsonl --script 0.txt --config
   research/xuse/cons_trace_check.json` (the config lists the findings
@@ -256,7 +256,7 @@ user folders, own Xvfb, `ja_JP.UTF-8`, the null ALSA sink of
   format") and load it from the title's load (670, 262): slot rows at
   y 90, 165, 255, then load (652, 544) and はい (370, 320). Extras need
   a cleared system save; title → option (660, 315).
-- **Reference trace** (`docs/new-game.md` step 22): `GAME=<install>
+- **Reference trace** (`docs/new-game-reference.md`, "Trace DLL"): `GAME=<install>
   research/xuse/tracedll/xtrace.sh -o t.jsonl [--save slot.bin]
   [--choices 12,34|none] [--pages N] [--frames] [--no-cover]` (hooks and
   records: `xtrace.c`'s head comment). `SPEED=4` plays 1 s a page
@@ -267,7 +267,7 @@ user folders, own Xvfb, `ja_JP.UTF-8`, the null ALSA sink of
   `research/tools/wine_bptrace.py research/xuse/names.tsv <names>`;
   break on handlers and their per-frame callbacks, not `frame_loop`.
   Detaching crashes the game: stop it with `wineserver -k`.
-- **Trace diff** (`docs/new-game.md` step 23), against a dry run with
+- **Trace diff** (`docs/new-game-reference.md`, "Trace diff"), against a dry run with
   the same choices:
 
   ```sh
