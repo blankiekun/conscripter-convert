@@ -16,29 +16,10 @@ last (`CLAUDE.md`, "Wine is the last resort").
 
 ## For the lead
 
-1. **Ask the user**, one question each, with options: which Claude plan
-   (sets agents at once and models: Pro 1 agent on Sonnet,
-   `worker`/`checker` mostly; Max 5x 2 agents; Max 20x 4 agents as
-   `docs/lead.md`; API 1-2 on Sonnet, short prompts); the game,
-   platform, where their copy is (they must own it); scope (story only
-   or extras, languages, targets); whether the original may run under
-   wine or an emulator. Scope goes in the game document, machine-local
-   facts in memory.
-2. **Budget on every plan**: ask the user to say when weekly usage
-   passes ~75 % (then one agent, Sonnet, finish open PRs first); a fresh
-   agent costs ~45k tokens before it starts; do doc edits under 10
-   lines yourself.
-3. **Set up** in one PR: the game's id and branch prefix, its row in
-   `CLAUDE.md`'s table, `docs/games/<game>.md` from
-   `docs/games/TEMPLATE.md`. Then its worktree (`git worktree add
-   ../conscripter-convert-<game> -b <game>/start origin/main`) and the
-   lead's state in `out/lead-scratch/NEXT-LEAD-PROMPT.md`.
-4. **Dispatch in phases**, one item and one PR per agent: steps 1-7
-   `engineer`; 8-12 and 14-15 `builder` once the opcodes are known
-   (`engineer` for screens the exe draws); 13 `engineer`; 16-19
-   `worker`. Prompts name the game, worktree, item, what it waits on,
-   "Follow CLAUDE.md's Rules", "report in at most 10 lines". Review
-   each PR's diff, not only its body.
+Lead notes: `docs/lead.md`. Set up the game in one PR: its id and branch
+prefix, its row in `CLAUDE.md`'s table, `docs/games/<game>.md` from
+`docs/games/TEMPLATE.md`; then its worktree (`git worktree add
+../conscripter-convert-<game> -b <game>/start origin/main`).
 
 ## Steps
 
@@ -53,8 +34,7 @@ last (`CLAUDE.md`, "Wine is the last resort").
    `docs/tools.md`, "Manuals".
 3. **Identify the engine** from exe strings, RTTI, archive magic, config
    files; for a known engine, find its format docs and tools first. A
-   Windows game: run the first-contact kit and **one** logged run, and
-   answer later questions from that log. Done: engine named in the
+   Windows game: run the first-contact kit. Done: engine named in the
    document; for a family we already convert, the report names the
    nearest game and the code that carries over. Detail: reference,
    "First contact".
@@ -89,8 +69,7 @@ last (`CLAUDE.md`, "Wine is the last resort").
 8. **Lower to the IR** (`crates/conv-core/src/ir/`; only `crates/conv-cons`
    knows NScripter). What isn't converted yet becomes a `;` comment
    naming the script and instruction; game flags go in the free ranges
-   of `crates/conv-core/src/alloc.rs`; every hand-typed value about the
-   original gets a `// src:`, `// guess:` or `// ours` comment; every
+   of `crates/conv-core/src/alloc.rs`; every
    left-out feature a `// dropped: <reason>` (`research/tools/dropped_lint.py`).
    Done: `--dry-run` writes a `0.txt`; what is left out is a ranked
    list in Status.

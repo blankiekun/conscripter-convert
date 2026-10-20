@@ -18,12 +18,6 @@ use it only for a bug seen in play (`docs/new-game.md`, "The goal").
   (nearest game, readers that carry over; console dumps too), engine
   guesses, imports, files by extension, RTTI; with an export, `hooks.tsv`
   (candidate dispatch, wait-loop and present functions).
-- Then **one** logged run: `fc.sh <install> --hooks <out>/hooks.tsv`
-  (headless, 300 s, auto clicks): file reads with offsets, DirectSound
-  plays, presents, input, timers and their exe call sites in
-  `trace.jsonl.gz`; `summary.txt` ranks the breakpoints. Shots are lossy
-  WebP (`--lossless` for pixel compares). No script positions, text,
-  XAudio2 or Vulkan. Answer later questions from this log.
 
 ## A new engine's code
 
