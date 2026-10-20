@@ -485,6 +485,22 @@ AddressSanitizer build is just another `--engine` (configure
 SDL2_mixer paths of a normal build, and set
 `ASAN_OPTIONS=detect_leaks=0`).
 
+### Reference-trace patches (clickless runs)
+
+For `reftrace.sh muramasa`, the first H-mode screen (`sys_hmode.nss`, near
+page 4884) waits in a `select` for a click a clickless run never gives:
+`mura-patch/` holds a copy with that line's `select{` made `if(0){` (one line,
+so the trace's lines hold). `function_magiccube.nss` (the 立方陣 puzzle after
+`md05_025`) has line 261's `select{` replaced by
+`$立方陣正解=true;$Loop_end=false;$Answer=true;if(0){` (solved, so the route
+goes on to `md05_025end`). The other selects outside the story files are
+menus, the title or the quick bar, which a clickless run never opens. Picture
+diff, first 80 pages (mask `130x576+447+0`): 24 compared, 13 identical, 3
+differ only in a text-window-wide box outside the mask, 8 over the whole
+frame, same at 1 s and 4 s. Causes: a `Plain` cover shown again drew the live
+screen (fixed); a pan cut by auto-play (right with `--real-time`); the exe's
+blur floors; typing progress.
+
 ## Running the original under wine
 
 Used to check what the engine does (`docs/new-game.md` step 9).
