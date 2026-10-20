@@ -7,6 +7,9 @@ ONScripter-Yuri fork, `engine/` submodule), especially its web build.
 blocking or visible bug, then a release. Pixel, frame or trace parity
 work only for a bug someone saw while playing.
 
+**WIP limit**: no new game, and paused games stay paused, until
+Muramasa (JP+EN) and Django have shipped (the user, 2026-10-20).
+
 | Game | Engine | State | Branch prefix | Game document |
 |---|---|---|---|---|
 | 装甲悪鬼村正 / Full Metal Daemon Muramasa (JP+EN, one build) | Nitroplus NSS (JP), Diesel NPK3 (EN) | active | `nitroplus/`, `muramasa-en/` | `docs/games/muramasa.md`, `docs/games/muramasa-en.md` |
