@@ -1,7 +1,6 @@
 # Tools and recipes
 
-Moved out of `CLAUDE.md` so every agent does not load them; read the
-bullet you need.
+Read the bullet you need.
 
 ## Runs, traces and saves
 
@@ -20,7 +19,7 @@ bullet you need.
   `research/tools/firstcontact/first_contact.py <install>` (report,
   hooks) and `fc.sh <install>` (API-level trace, capped WebP shots);
   `docs/new-game.md` step 0.3.
-- Debug trace (CONscripter after 0.18.0; reference: `engine/DEBUG.md`;
+- Debug trace (reference: `engine/DEBUG.md`;
   recipes: `docs/new-game.md`, "Checking a build with the debug
   trace"): `--trace t.jsonl --auto-play 0 --save-dir <scratch>` plays
   the game by itself, headless with `SDL_VIDEODRIVER=dummy` (no Xvfb),
@@ -45,8 +44,7 @@ bullet you need.
   effect times are traced all the same), a renamed engine copy, 3 GiB
   and 400 s at most; then `cons_trace_check.py` on the trace, and the
   `jump` and `duration` counts against `tests/snapshots/<game>.playback`
-  (ceilings as the `.lint` files: a rise fails, `--update` lowers). All
-  seven games take about 10 minutes. A game stops where it must press a
+  (ceilings as the `.lint` files: a rise fails, `--update` lowers). A game stops where it must press a
   button with no picture (Django at its first choice plate, page 559).
   Runs are left in `out/playback/<game>`; `--self-test` checks the
   compare.
@@ -63,8 +61,8 @@ bullet you need.
   <map> --ms --thread 0 --mask <text window>`: differing pixels, RMSE
   and their box per page, worst first, views of the worst
   (`docs/new-game.md`, "Picture diff"; lossy WebP: `--fuzz 15`).
-- Frames mid-effect: the trace's `--shot-effects 25,50,75`. The older
-  patched-script runs: `docs/new-game.md` step 9 and "When the trace
+- Frames mid-effect: the trace's `--shot-effects 25,50,75`. Patched-script
+  runs: `docs/new-game.md` step 9 and "When the trace
   can't do it". Anything that needs a display (Xvfb, wine, Vita3K,
   Ryujinx) runs only through `research/tools/headless-run.sh <cmd>
   [args...]`: it starts its own Xvfb on a free display (`-displayfd`),
@@ -73,9 +71,8 @@ bullet you need.
   on exit. It sets `HEADLESS=1` and `DISPLAY`; `xtrace.sh`, `ntrace.sh`,
   `vita-emu.sh` and `switch-emu.sh` re-run themselves under it. Never
   `pkill Xvfb` (other agents' displays).
-  Xvfb also dies if the wrapper is SIGKILLed (a pid watcher). 2026-10-18: all four
-  scripts started, ran and exited cleanly through it (short capped runs); `vita-emu.sh` and
-  `switch-emu.sh` cap memory with `capped.sh`, which takes the user bus for `systemd-run` only (`HEADLESS_USER_RUNTIME`).
+  Xvfb also dies if the wrapper is SIGKILLed. `vita-emu.sh` and
+  `switch-emu.sh` cap memory with `capped.sh`.
 - What a frame costs: `--trace-perf` adds a `perf` record per page
   (frames presented, the wall-clock ms worked for them, the slowest
   frame); `--dump-frames frames.tsv` writes a line per present (game ms,
@@ -101,10 +98,8 @@ bullet you need.
 - One function of the exe without the game: `research/tools/.venv/bin/python
   -I research/tools/exe_call.py <exe> <addr|*table+4*i> [args] --ret
   float` (PE, Vita ELF, Switch NSO under Unicorn; `docs/new-game.md`,
-  "Running one exe function"). Setup, once per machine:
-  `research/tools/setup-venv.sh` (makes `research/tools/.venv` with
-  unicorn 2.1.4 and runs exe_call's self-test,
-  `research/tools/test_exe_call.py`, which CI runs too).
+  "Running one exe function"). Setup once per machine:
+  `research/tools/setup-venv.sh` (unicorn, and the self-test).
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
   file X:..." on stderr.
 
@@ -129,17 +124,13 @@ for screenshots (`docs/new-game.md` step 9). Extract into
 
 `tests/pr-report.sh [--base REF]` (about 5 minutes) runs `cargo test`,
 `clippy -D warnings`, `findings_lint.py`, `dropped_lint.py`,
-`docpaths.py`, `doclint.py` (template headings and Status length per game
-against ceilings that only go down) and `tests/snapshot.sh --diff`, and
-prints a Markdown block for the PR body: per changed game the txtdiff
-counts, metrics totals before and after, and a `why it changed: <fill in>`
-line. It also fails when a branch changes `crates/conv-engines/src/<engine>/`
-without a `docs/games/*.md`, and flags (without failing) a change to an
-engine's sync code with no change to its tests (`research/tools/sync_check.py`:
-Nitroplus `convert/sync.rs` against `convert/tests/`; Xuse, MAGES and
-TYPE-MOON `convert.rs` against its own `#[cfg(test)]` module). `docpaths` skips paths that the
-engine's own `.gitignore` ignores, so a worktree that has not built the
-engine passes.
+`docpaths.py`, `doclint.py` and `tests/snapshot.sh --diff`, and prints
+the Markdown block for the PR body (per changed game: txtdiff counts,
+metrics before and after, a `why it changed: <fill in>` line). It fails
+when `crates/conv-engines/src/<engine>/` changes without a
+`docs/games/*.md`, and flags an engine's sync code changed without its
+tests (`research/tools/sync_check.py`). `docpaths` skips paths the
+engine's `.gitignore` ignores.
 
 ## Reading files cheaply
 
@@ -169,8 +160,7 @@ through a file with `sed`.
   are known exactly (a source picture against the drawn sprite, a colour
   from the exe) use no fuzz or read the pixel values: 2 % hid sprites
   drawn 1 % dark. Keep a small fuzz only for frames that legitimately
-  differ (video, scaled pictures) and say so in the report. Screenshots are the biggest
-  cost in past sessions: never Read a full-size PNG, look through
+  differ (video, scaled pictures) and say so. Screenshots cost the most: never Read a full-size PNG, look through
   `research/tools/view.py a.png [b.png] [--crop WxH+X+Y] [--scale 50]
   [-o out.png]`, which crops, halves and puts the shots side by side
   in one small image (original and ours in one read). A hook
@@ -191,18 +181,21 @@ through a file with `sed`.
   `research/<engine>/local/film-list.md` (docs/new-game.md, "Film
   list"). A hook refuses wine/Xvfb/Vita3K/Ryujinx run outside
   `research/tools/headless-run.sh`.
+- **Wine prefix**: a scratch `WINEPREFIX` per game; replace its
+  `drive_c/users/<user>/{Documents,Desktop,...}` symlinks with real
+  folders before the first run (games save there); run through
+  `headless-run.sh` with `LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8`; reach the
+  moment by patching scripts or saves (`docs/new-game.md`). Stop wine
+  (`wineserver -k`) when done.
 
 ## Build and test details
 
 - Memory caps: run builds, engine runs and emulators that may grow
   through `research/tools/capped.sh <GiB> <cmd> [args...]`, never a raw
   `systemd-run -p MemoryMax` (the bash hook refuses it): a kernel OOM
-  kill pops a "killed" notification on the user's desktop. capped.sh
-  runs cmd in its own `systemd-run --user` scope (MemoryHigh=<GiB>,
-  MemoryMax=<GiB>+1 as a backstop), stops it itself at 90 % of <GiB>
-  (SIGTERM, SIGKILL after 5 s; prints `capped.sh: stopped at X MiB`,
-  exit 137), refuses to start with exit 75 when less than <GiB>+2 GiB
-  is available, and passes cmd's exit code through otherwise. It works
+  kill pops a notification on the user's desktop. capped.sh stops cmd
+  at 90 % of <GiB> (exit 137), refuses to start (exit 75) with less than
+  <GiB>+2 GiB available, else passes cmd's exit code through. It works
   inside `headless-run.sh`. Self-test: `research/tools/test_capped.sh`.
 - `tests/snapshot.sh`: dry-runs every game present on the machine (links
   in `$CONS_GAMES`, see the script) and says which games' `0.txt`
@@ -221,21 +214,14 @@ through a file with `sed`.
   It prints each game's `gaps`/`left_out` change and exits 2 when either
   rose against `<game>.metrics.json`, or a channel of its `score` (or the
   total) fell by over 0.01 (`research/tools/score_fell.py`), unless
-  `--accept-gaps` (say why in the PR). The same holds for the timing parity's `short_ms`
-  (`metrics.json` `parity`: per scene, the motion time the source's
-  timed moves, fades, zooms, turns and shakes ask for against the time
-  `0.txt` animates there, through the source map; the scenes short of it
-  summed). A rise is a motion or fade the conversion lost (Django's
-  `FadeFade`: a running 16 s pan swallowed by a 0 ms fade's sync). The
-  dry run's `--parity-report <file>` lists every scene, worst first.
-  It reads only shortfalls: a scene where ours animates more (looping
-  motions the source runs from the exe's tables, a `print` over many
-  pictures) hides a loss, so it bites most in NSS (each picture's fade
-  counted per picture) and least in TYPE-MOON (`_STMA` motions not
-  counted on the source side). `metrics.json`'s `timing` (calls noted
-  with a reason that loses time: NSS's time ledger and cross-fade notes,
-  `metrics.rs` `TIMING`) exits 3 when it rises, and `--accept-gaps`
-  doesn't pass it: fix it, or `--update` and say why. CI also runs `dropped_lint.py` and `findings_lint.py`, each
+  `--accept-gaps` (say why in the PR). The same holds for `metrics.json`'s
+  `parity` `short_ms` (per scene, the motion time the source asks for
+  against what `0.txt` animates there, shortfalls summed; a rise is a
+  motion or fade the conversion lost; `--parity-report <file>` lists the
+  scenes; it can't see a loss hidden by extra motion elsewhere).
+  `timing` (calls noted with a reason that loses time, `metrics.rs`
+  `TIMING`) exits 3 when it rises, and `--accept-gaps` doesn't pass it:
+  fix it, or `--update` and say why. CI also runs `dropped_lint.py` and `findings_lint.py`, each
   with a per-game ceiling that only goes down.
   The snapshot holds a sha256 per other file the dry run writes
   (`screens/*.lua`, `ons_args`), so it names the screen a shared change
@@ -247,14 +233,11 @@ through a file with `sed`.
   is 0). A count below its ceiling prints `lower to N`; `--update`
   writes the lower counts but never raises one: a new ceiling goes in
   by hand, with the reason in the PR.
-  Among the lint's kinds, a file the script names that the build wouldn't
-  write: the dry run's lint checks 0.txt's file names against the files
-  each engine records it would write (`conv_engines::output::record`;
-  `Output::write`, `Output::have` do it), not against the folder. Code
-  that writes a file outside `Output` (its own `fs::write`, ffmpeg, a
-  dry-run shortcut that skips making it) calls `record` with the
-  output-relative name, in a dry run too. Movies (`.mp4`) and `.webp`
-  aren't among the names the lint checks.
+  The "file not written" kind checks 0.txt's file names against what
+  each engine records it writes (`conv_engines::output::record`, done by
+  `Output::write`/`Output::have`); code writing a file outside `Output`
+  calls `record` with the output-relative name, in a dry run too.
+  Movies and `.webp` aren't checked.
 - `python3 -I tests/extras_smoke.py <full build>`: opens the extras'
   menu headless with every lock open and checks each mode is a button
   and opens (the trace); run it on every full build handed to the user

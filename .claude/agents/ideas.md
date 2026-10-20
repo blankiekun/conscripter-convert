@@ -1,6 +1,6 @@
 ---
 name: ideas
-description: Idea agent. Studies the repo against one focus the lead names and writes a ranked list of additions, changes and removals. Read-only; implements nothing. Dispatched by the lead (docs/lead.md, "Idea agents").
+description: Idea agent. Studies the repo against one focus the lead names and writes a ranked list of additions, changes and removals. Read-only; implements nothing. Run only when the user asks (docs/lead.md, "Idea agents").
 model: opus
 effort: medium
 ---
@@ -23,8 +23,7 @@ builds of full games, no wine or emulators. Dry runs, greps, scripts that only r
    hard-coded values, dead code, rules written down that no script checks.
 4. Ideas in three tiers: Additions, Changes, Removals.
 5. Filter ruthlessly: keep only ideas that clearly advance the focus; drop generic advice.
-   Skip what out/lead-scratch/NEXT-LEAD-PROMPT.md's queue and out/lead-scratch/*-plan.md
-   already hold (say "already queued" once, no more).
+   Skip what the game documents' Status already holds (say "already queued" once).
 
 ## Output
 
