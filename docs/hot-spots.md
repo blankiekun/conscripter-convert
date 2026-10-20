@@ -14,3 +14,11 @@
   | `engine` (submodule pointer) | Merge the engine PR first, then point the submodule at a commit on CONscripter `master` that contains every engine commit `origin/main` points at (rebase onto `origin/main` first, so the pointer only moves forward) |
   | `README.md`, `docs/new-game.md`, `docs/lessons.md`, `docs/design.md`, this file | Edit only your game's rows and paragraphs; general lessons go in `docs/lessons.md` |
   | `Cargo.toml`, `Cargo.lock` | Add dependencies in their own commit; on a conflict, take both sides and let `cargo build` rewrite the lock file |
+
+- **Working beside other agents**: start every item from a fresh
+  `origin/main` and run `cargo test`; rebase again before pushing a change
+  to a hot spot and just before handing the PR back. When you change the
+  shape of shared code (a helper's signature, a split or moved function, a
+  renamed IR type, renumbered numbers), open that as its own PR and get it
+  merged before building on it. A single game's own rules live in a module
+  of their own (`nitroplus/convert/muramasa.rs`), chosen by the CLI.
