@@ -71,8 +71,7 @@ The steps that apply them are in `docs/new-game.md`.
   a missing export from the game document's recipe
   (`ghidra_export.sh`, minutes) and read it; name a subsystem whole (its
   channels, their states, the per-frame update) when you first touch
-  it, not only the command's entry; ask the user only for decisions. An
-  idea agent's "open questions" follow the same rule.
+  it, not only the command's entry; ask the user only for decisions.
 - **A built-in "converted" can still drop an argument** (村正, 2026-10-16):
   NSS `CreateWindow` was listed as converted because its children were
   placed, but its size, which clips them, was never read; the user saw

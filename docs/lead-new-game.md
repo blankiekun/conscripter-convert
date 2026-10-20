@@ -30,9 +30,9 @@ Sonnet. A fresh agent costs about 45k tokens before it does anything.
 
 | Plan | Lead model | Agents at once | Who does what |
 |---|---|---|---|
-| Pro | Sonnet | 1 | `worker` (Sonnet) and `checker` (Haiku) for most items; `engineer` only for decompiles and the first-contact findings; no idea agents |
-| Max 5x | Opus (Sonnet when the week runs low) | 2 | `builder` for features with a clear spec, `engineer` for reverse engineering; one idea agent per milestone |
-| Max 20x | Opus | 4 | as `docs/lead.md`; idea agents when the queue runs low |
+| Pro | Sonnet | 1 | `worker` (Sonnet) and `checker` (Haiku) for most items; `engineer` only for decompiles and the first-contact findings |
+| Max 5x | Opus (Sonnet when the week runs low) | 2 | `builder` for features with a clear spec, `engineer` for reverse engineering |
+| Max 20x | Opus | 4 | as `docs/lead.md` |
 | Team / Enterprise | ask what share of the seat this project may use, then as the closest row | | |
 | API (pay per token) | Sonnet | 1-2 | prefer `worker`/`checker`; keep prompts and reports short; no long wine or emulator runs without asking |
 

@@ -30,12 +30,10 @@ holds only the open state, finished write-ups move to
 - Nobody pushes to `main` or the engine's `master` (protected). Every
   change is a PR that the lead or user reviews and merges; never merge
   your own.
-- One PR per feature (2026-10-18), on a short-lived branch
-  `<game>/<topic>` from `origin/main` (`git fetch && git switch -c
-  <game>/<topic> origin/main && git submodule update engine`). Items
-  that build on each other: one PR, a commit each. A game's `0.txt`
-  change and an engine change each keep a PR of their own; a doc-only
-  fix rides in the next related PR. Commit subjects under 72 chars; the
+- One PR per goal phase, on the phase branch the brief names (made from
+  `origin/main`, `git submodule update engine`); items are commits on it,
+  and you open a PR only if the brief says so. Small fixes ride in the
+  session's `chores-<date>` PR (`docs/lead.md`, "Landing PRs"). Commit subjects under 72 chars; the
   PR is squash-merged, titled after the PR. No Co-Authored-By, Claude or
   session lines in commits or PR bodies.
 - Engine changes: branch `<game>/<topic>` inside `engine/` from
@@ -124,7 +122,7 @@ in its own module). A lead: `docs/lead.md`.
 - No `/loop`, wakeups or polling unless asked; wait for background runs.
 - **Stop at the end of the item asked for**; keep the game document's
   "Status" current (open state only; finished items move to its history).
-- **Reports at most 10 lines**; detail goes in the PR body.
+- **Reports**: `key: value` lines, numbers first, at most 10; detail goes in the commit messages.
 - **No agent past 100k context** (2026-10-19): at ~80k commit and push
   the WIP, write HANDOFF.md in your worktree, report, stop. Only a task planned over the cap
   before dispatch goes on.
