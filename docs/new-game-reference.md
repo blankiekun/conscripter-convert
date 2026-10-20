@@ -65,8 +65,8 @@ Follow the shape of `xuse/`, `nitroplus/`, `mages/` in
 - **Tests**: lowering on a tiny synthetic input (Nitroplus' `Fake`
   assets), the readers' corner cases.
 - **Engine reference**: `docs/engines/<engine>.md`
-  (`docs/engines/README.md`), one row per command the dry run counts,
-  its `engine_doc` stem set in `build.rs`.
+  (`docs/engines/README.md`); optional, its `engine_doc` stem set in
+  `build.rs`.
 
 ## Decompiling the exe
 
