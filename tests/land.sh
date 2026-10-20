@@ -76,11 +76,13 @@ if ! gh pr checks "$pr" --required --watch --interval 30; then
 fi
 gh pr merge "$pr" --squash
 cd "$root"
+landed=$(git -C "$wt" rev-parse HEAD)
 git worktree remove --force "$wt" && echo "removed $wt"
 # a clean worktree still on the merged branch (not this checkout, never saves)
 git worktree list --porcelain | awk -v b="refs/heads/$br" '/^worktree /{p=substr($0,10)} $0=="branch "b{print p}' |
 while read -r other; do
     [ "$other" = "$root" ] || [[ "$other" == *saiima-flow* ]] && continue
     [ -z "$(git -C "$other" status --porcelain)" ] || { echo "kept $other: uncommitted changes"; continue; }
+    ! git -C "$other" cherry "$landed" HEAD | grep -q "^+" || { echo "kept $other: commits not landed"; continue; }
     git worktree remove --force "$other" && git branch -D "$br" && echo "removed $other and branch $br"
 done || true
