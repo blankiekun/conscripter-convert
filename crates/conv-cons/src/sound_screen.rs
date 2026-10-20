@@ -105,16 +105,7 @@ pub(crate) fn lua_file(r: &SoundRoom, border: u32) -> String {
         )
         .unwrap();
     }
-    let e = &r.exit;
-    writeln!(
-        out,
-        "add({{\"button\", file={}, cells=3, pressed=2, x={}, y={}, action={{\"close\", 0, hold=true}}}})\nreturn {{\n  kind = \"extras\",\n  fade = var({}),\n  cancel = {{\"close\", 0, hold=true}},\n  widgets = widgets,\n}}",
-        lua(&e.image),
-        e.x,
-        e.y,
-        lua(FADE)
-    )
-    .unwrap();
+    crate::screens::exit_footer(&mut out, &r.exit);
     out
 }
 

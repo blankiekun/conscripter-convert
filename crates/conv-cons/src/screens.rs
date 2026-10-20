@@ -83,6 +83,19 @@ pub(crate) fn save_labels(out: &mut String) {
     }
 }
 
+/// The exit button and the table a picture-based extras screen returns.
+pub(crate) fn exit_footer(out: &mut String, e: &Placed) {
+    writeln!(
+        out,
+        "add({{\"button\", file={}, cells=3, pressed=2, x={}, y={}, action={{\"close\", 0, hold=true}}}})\nreturn {{\n  kind = \"extras\",\n  fade = var({}),\n  cancel = {{\"close\", 0, hold=true}},\n  widgets = widgets,\n}}",
+        lua(&e.image),
+        e.x,
+        e.y,
+        lua(crate::picture_gallery::FADE)
+    )
+    .unwrap();
+}
+
 /// A Lua string.
 pub(crate) fn lua(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
