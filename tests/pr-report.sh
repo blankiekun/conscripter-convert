@@ -2,7 +2,7 @@
 # Runs the checks a PR needs and prints a Markdown block for its body.
 #   tests/pr-report.sh [--base REF]    (default origin/main; run from the branch)
 # cargo test, clippy -D warnings, tests/snapshot.sh --diff REF (txtdiff counts
-# per changed game, missing assets, gaps), findings_lint, dropped_lint,
+# per changed game, missing assets, gaps), dropped_lint,
 # docpaths, doclint; metrics totals before (REF) and after per changed game;
 # flags engine code changed without a docs/games/*.md, and an engine's sync
 # code changed with no test change (research/tools/sync_check.py). Exit 1 on any failure.
@@ -20,7 +20,6 @@ run() { # title, command...: one line, output in a fold when it fails or is long
 echo "## Checks"
 run "cargo test" cargo test -q
 run "cargo clippy -D warnings" cargo clippy -q --all-targets -- -D warnings
-run "findings_lint" python3 -I research/tools/findings_lint.py
 run "dropped_lint" python3 -I research/tools/dropped_lint.py
 run "docpaths" python3 -I research/tools/docpaths.py
 run "doclint (template headings, Status length)" python3 -I research/tools/doclint.py

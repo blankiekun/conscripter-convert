@@ -57,7 +57,7 @@ apply them are in `docs/new-game.md`.
   whole exe" into a bounded list of differences actually used; code
   reached only through function pointers has to be turned into functions
   before the decompiled output shows what a built-in does
-  (`docs/new-game-reference.md`, "Mapping the whole exe").
+  (`research/tools/ghidra/`).
 - **What the original does is a question for its code, not the user.**
   "Does a new BGM cut the one fading out?" waited a day on the user; the
   decompiles answered it in an hour. Rebuild a missing Ghidra export

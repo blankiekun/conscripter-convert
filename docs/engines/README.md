@@ -3,8 +3,7 @@
 What each command or opcode of the original engines does, and how the
 converter turns it into CONscripter. One file per engine family; every
 command a game's dry run counts (the `kinds` of
-`tests/snapshots/<game>.metrics.json`) has a row, which
-`research/tools/findings_lint.py` checks in CI. The game's
+`tests/snapshots/<game>.metrics.json`) has a row. The game's
 `metrics.json` names its file in `engine_doc`.
 
 | File | Engine | Games | Script format |

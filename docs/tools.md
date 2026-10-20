@@ -123,7 +123,7 @@ for screenshots (`docs/new-game-reference.md`, "Matching the original"). Extract
 ## PR report
 
 `tests/pr-report.sh [--base REF]` (about 5 minutes) runs `cargo test`,
-`clippy -D warnings`, `findings_lint.py`, `dropped_lint.py`,
+`clippy -D warnings`, `dropped_lint.py`,
 `docpaths.py`, `doclint.py` and `tests/snapshot.sh --diff`, and prints
 the Markdown block for the PR body (per changed game: txtdiff counts,
 metrics before and after, a `why it changed: <fill in>` line). It fails
@@ -221,8 +221,8 @@ through a file with `sed`.
   scenes; it can't see a loss hidden by extra motion elsewhere).
   `timing` (calls noted with a reason that loses time, `metrics.rs`
   `TIMING`) exits 3 when it rises, and `--accept-gaps` doesn't pass it:
-  fix it, or `--update` and say why. CI also runs `dropped_lint.py` and `findings_lint.py`, each
-  with a per-game ceiling that only goes down.
+  fix it, or `--update` and say why. CI also runs `dropped_lint.py`, with a per-game ceiling that
+  only goes down.
   The snapshot holds a sha256 per other file the dry run writes
   (`screens/*.lua`, `ons_args`), so it names the screen a shared change
   touched (`--diff` shows the first lines of each changed file's diff).

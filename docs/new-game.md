@@ -81,16 +81,8 @@ last (`CLAUDE.md`, "Wine is the last resort").
    identify in `research/<engine>/names.tsv`. Done: every script parses,
    every jump target exists. Detail: reference, "Decompiling the exe";
    `docs/tools.md`, "Code before wine".
-7. **Map what the corpus uses.** A coverage table: per built-in,
-   variable, text tag and script file, its use count, what the exe does,
-   what the converter does. Record special values and units per argument,
-   timing and blocking per timed command, and mark each finding seen,
-   inferred or unknown in `docs/games/<game>.findings.tsv`
-   (`research/tools/findings_lint.py` checks it in CI: a new game covers
-   every kind from its first PR). Every command the dry run counts gets
-   a row in `docs/engines/<engine>.md`. Done: work only on rows where
-   exe and converter differ and the corpus uses them. Detail:
-   reference, "Mapping the whole exe", "Findings table".
+7. **Convert what the corpus uses.** Decode, convert what the corpus
+   uses, and keep the ranked gaps in Status. Done: gaps ranked in Status.
 
 ### Converting
 

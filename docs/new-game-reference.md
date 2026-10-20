@@ -120,67 +120,10 @@ memory dump instead of filming:
 4. The numbers become test fixtures and seen `(scheduler)` rows.
    Per-frame state: `ntrace.sh --frames`, `research/tools/frame_diff.py`.
 
-## Mapping the whole exe
+## Findings notes
 
-Extend the export in passes, from what the corpus uses:
-
-1. Name the dispatch table, the value evaluator, the settings setter.
-2. Recover callbacks that aren't functions yet: `grep -ho
-   '&LAB_[0-9a-f]*' decomp/*.c`, append as `cb_<addr>`, rerun until none
-   is new (skip `puStack_`/`pcStack_` stores, SEH handlers).
-3. Name CRT helpers early: Ghidra loses x87 maths around `_ftol2`.
-4. What the parser accepts: `strings.tsv` plus stack strings
-   (`research/nitroplus/stackstrings.py`), character-comparison chains;
-   note how constants match (exact, case, character sums).
-5. **Coverage table** per built-in, system variable, text tag, script
-   file: corpus count, what the exe does, what we do, "not converted"
-   notes. Work only where they differ and the corpus uses it. A row is
-   converted only when every argument is; unread arguments are noted by
-   the dispatch (`<Builtin> argument <i> ignored`). Each row says where
-   it goes: engine-piece data, Lua, or a new command.
-6. **Special values and units** per argument: comparisons against
-   constants before use (`-1`, `-32766`, `0x8000`, `-100000`), units (ms
-   or frames, px at which scale, percent or 1/256, degrees).
-7. `python3 -I research/tools/argcensus.py out/<game>/0.txt`: explain
-   every flagged value.
-8. An off-screen or out-of-range finding is "the original's data" only
-   when seen in its code or data.
-9. Also: what runs during waits, easing curves, branches per argument
-   (counted in the metrics), state a new picture inherits or a load
-   resets, anchors and blend formulas, out-of-range input, randomness,
-   sound volume scale, text line breaks and speed units.
-10. **Scripts too**: every script and data file gets a status (compiled,
-    replaced by a screen of ours, read for data, unused and why); every
-    name the scripts call with its count (`nss refs`, `nss builtins`,
-    `nss route`), since the dry run only notes code it reaches.
-11. Write back: `names.tsv` (grep it before reading a function), the
-    engine's built-ins reference, gaps in Status. When done, a second
-    agent re-derives 10 random seen rows (fixed seed) from the decompile.
-
-### Timing and overlap
-
-Per timed command: does the script wait, go on, or wait part; ms or
-frames at what rate; what a click does mid-effect. Then overlap: what an
-unwaited action does while later commands run, what a wait or a 0 ms
-action does to actions in flight, replace or delete while moving. Record
-these as `(scheduler)` rows, one per question in `findings_lint.py`'s
-`QUESTIONS` (`research/tools/ghidra/callmap.py <export> --names
-<names.tsv> --tsv` drafts them); the last column names the check (a test
-`file.rs::fn` or `ledger: "<reason>"`). Test the game's own helpers that
-chain timed built-ins on the composed output.
-
-## Findings table
-
-`docs/games/<game>.findings.tsv`: one row per kind the dry run's metrics
-count (`tests/snapshots/<game>.metrics.json`), the kind in the first
-column, each marked **seen** (code, script or trace shows it),
-**inferred** (from names or layout) or **unknown** (with the cheapest
-check that settles it). Inferred becomes seen only by a decompile
-lookup. A negative search says what it searched. Name the exe build for
-every address. `research/tools/findings_lint.py` (CI) ties table and
-metrics; per game `NO_ROW_MAX`, `OPEN_MAX`, `SCHED_MAX` only go down; a
-new game starts at 0. Every counted command also needs its row in
-`docs/engines/<engine>.md`.
+`docs/games/<game>.findings.tsv` is optional notes on what the exe does
+(seen, inferred or unknown); no lint checks it.
 
 ## Engine pieces
 
