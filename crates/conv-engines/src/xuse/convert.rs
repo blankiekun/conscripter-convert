@@ -558,7 +558,7 @@ impl AssetBank {
     /// Writes `data` to `name` in the output, unless this is a dry run.
     fn write_png<P: image::PixelWithColorType>(&self, name: &str, img: &image::ImageBuffer<P, Vec<P::Subpixel>>) -> Result<(), ConvertError>
     where
-        image::ImageBuffer<P, Vec<P::Subpixel>>: std::ops::Deref<Target = [P::Subpixel]>,
+        [P::Subpixel]: image::EncodableLayout,
     {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)

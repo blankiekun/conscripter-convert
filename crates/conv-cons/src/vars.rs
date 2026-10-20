@@ -57,7 +57,7 @@ mod tests {
                 if path.is_dir() { dirs.push(path) } else { files.push(path) }
             }
         }
-        for path in files {
+        for path in files.into_iter().filter(|p| p.file_name().is_some_and(|n| n != "tests.rs")) {
             let text = std::fs::read_to_string(&path).unwrap();
             let code = text.split("\nmod tests").next().unwrap();
             for (i, line) in code.lines().enumerate() {
