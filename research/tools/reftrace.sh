@@ -1,6 +1,6 @@
 #!/bin/bash
 # reftrace.sh <game> [--resume <save>] | status <game> | summary <game>
-# A reference trace of the ORIGINAL game, started with one command (docs/new-game.md, "Reference traces").
+# A reference trace of the ORIGINAL game, started with one command (docs/new-game-reference.md, "Reference traces").
 # game: saihate muramasa muramasa-en django oretsuba tsukihime. Everything lands in out/<game>-reftrace/
 # (git-ignored). Game folders come from the links in $CONS_GAMES (default ~/.config/conscripter-convert/games,
 # as tests/snapshot.sh) -- saihate: saihate-no-ima -- or from the environment below; nothing local is hard-coded.

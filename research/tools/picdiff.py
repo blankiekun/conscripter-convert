@@ -19,7 +19,7 @@ pixels): AE = pixels whose biggest channel difference is over --fuzz % of
 RMSE = root mean square error (0-1); box = where the differing pixels
 lie (a narrow box: the text window moved; the whole frame: the picture).
 Lossy WebP q80 shots (fc.sh's default) need --fuzz 15: q80 alone leaves
-0.2 % of pixels over it, 4 % over 6 (docs/new-game.md "Picture diff").
+0.2 % of pixels over it, 4 % over 6 (docs/new-game-reference.md, "Picture diff").
 Prints every pair, worst AE first, and writes ORIG|OURS|differing-in-red
 views (half size) of the --top N (default 5) into -o DIR (default:
 OURS_SHOTS/../picdiff).

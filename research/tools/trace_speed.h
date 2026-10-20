@@ -9,7 +9,7 @@
  * the real one: a trace DLL writes its records' "ms" as speed_ms() (that
  * game time), so they compare with a 1x run's. What the exe does not time
  * by these (wine's sound mixing, a movie's clock, its own frame cost) stays
- * real: docs/new-game.md, "Trace speeds".
+ * real: docs/new-game-reference.md, "Trace speeds".
  *
  * Use: speed_install() once in DllMain, before any record is written. A
  * DLL hook of one of these imports found by name, installed after it, wraps

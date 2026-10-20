@@ -1,4 +1,4 @@
-"""Route tracer for a converted 装甲悪鬼村正 0.txt (docs/new-game.md step 11.3-11.4).
+"""Route tracer for a converted 装甲悪鬼村正 0.txt (docs/new-game-reference.md, "Route simulation").
 
 Runs the control flow of the NScripter script that `convert-nss` writes
 (labels, goto, if, mov/add/sub/mul/div, select, end; everything else is

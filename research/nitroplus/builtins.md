@@ -30,7 +30,7 @@ wine").
 
 Muramasa.exe reads the `.nss` text directly. Names below are from
 `research/nitroplus/names.tsv`; the Ghidra export command is in
-`docs/new-game.md` §2.
+`docs/new-game-reference.md`, "Decompiling the exe".
 
 - **Statements** go to `dispatch_builtin` (`00405250`). It compares the
   statement text byte by byte with 91 built-in names, each followed by
@@ -135,7 +135,7 @@ wine, `docs/games/django.md`). What differs from Muramasa.exe:
 ## In the scripts: coverage
 
 What the converter does with every script file and every name the
-scripts use (`docs/new-game.md` §2, "Covering the scripts too"; 2026-10-15).
+scripts use (`docs/new-game-reference.md`, "Mapping the whole exe").
 Sources: `nss route`, `nss refs`, `nss builtins` over the 913 files of
 `nss.npa`, and the whole-game dry run's notes (`convert-nss … --dry-run`,
 the command in the game document). Counts in the "notes" column are

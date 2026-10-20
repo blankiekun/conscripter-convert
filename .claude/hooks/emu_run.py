@@ -25,7 +25,7 @@ MSG = ("This program can reach the user's desktop. The engine: SDL_VIDEODRIVER=d
        "never the user's desktop) or the wrappers xtrace.sh, ntrace.sh, vita-emu.sh, switch-emu.sh. "
        "First search research/tools/shots.py find <words>. A quick check from a generated save may run "
        "through headless-run.sh now; anything longer goes in "
-       "research/<engine>/local/film-list.md (docs/new-game.md, \"Film list\"): "
+       "research/<engine>/local/film-list.md (docs/new-game-reference.md, \"Film list\"): "
        "a session films the whole list at once.")
 
 

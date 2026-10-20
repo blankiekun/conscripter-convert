@@ -10,7 +10,7 @@ are not kinds). Xuse opcodes are hex: `0x01-0x0e` is a range (one
 member must be a kind), `0x40, 0x41` a list. A game without a table
 is skipped. Exits 1 on any finding.
 
-`(scheduler)` rows (docs/new-game.md step 15) answer the overlap
+`(scheduler)` rows (docs/new-game-reference.md, "Timing and overlap") answer the overlap
 questions in QUESTIONS, one row each, the question in the second column.
 Each row's last column names its check: a test (`file.rs::fn`, a path
 under crates/ ending so, holding `fn <fn>`) or a ledger reason
@@ -180,7 +180,7 @@ for mf in sorted(os.listdir("tests/snapshots")):
     if len(smiss) > smax:
         fail(f"{g}: {len(smiss)} overlap questions with no `(scheduler)` row, ceiling {smax}: {'; '.join(smiss)}")
     elif smiss:
-        print(f"{g}: WARN {len(smiss)} overlap questions with no `(scheduler)` row (new-game.md step 15): {'; '.join(smiss)}")
+        print(f"{g}: WARN {len(smiss)} overlap questions with no `(scheduler)` row (new-game-reference.md, Timing and overlap): {'; '.join(smiss)}")
     if len(smiss) < smax:
         print(f"{g}: lower SCHED_MAX[{g!r}] to {len(smiss)}")
     if miss:
