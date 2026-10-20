@@ -27,15 +27,11 @@ pub struct Texture<'a> {
     pub data: &'a [u8],
 }
 
-fn bad(msg: String) -> FormatError {
-    FormatError::Bad(msg)
-}
-
 /// A u64 offset (the files are far below 4 GiB).
 fn offset(r: &Reader, at: usize) -> Result<usize, FormatError> {
     match r.u32(at + 4)? {
         0 => Ok(r.u32(at)? as usize),
-        _ => Err(bad(format!("BNTX offset over 4 GiB at {at:#x}"))),
+        _ => Err(FormatError::Bad(format!("BNTX offset over 4 GiB at {at:#x}"))),
     }
 }
 
@@ -70,16 +66,16 @@ pub fn parse(data: &[u8]) -> Result<Vec<Texture<'_>>, FormatError> {
             let name = String::from_utf8_lossy(r.slice(name_at + 2, usize::from(r.u16(name_at)?))?).into_owned();
             let (tile, depth, layers) = (r.u16(at + 0x12)?, r.u32(at + 0x2C)?, r.u32(at + 0x30)?);
             if tile != 0 || depth != 1 || layers != 1 {
-                return Err(bad(format!("{name}: tile mode {tile}, depth {depth}, {layers} layers (only one block-linear 2D layer is read)")));
+                return Err(FormatError::Bad(format!("{name}: tile mode {tile}, depth {depth}, {layers} layers (only one block-linear 2D layer is read)")));
             }
             let (format, width, height) = (r.u32(at + 0x1C)?, r.u32(at + 0x24)?, r.u32(at + 0x28)?);
             let block_height_log2 = r.u32(at + 0x34)? & 7;
-            let (block, bpp) = kind(format).ok_or_else(|| bad(format!("{name}: format {format:#06x} not read")))?;
+            let (block, bpp) = kind(format).ok_or_else(|| FormatError::Bad(format!("{name}: format {format:#06x} not read")))?;
             let mip0 = offset(&r, offset(&r, at + 0x70)?)?;
             let size = swizzled_size(width.div_ceil(block), height.div_ceil(block), bpp, block_height_log2);
             let (mips, stored) = (r.u16(at + 0x16)?, r.u32(at + 0x50)? as usize);
             if mips == 1 && size != stored {
-                return Err(bad(format!("{name}: {width}x{height} {format:#06x} swizzles to {size} bytes, header says {stored}")));
+                return Err(FormatError::Bad(format!("{name}: {width}x{height} {format:#06x} swizzles to {size} bytes, header says {stored}")));
             }
             Ok(Texture { data: r.slice(mip0, size)?, name, format, width, height, block_height_log2 })
         })
@@ -113,7 +109,7 @@ fn swizzled(x: u32, y: u32, row_bytes: u32, bh_log2: u32) -> usize {
 
 /// Mip 0 as RGBA (sRGB formats come out as they are stored; BC4 as grey).
 pub fn decode(t: &Texture) -> Result<RgbaImage, FormatError> {
-    let (block, bpp) = kind(t.format).ok_or_else(|| bad(format!("{}: format {:#06x} not read", t.name, t.format)))?;
+    let (block, bpp) = kind(t.format).ok_or_else(|| FormatError::Bad(format!("{}: format {:#06x} not read", t.name, t.format)))?;
     let (bw, bh) = (t.width.div_ceil(block), t.height.div_ceil(block));
     // Whole blocks first, cropped to the picture at the end.
     let pitch = (bw * block * 4) as usize;

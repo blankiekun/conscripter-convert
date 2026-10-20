@@ -227,13 +227,6 @@ fn convert_file(path: &Path, quality: Option<u8>) -> Result<(u64, u64), WebpErro
     Ok((png.len() as u64, webp.len() as u64))
 }
 
-/// The script with its image names changed from `.png` to `.webp`. Every
-/// image name the emitter writes ends a string literal (`bg "bg\a.png"`,
-/// `lsp 1,":a;sprite\a.png",…`).
-pub fn retarget(script: &str) -> String {
-    script.replace(".png\"", ".webp\"")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,12 +282,6 @@ mod tests {
         let out = retarget_dirs(script, &["sys"]);
         assert_eq!(out, retarget_names(script, &names));
         assert!(out.contains("sys\\title\\bg1.webp") && out.contains("rule_01.png"));
-    }
-
-    #[test]
-    fn retargets_image_names_only() {
-        let script = "bg \"bg\\a.png\",1\nlsp 1,\":a/3,0,3;system\\b.png\",0,0\nbgm \"bgm\\c.ogg\"\n";
-        assert_eq!(retarget(script), "bg \"bg\\a.webp\",1\nlsp 1,\":a/3,0,3;system\\b.webp\",0,0\nbgm \"bgm\\c.ogg\"\n");
     }
 
     #[test]

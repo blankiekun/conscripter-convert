@@ -23,10 +23,6 @@
 use super::FormatError;
 use crate::read::Reader;
 
-fn bad(msg: String) -> FormatError {
-    FormatError::Bad(msg)
-}
-
 /// The body (past its 8-byte block header) of block `kind`.
 fn block(r: &Reader, kind: u16) -> Result<usize, FormatError> {
     for i in 0..usize::from(r.u16(0x10)?) {
@@ -34,7 +30,7 @@ fn block(r: &Reader, kind: u16) -> Result<usize, FormatError> {
             return Ok(r.u32(0x18 + 12 * i)? as usize + 8);
         }
     }
-    Err(bad(format!("{} has no block {kind:#06x}", String::from_utf8_lossy(r.slice(0, 4)?))))
+    Err(FormatError::Bad(format!("{} has no block {kind:#06x}", String::from_utf8_lossy(r.slice(0, 4)?))))
 }
 
 /// The targets of a reference table at `at`.
@@ -128,9 +124,9 @@ pub fn wave_sounds(data: &[u8]) -> Result<Vec<WaveSound<'_>>, FormatError> {
     let list = |n: usize| -> Result<Vec<usize>, FormatError> { table(&r, info + r.u32(info + 8 * n + 4)? as usize, 8) };
     let (sounds, archives, files) = (list(0)?, list(3)?, list(6)?);
     let file = |id: u32| -> Result<&[u8], FormatError> {
-        let at = *files.get((id & 0xFF_FFFF) as usize).ok_or_else(|| bad(format!("no file {id:#x}")))?;
+        let at = *files.get((id & 0xFF_FFFF) as usize).ok_or_else(|| FormatError::Bad(format!("no file {id:#x}")))?;
         if r.u16(at)? != 0x220C {
-            return Err(bad(format!("file {id:#x} is not inside the archive")));
+            return Err(FormatError::Bad(format!("file {id:#x} is not inside the archive")));
         }
         let inner = at + r.u32(at + 4)? as usize;
         let range = sized(&r, inner + 4, files_base)?;
@@ -152,19 +148,19 @@ pub fn wave_sounds(data: &[u8]) -> Result<Vec<WaveSound<'_>>, FormatError> {
         let wave_ids = body + wsd.u32(body + 4)? as usize;
         let sound = *table(&wsd, body + wsd.u32(body + 12)? as usize, 8)?
             .get(index)
-            .ok_or_else(|| bad(format!("{name}: no wave sound {index}")))?;
+            .ok_or_else(|| FormatError::Bad(format!("{name}: no wave sound {index}")))?;
         let notes = table(&wsd, sound + wsd.u32(sound + 0x14)? as usize, 8)?;
-        let note = *notes.first().ok_or_else(|| bad(format!("{name}: no notes")))?;
+        let note = *notes.first().ok_or_else(|| FormatError::Bad(format!("{name}: no notes")))?;
         let wave = wave_ids + 4 + 8 * wsd.u32(note)? as usize;
         let (archive, wave_index) = (wsd.u32(wave)?, wsd.u32(wave + 4)? as usize);
-        let at = *archives.get((archive & 0xFF_FFFF) as usize).ok_or_else(|| bad(format!("{name}: no wave archive {archive:#x}")))?;
+        let at = *archives.get((archive & 0xFF_FFFF) as usize).ok_or_else(|| FormatError::Bad(format!("{name}: no wave archive {archive:#x}")))?;
         let war = Reader(file(r.u32(at)?)?);
         if !war.0.starts_with(b"FWAR") {
             return Err(FormatError::BadMagic("FWAR"));
         }
         let (war_info, war_files) = (block(&war, 0x6800)?, block(&war, 0x6801)?);
         if wave_index >= war.u32(war_info)? as usize {
-            return Err(bad(format!("{name}: no wave {wave_index} in its archive")));
+            return Err(FormatError::Bad(format!("{name}: no wave {wave_index} in its archive")));
         }
         let range = sized(&war, war_info + 4 + 12 * wave_index + 4, war_files)?;
         out.push(WaveSound { name, fwav: war.slice(range.start, range.len())? });
