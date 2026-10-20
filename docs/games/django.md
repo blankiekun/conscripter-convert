@@ -246,7 +246,7 @@ has been seen, right after one) and goes back to the title.
   research/nitroplus/tracedll/ntrace.sh -o orig.jsonl --pages 50` plays
   from dja001 by itself; `SPEED=8` for speed, `--frames` for per-frame
   `obj` records, `--scene-dumps`/`--dumps` for memory snapshots
-  (`docs/new-game-reference.md`, "Snapshot oracle"). Per-scene runs:
+  (`docs/tools.md`, "Matching the original"). Per-scene runs:
   `scene_saves.py --at end` then `scene_chain.py --quiet 120`. Compare
   with ours:
 

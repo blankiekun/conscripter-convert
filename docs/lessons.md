@@ -127,8 +127,8 @@ apply them are in `docs/new-game.md`.
   before and after each overlap case took one 40 s wine run. The dumps
   answered the FadeFade question outright (the pan's step counter went
   on through `Fade(0)`), and the exe's own frame function then steps
-  them under Unicorn with no further wine (`docs/new-game-reference.md`,
-  "Snapshot oracle").
+  them under Unicorn with no further wine (`docs/tools.md`,
+  "Matching the original").
 - **Measure reference screenshots** for layout (text box, name plate).
 - **A wine prefix shares the user's home by default** (Documents etc.
   are symlinks, and games save there): make them real folders first.

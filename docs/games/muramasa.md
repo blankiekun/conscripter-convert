@@ -381,7 +381,7 @@ python3 -I research/tools/nitroplus_save.py write <game>/Muramasa.exe <saves>/00
 ## Per-scene snapshots
 
 A memory dump of the original at the start of every story scene, from
-saves (`docs/new-game-reference.md`, "Snapshot oracle"):
+saves (`docs/tools.md`, "Matching the original"):
 
 ```sh
 python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa <nss>

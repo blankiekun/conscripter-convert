@@ -60,9 +60,9 @@ Read the bullet you need.
   `research/tools/picdiff.py orig.jsonl <dir> ours.jsonl <dir> --map
   <map> --ms --thread 0 --mask <text window>`: differing pixels, RMSE
   and their box per page, worst first, views of the worst
-  (`docs/new-game-reference.md`, "Picture diff"; lossy WebP: `--fuzz 15`).
+  ("Matching the original"; lossy WebP: `--fuzz 15`).
 - Frames mid-effect: the trace's `--shot-effects 25,50,75`. Patched-script
-  runs: `docs/new-game-reference.md`, "Matching the original" and "When the trace
+  runs: this file, "Matching the original" and "When the trace
   can't do it". Anything that needs a display (Xvfb, wine, Vita3K,
   Ryujinx) runs only through `research/tools/headless-run.sh <cmd>
   [args...]`: it starts its own Xvfb on a free display (`-displayfd`),
@@ -97,8 +97,7 @@ Read the bullet you need.
   `＼`) and `--enc:sjis`.
 - One function of the exe without the game: `research/tools/.venv/bin/python
   -I research/tools/exe_call.py <exe> <addr|*table+4*i> [args] --ret
-  float` (PE, Vita ELF, Switch NSO under Unicorn; `docs/new-game-reference.md`,
-  "Running one exe function"). Setup once per machine:
+  float` (PE, Vita ELF, Switch NSO under Unicorn; "Matching the original"). Setup once per machine:
   `research/tools/setup-venv.sh` (unicorn, and the self-test).
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
   file X:..." on stderr.
@@ -106,7 +105,7 @@ Read the bullet you need.
 ## Manuals
 
 Each platform keeps the manual in a known place; check it before asking
-for screenshots (`docs/new-game-reference.md`, "Matching the original"). Extract into
+for screenshots ("Matching the original"). Extract into
 `research/<engine>/local/manual/`.
 
 - **PC**: a PDF/HTML/CHM in the install or on the disc (`find <install>
@@ -185,7 +184,7 @@ through a file with `sed`.
   `drive_c/users/<user>/{Documents,Desktop,...}` symlinks with real
   folders before the first run (games save there); run through
   `headless-run.sh` with `LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8`; reach the
-  moment by patching scripts or saves (`docs/new-game-reference.md`, "Matching the original"). Stop wine
+  moment by patching scripts or saves ("Matching the original"). Stop wine
   (`wineserver -k`) when done.
 
 ## Build and test details
@@ -250,3 +249,84 @@ through a file with `sed`.
   engine/build/conscripter -r .` with the game folder as the working
   directory (otherwise `default.ttf` isn't found). Screenshot with
   `print 1:getscreenshot 800,600:savescreenshot "x.bmp"`.
+
+## Matching the original
+
+Optional: only for a bug seen in play, with the user's yes; code and oracle first.
+
+- **Reach the moment by patching**: a save from
+  `research/tools/<engine>_save.py` (`xuse_save.py`, `nitroplus_save.py`),
+  patched scripts in a symlink farm, an edited save; clicking by hand last.
+- **Filming**: only through `research/tools/headless-run.sh` or a wrapper
+  (`xtrace.sh`, `ntrace.sh`, `vita-emu.sh`, `switch-emu.sh`); scratch
+  prefix, real user folders, `LANG=ja_JP.UTF-8`, no audio. Slow a transition
+  by patching its duration; compare by numbers (`compare -metric AE -fuzz 0`
+  on a crop); ours: `--shot-effects 25,50,75`. Consoles:
+  `docs/games/tsukihime.md`, `docs/games/oretsuba.md` ("Testing").
+- **Running one exe function**: `research/tools/exe_call.py` maps the exe
+  into Unicorn and calls one address (int, float, pointer arguments;
+  imports and `--stub` addresses return 0 or a chosen value); `Exe(path).call`
+  sweeps. Setup: `research/tools/setup-venv.sh`. Example:
+  `research/nitroplus/en_tempo_exe.py`. No OS: write the state in first
+  (`Exe.load_dump`); stub the clock (`stub_import("WINMM.dll!timeGetTime",
+  ...)`). x86-32 PE, Linux ELF, Vita eboot (no SCE relocations), Switch NSO;
+  not Windows x86-64.
+- **Snapshot oracle** (what the original does over time): (1) a probe scene
+  with a marker around each step (Nitroplus: `Delete("__dump_<label>")`;
+  `research/nitroplus/sched_probe.nss`); (2) dumps at each marker:
+  `ntrace.sh --probe <file> --dumps <dir>`, or `--scene-dumps` (compare
+  with `research/tools/scene_check.py`); Vita: `gdbdump.py --scan`; Switch:
+  `gdbdump.py --get-info`; (3) `Exe.load_dump(prefix)`, then
+  `research/tools/sched_harness.py` stubs clock, heap and TLS and steps the
+  frame function (`research/nitroplus/sched_django.py <exe> <dumps> --cases`);
+  (4) the numbers become test fixtures. Per-frame state: `ntrace.sh
+  --frames`, `research/tools/frame_diff.py`.
+- **Wine API log**: `WINEDEBUG=+timestamp,+relay` with `RelayInclude` set
+  (`wine reg add 'HKCU\Software\Wine\Debug' /v RelayInclude /d
+  'kernel32.Sleep;winmm.timeGetTime;...'`), into `research/<engine>/local/`;
+  group `Call` lines by `ret=` for the frame loop. COM calls are invisible
+  (`+dsound` for sound).
+- **Breakpoint trace**: `research/tools/wine_bptrace.py names.tsv [name ...]
+  -o bp.gdb`, `winedbg --gdb --no-start 'C:\<dir>\game.exe'`, `gdb -batch
+  -ex 'target remote localhost:PORT' -x bp.gdb > bp.log`; fold with
+  `wine_bptrace.py --fold bp.log`. 32-bit stack arguments only; break on
+  handlers, not the frame loop.
+- **Trace DLL**: the debug trace's records from the original: a mingw DLL
+  injected by a launcher hooks the dispatch table, counts frames at the
+  loop's `Sleep`, turns on auto mode. `research/xuse/tracedll/` (`xtrace.sh`),
+  `research/nitroplus/tracedll/` (`ntrace.sh`; `at` is `<file>:<line>`,
+  times in ms); Switch `research/typemoon/switchtrace/`; Vita
+  `research/oretsuba/vpatch.py`.
+- **Trace diff**: ours with `--source-map <file>`, `--trace --auto-play N
+  --real-time` and the original's choices, then `research/tools/trace_diff.py
+  orig.jsonl ours.jsonl --map <file> [--fps N | --ms] [--merge-into OP]
+  [--top N]`: per page, differing text, instructions one side ran
+  (`missing`, `merged`, `quiet`), times off by over a frame. Triage times
+  over 1 s first.
+- **Reference traces**: `research/tools/reftrace.sh <game>` builds our dry
+  run, map and trace, then runs the original on the same route in the
+  background (3 GB cap) into `out/<game>-reftrace/`. `reftrace.sh status
+  <game>` ~5 min after the start and every 30-60 min; `summary <game>` at the
+  end. Route inputs (`*-route.arg`, `*-choose.txt`, `*-patch/`, `keys.sh`)
+  live in `$CD` (default `out/reftrace`).
+- **Trace speeds**: `SPEED=N` (`xtrace.sh`, `ntrace.sh`) runs the original's
+  clock N times fast; records keep game time. Saihate 4, Muramasa and Django
+  8, Tsukihime `IDLEA=0.3`, Django's reference run 1. Sound and loading
+  aren't scaled: `trace_diff.py` (`--orig-speed N`) counts them as
+  `fast-voice`.
+- **Picture diff**: original `ntrace.sh --shots <dir> [--shot-delay MS]`;
+  ours `--trace --auto-play N --real-time --shot-every 1 --shot-dir <dir>`;
+  `research/tools/picdiff.py orig.jsonl <orig dir> ours.jsonl <our dir> --map
+  <map> --ms --thread 0 --mask WxH+X+Y` (`--fuzz 15` for lossy shots): per
+  page differing pixels, RMSE, box. A difference that moves with
+  `--shot-delay` is timing.
+- **Branch coverage**: the trace DLL arms one-shot `int3` breakpoints on the
+  `names.tsv` addresses (instruction starts only) and logs `hit` records;
+  `research/xuse/cover.py` marks each row `runs:`/`not:`/`never runs`.
+- **Film list**: `research/tools/shots.py find <words>` first (indexes
+  `research/*/local/shots/INDEX.tsv`; add with `shots.py add <file> <game>
+  <scene> <page> <what>`). A doubt only the original settles goes on
+  `research/<engine>/local/film-list.md` (`| game | scene / page | question |
+  asked by |`); carry on without running it. A quick check that a generated
+  save or patched script reaches its moment may run at once.
+  `.claude/hooks/emu_run.py` refuses direct runs.

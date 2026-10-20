@@ -7,7 +7,7 @@ House rules are `CLAUDE.md`'s; general lessons `docs/lessons.md`.
 
 **The goal** of a new game: `CLAUDE.md`, "Goal". Matching the
 original frame by frame is not a step: do it only for a bug seen while
-playing and with the user's yes (reference, "Matching the original").
+playing and with the user's yes (`docs/tools.md`, "Matching the original").
 
 **Order of evidence** for any question about the original: its code
 (scripts, decompile, formats), then the oracle (running one exe
