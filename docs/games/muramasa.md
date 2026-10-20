@@ -429,8 +429,7 @@ scenes are clean; the real findings are in Status.
 
 ## Status
 
-Active (Japanese and English in one build). Done = it plays through in
-the web build with no blocking or visible bug, then a release.
+Active (Japanese and English in one build). Done: `CLAUDE.md`, "Goal".
 
 | Area | State |
 |---|---|

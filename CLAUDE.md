@@ -3,9 +3,10 @@
 Converts visual novels the user owns into games for CONscripter (our
 ONScripter-Yuri fork, `engine/` submodule), especially its web build.
 
-**Goal**: a game is done when it plays through in the web build with no
-blocking or visible bug, then a release. Pixel, frame or trace parity
-work only for a bug someone saw while playing.
+**Goal**: a game is done when its web build plays every route to its
+ending (the route runs), saves and loads, its settings work, and it
+shows no visible glitch in a one-hour play by the user; then a release.
+Anything beyond that (pixel, frame or trace parity) needs the user's yes.
 
 **WIP limit**: no new game, and paused games stay paused, until
 Muramasa (JP+EN) and Django have shipped (the user, 2026-10-20).

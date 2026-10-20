@@ -5,10 +5,9 @@ each step says what to do, when it is done, and where the detail is
 (`docs/new-game-reference.md` by heading, `docs/tools.md`, the code).
 House rules are `CLAUDE.md`'s; general lessons `docs/lessons.md`.
 
-**The goal** of a new game is a build that plays through in the web
-build with no blocking or visible bug, then a release. Matching the
+**The goal** of a new game: `CLAUDE.md`, "Goal". Matching the
 original frame by frame is not a step: do it only for a bug seen while
-playing (reference, "Matching the original").
+playing and with the user's yes (reference, "Matching the original").
 
 **Order of evidence** for any question about the original: its code
 (scripts, decompile, formats), then the oracle (running one exe

@@ -278,8 +278,7 @@ has been seen, right after one) and goes back to the title.
 
 ## Status
 
-Active. Done = it plays through in the web build with no blocking or
-visible bug, then a release.
+Active. Done: `CLAUDE.md`, "Goal".
 
 | Area | State |
 |---|---|
