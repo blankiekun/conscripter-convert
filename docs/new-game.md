@@ -1,18 +1,14 @@
 # Converting a new game
 
-A checklist for an agent (or lead) starting a new game. Read it whole;
-each step says what to do, when it is done, and where the detail is
-(`docs/new-game-reference.md` by heading, `docs/tools.md`, the code).
-House rules are `CLAUDE.md`'s; general lessons `docs/lessons.md`.
+A checklist for an agent (or lead) starting a new game: what to do, when
+it is done, where the detail is (`docs/new-game-reference.md` by heading,
+`docs/tools.md`). House rules: `CLAUDE.md`; lessons: `docs/lessons.md`.
 
-**The goal** of a new game: `CLAUDE.md`, "Goal". Matching the
-original frame by frame is not a step: do it only for a bug seen while
-playing and with the user's yes (`docs/tools.md`, "Matching the original").
-
-**Order of evidence** for any question about the original: its code
-(scripts, decompile, formats), then the oracle (running one exe
-function, memory dumps), then the original under wine or an emulator,
-last (`CLAUDE.md`, "Wine is the last resort").
+**The goal**: `CLAUDE.md`, "Goal". Matching the original frame by frame
+is not a step: only for a bug seen in play and with the user's yes
+(`docs/tools.md`, "Matching the original"). **Order of evidence** for any
+question about the original: its code (scripts, decompile, formats), the
+oracle (one exe function, memory dumps), then wine or an emulator, last.
 
 ## For the lead
 
@@ -26,12 +22,12 @@ prefix, its row in `CLAUDE.md`'s table, `docs/games/<game>.md` from
 ### Start
 
 1. **Scope.** Ask the user (or read the lead's prompt): everything or
-   story first, platforms (the web build is the main one), what to skip.
-   Done: the answers are in the game document's "Scope".
+   story first, platforms (web is the main one), what to skip. Done: the
+   answers are in the game document's "Scope".
 2. **Learn the game as a player.** A wiki or playthrough for routes,
-   choice mechanic, endings, extras; check the game's manual for its
-   screens. Done: a "Walkthrough" section with its source. Detail:
-   `docs/tools.md`, "Manuals".
+   choice mechanic, endings, extras; the manual for its screens
+   (`docs/tools.md`, "Manuals"). Done: a "Walkthrough" section with its
+   source.
 3. **Identify the engine** from exe strings, RTTI, archive magic, config
    files; for a known engine, find its format docs and tools first. A
    Windows game: run the first-contact kit. Done: engine named in the
@@ -47,20 +43,17 @@ prefix, its row in `CLAUDE.md`'s table, `docs/games/<game>.md` from
 
 5. **Archives and assets.** A reader and a decoder per format in
    `crates/conv-engines/src/<engine>/`, each with a `conscripter-convert
-   <format> list|extract` subcommand; keys from the exe; throwaway
-   Python in `research/<engine>/`. Reuse `conv_engines::output::Output`,
-   `conv_engines::media` and `crates/conv-cli/src/build.rs`. Audio Ogg
-   passes through (loop points as `LOOPSTART`/`LOOPEND` tags); movies
-   to H.264/AAC MP4. Done: every archive verifies, every image decodes,
-   every sound plays over the whole corpus; empty or 1×1 assets counted.
-   Detail: reference, "A new engine's code".
+   <format> list|extract` subcommand; keys from the exe. Audio Ogg passes
+   through (loop points as `LOOPSTART`/`LOOPEND` tags); movies to H.264/AAC
+   MP4. Done: every archive verifies, every image decodes, every sound
+   plays over the whole corpus; empty or 1×1 assets counted. Detail:
+   reference, "A new engine's code".
 6. **Decode the scripts** fully (header, code, constant pool, labels)
-   with a dump subcommand; rank opcodes or built-ins by use and work
-   from the top; work out every index space a jump uses. Decompile with
-   `research/tools/ghidra/ghidra_export.sh` and put every name you
-   identify in `research/<engine>/names.tsv`. Done: every script parses,
-   every jump target exists. Detail: reference, "Decompiling the exe";
-   `docs/tools.md`, "Code before wine".
+   with a dump subcommand; rank opcodes or built-ins by use and work from
+   the top; work out every index space a jump uses. Decompile with
+   `research/tools/ghidra/ghidra_export.sh`, every identified name in
+   `research/<engine>/names.tsv`. Done: every script parses, every jump
+   target exists. Detail: reference, "Decompiling the exe".
 7. **Convert what the corpus uses.** Decode, convert what the corpus
    uses, and keep the ranked gaps in Status. Done: gaps ranked in Status.
 
@@ -79,20 +72,19 @@ prefix, its row in `CLAUDE.md`'s table, `docs/games/<game>.md` from
    test on a tiny synthetic input. Done: `tests/snapshot.sh` covers the
    game. Detail: reference, "A new engine's code".
 10. **After every feature**, dry-run the whole game, `conscripter-convert
-    lint <dir>`, and a debug trace checked with `cons_trace_check.py`;
-    `cons_explore.py` covers every route. A loop is a bug only if the
-    original doesn't loop. Done: checker clean, every ending reached.
-    Detail: reference, "Checking a build with the debug trace".
+    lint <dir>`, and a debug trace checked with `cons_trace_check.py`
+    (`cons_explore.py` covers every route). Done: checker clean, every
+    ending reached. Detail: reference, "Checking a build with the debug
+    trace".
 11. **Text and voices.** Text box and name plate from the original's
-    layout; fixed-width font; the exact voice rule (check every voiced
-    line plays); backlog with voice replay; ruby, size, colour tags. Done:
-    every voiced line plays; the longest message in the corpus (name and
-    ruby included) fits the window.
+    layout; fixed-width font; the exact voice rule; backlog with voice
+    replay; ruby, size, colour tags. Done: every voiced line plays; the
+    longest message (name and ruby included) fits the window.
 12. **Pictures, sound, transitions** with their real durations; sprite
-    references checked against asset names; effect presets found where
-    they are defined. An effect ONScripter can't draw: existing commands
-    first (masks, `effect` numbers, `spfilter`), then step 13. Done: no
-    missing files in the trace, transitions timed from the code.
+    references checked against asset names. An effect ONScripter can't
+    draw: existing commands first (masks, `effect` numbers, `spfilter`),
+    then step 13. Done: no missing files in the trace, transitions timed
+    from the code.
 13. **Engine additions**, only for what the engine's general pieces
     (`spmotion` keys and `spcurve` tables, `cons_rule.dll` masks, Lua)
     can't take as data. In `engine/src/cons/`, not opt-in, working in the
@@ -108,35 +100,33 @@ prefix, its row in `CLAUDE.md`'s table, `docs/games/<game>.md` from
     `Backlog`, `ConfirmDialog`, `PictureScreen`; mechanics in
     `crates/conv-cons/src/menu/mod.rs`), changed only through what the
     game puts in the IR. Picture-drawn originals use the picture family,
-    others the classic one; a third family needs the user's yes. State
-    the engine could keep (play time, counters) goes in the engine.
-    Boot warnings and logos via `Script::boot`. Done: every screen opens
-    and closes by mouse, keyboard and touch.
+    others the classic one; a third needs the user's yes. State the
+    engine could keep (play time, counters) goes in the engine. Boot
+    logos via `Script::boot`. Done: every screen opens and closes by
+    mouse, keyboard and touch.
 15. **Extras** (gallery, scene replay, music room), tables from the exe
-    or system archives. Done: locked and unlocked states both right,
-    from a fresh start and from a 100 % save.
+    or system archives. Done: locked and unlocked states right, from a
+    fresh start and from a 100 % save.
 16. **Route and progression.** Map the progression variables (meaning,
     where set and read, save or system data) into the document; follow
     the walkthrough through the converted branches with `--trace-vars`;
     settle any disagreement from the original's code. Check when every
     button may be shown (locked on a fresh start, shown once unlocked),
     every setting against the original's, every input on every screen
-    (touch has no right-click or wheel), and that system data survives
-    a relaunch. Done: Status says "progression verified: yes, how".
+    (touch has no right-click or wheel), and that system data survives a
+    relaunch. Done: Status says "progression verified: yes, how".
     Detail: reference, "Route simulation".
 17. **Saves survive a rebuild.** Load the previous build's saves and
     system data into the new one, natively and on the web. Global
-    variables, sprite numbers, setting switches and slots never move
-    once a build is out. Done: an older build's saves load at the same
-    page.
+    variables, sprite numbers, setting switches and slots never move once
+    a build is out. Done: an older build's saves load at the same page.
 18. **The web build**, loose files, played in a browser at every
-    milestone; `engine/tools/web_run.py --query 'auto-play=0'` for a
-    headless trace. Done: loads, sound plays, saves survive a reload,
-    screens work by touch; size and file count in the document. Detail:
+    milestone. Done: loads, sound plays, saves survive a reload, screens
+    work by touch; size and file count in the document. Detail:
     reference, "The web build".
 19. **Play it through** in the web build (test saves at chosen scenes
     help: reference, "Test saves at chosen scenes"); each bug found is a
     Status item, matched against the original only as far as the bug
-    needs. Done: the user agrees it's done; then a release
-    (`docs/releasing.md`), the game in `README.md`'s table and
-    `gui/README.md`, new lessons in `docs/lessons.md`.
+    needs. Done: the user agrees; then a release (`docs/releasing.md`), the
+    game in `README.md`'s table and `gui/README.md`, new lessons in
+    `docs/lessons.md`.
