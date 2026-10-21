@@ -1,5 +1,5 @@
 /* fctrace.dll: a generic JSONL trace of any Windows game under wine, at the
- * API level, for a first contact with a new engine (docs/new-game.md step 0;
+ * API level, for a first contact with a new engine (docs/new-game-reference.md, "First contact";
  * run it with fc.sh). Injected by research/xuse/tracedll/xlaunch.exe.
  *
  * It points the import tables of every module but ntdll/kernel32/

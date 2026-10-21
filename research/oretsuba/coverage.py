@@ -1,4 +1,4 @@
-"""Coverage table for the scene scripts' task keys (docs/new-game.md §2,
+"""Coverage table for the scene scripts' task keys (docs/new-game-reference.md,
 "Mapping the whole exe"): per task type and key, its use count in the
 scenes, whether the eboot reads it ("TaskList/Task%d/<key>" in the Ghidra
 export; y? = only the leaf name matches) and whether the converter names it.

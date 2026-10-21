@@ -1,4 +1,4 @@
-# Tsukihime exe mapping: one row per argument or branch the converter maps (docs/new-game.md step 16).
+# Tsukihime exe mapping: one row per argument or branch the converter maps.
 # Exe: 1.0.2's main (Ghidra, image at 0x100000). mark: seen (decompile, data or dry run shows it), inferred (names, layout), unknown.
 # An inferred row becomes seen only by a decompile lookup. check: the cheapest way to settle it. Uses: the 1.0.2 scripts.
 command	argument_or_branch	uses	exe	converter	mark	check

@@ -2,7 +2,7 @@
 """Flag left-out features in docs/games/*.md that state no reason.
 
 A sentence with a phrase from DROP but none from REASON is flagged.
-Convention: docs/new-game.md, "Say why a feature is left out".
+Convention: docs/new-game.md, step 8.
 Usage: python3 -I research/tools/dropped_lint.py [--max N] [files...]
 With files: exit 1 if anything is flagged. Without (CI): exit 1 when a game
 exceeds its CEIL; lower CEIL as reasons are added, never raise it.

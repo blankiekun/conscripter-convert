@@ -277,7 +277,7 @@ def report(root, out, exe=None, gdir=None):
         with open(os.path.join(out, "hooks.tsv"), "w") as f:
             f.write("# first_contact.py candidates: address, name, mode (fctrace.c FC_HOOKS)\n" + "\n".join(rows) + "\n")
     L += ["", "## Next", "", "One logged run: `research/tools/firstcontact/fc.sh <install dir>"
-          + (" --hooks <out>/hooks.tsv" if gdir else "") + "` (docs/new-game.md step 0)."]
+          + (" --hooks <out>/hooks.tsv" if gdir else "") + "` (docs/new-game-reference.md, \"First contact\")."]
     with open(os.path.join(out, "report.md"), "w") as f:
         f.write("\n".join(L) + "\n")
     return L

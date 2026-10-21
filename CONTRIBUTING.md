@@ -38,8 +38,8 @@ output stage already does for you.
 ## 2. Read, in this order
 
 1. [`README.md`](README.md), "How it works": the pipeline and the crates.
-2. [`docs/new-game.md`](docs/new-game.md) §0: what to settle before
-   writing code. The whole document is the playbook; it is written for
+2. [`docs/new-game.md`](docs/new-game.md), steps 1-4: what to settle before
+   writing code. The whole checklist is the playbook; it is written for
    AI agents but every step applies to people too.
 3. A finished game's document, as the model for yours:
    [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md).
@@ -54,7 +54,7 @@ output stage already does for you.
 
 ## 3. Find out where your game fits
 
-Identify the engine from the install (`docs/new-game.md` §0.3). Then:
+Identify the engine from the install (`docs/new-game.md` step 3). Then:
 
 - **An engine the converter already reads** (Xuse, Nitroplus NSS,
   MAGES TaskList on the Vita): you reuse its reader and add your game's
@@ -70,13 +70,13 @@ Identify the engine from the install (`docs/new-game.md` §0.3). Then:
   Rust.
 
 Either way, start `docs/games/<game>.md` before the code
-(`docs/new-game.md` §0.4) and keep its "Status" section current as you
+(`docs/new-game.md` step 4) and keep its "Status" section current as you
 go. It is public: no local paths (write `<game>` for the install), only
 commands anyone with the game can run.
 
 Work in the order of `docs/new-game.md`: assets, script decoding,
 control flow, text and voices, pictures and sound, system screens,
-extras, matching the original. Get one scene playing (text, a picture,
+extras, play-through. Get one scene playing (text, a picture,
 a voice) before going wide.
 
 ## 4. Check your build
@@ -86,7 +86,7 @@ a voice) before going wide.
 - The engine plays a build by itself and writes a trace of what it did;
   `engine/tools/cons_trace_check.py` lists what looks wrong (missing
   files, script errors, sprites left up, labels never reached). Recipes:
-  [`docs/new-game.md`](docs/new-game.md), "Checking a build with the
+  [`docs/new-game-reference.md`](docs/new-game-reference.md), "Checking a build with the
   debug trace"; reference: [`engine/DEBUG.md`](engine/DEBUG.md).
 - Before sending changes: `cargo test` and `cargo clippy --all-targets`
   pass, and every other game still builds the same if you touched shared
@@ -130,7 +130,7 @@ the feature goes into the engine, not an approximation in the converter
   `SaveGrid: ...`, `Django choices: ...`.
 - Update the game document's "Status" in the same commit as the work it
   describes. When an item is done, move its write-up from "Status" to
-  `docs/history/<game>.md`.
+  git log.
 - Base your branch on `main` and bring later `main` in by merging, not
   rebasing: other branches build on shared history.
 - Stage files by name. Don't commit `out/`, local paths or anything from

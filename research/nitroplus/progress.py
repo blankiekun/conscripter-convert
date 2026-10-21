@@ -1,4 +1,4 @@
-"""Progression variables of 装甲悪鬼村正 (docs/new-game.md step 11.2).
+"""Progression variables of 装甲悪鬼村正 (docs/new-game-reference.md, "Route simulation").
 
 Lists every variable that the story files (m*.nss) both set and test, with
 the places that set it (and the value) and the places that read it. `#`

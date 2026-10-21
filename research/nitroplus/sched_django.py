@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Django.exe 1.01 (unpacked) adapter for research/tools/sched_harness.py,
-and the overlap cases of docs/new-game.md step 15 run on it.
+and the overlap cases of docs/new-game-reference.md, "Timing and overlap", run on it.
 
     research/tools/.venv/bin/python -I research/nitroplus/sched_django.py <Django.exe> <dumps dir>
 

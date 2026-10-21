@@ -4,7 +4,8 @@
 # tests/snapshots/ take main's side), reruns tests/snapshot.sh --update when
 # those conflicted or the PR touches shared code (crates/, engine), pushes
 # with --force-with-lease, waits for the required checks (rerunning a
-# stale engine-on-master once) and squash-merges.
+# stale engine-on-master once) and squash-merges. Then it removes out/land-<n>
+# and, when clean, another worktree on the PR's branch with its local branch.
 #
 #   tests/land.sh [--dry-run] <pr>     --dry-run stops before the push
 #
@@ -12,6 +13,7 @@
 # Any other conflict stops with a message to pass to the PR's agent.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+root=$PWD
 dry=0; [ "${1:-}" = --dry-run ] && { dry=1; shift; }
 pr=${1:?usage: tests/land.sh [--dry-run] <pr>}
 mkdir -p out
@@ -73,3 +75,14 @@ if ! gh pr checks "$pr" --required --watch --interval 30; then
     gh pr checks "$pr" --required --watch --interval 30 || { echo "REFUSED: checks failed on #$pr"; exit 1; }
 fi
 gh pr merge "$pr" --squash
+cd "$root"
+landed=$(git -C "$wt" rev-parse HEAD)
+git worktree remove --force "$wt" && echo "removed $wt"
+# a clean worktree still on the merged branch (not this checkout, never saves)
+git worktree list --porcelain | awk -v b="refs/heads/$br" '/^worktree /{p=substr($0,10)} $0=="branch "b{print p}' |
+while read -r other; do
+    [ "$other" = "$root" ] || [[ "$other" == *saiima-flow* ]] && continue
+    [ -z "$(git -C "$other" status --porcelain)" ] || { echo "kept $other: uncommitted changes"; continue; }
+    ! git -C "$other" cherry "$landed" HEAD | grep -q "^+" || { echo "kept $other: commits not landed"; continue; }
+    git worktree remove --force "$other" && git branch -D "$br" && echo "removed $other and branch $br"
+done || true
