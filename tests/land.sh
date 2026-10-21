@@ -55,8 +55,11 @@ if [ "${redo:-0}" = 1 ] || git diff --name-only origin/main...HEAD | grep -qE '^
 fi
 if [ $dry = 1 ]; then echo "dry run: rebased at $(git rev-parse --short HEAD), not pushed"; git log --oneline origin/main..HEAD; exit 0; fi
 git -c credential.helper= -c credential.helper='!gh auth git-credential' push -q --force-with-lease="$br:origin/$br" origin "HEAD:refs/heads/$br"
-# the checks take a moment to register after a push (minutes when CI is busy)
-for _ in $(seq 80); do gh pr checks "$pr" >/dev/null 2>&1 && break; [ $? = 8 ] && break; sleep 15; done
+# the checks take a moment to register after a push (minutes when CI is busy);
+# wait for the pushed commit's own: right after the push the PR still shows
+# the old head's, and watching those ends at once ("no checks reported")
+sha=$(git rev-parse HEAD)
+for _ in $(seq 80); do [ "$(gh api "repos/{owner}/{repo}/commits/$sha/check-runs" --jq .total_count 2>/dev/null)" -gt 0 ] 2>/dev/null && break; sleep 15; done
 # only the required checks: the rest still report on the PR. engine-on-master
 # fails when it ran before the engine PR merged; once the pointer is on (or
 # behind) master, a rerun passes, so rerun it once instead of refusing.
