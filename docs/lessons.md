@@ -1,11 +1,8 @@
 # Lessons learned and ways to speed up conversion
 
-General lessons, collected while converting games. Each one is stated
-for any engine, with the case that taught it as an example (untagged
-ones come from 最果てのイマ, Xuse; its details are in
-`docs/games/saihate-no-ima.md`), grouped by topic: add a new lesson to
-its topic, not under a heading for its game.
-The steps that apply them are in `docs/new-game.md`.
+General lessons, each stated for any engine with the case that taught
+it (untagged: 最果てのイマ). Add a new one to its topic. The steps that
+apply them are in `docs/new-game.md`.
 
 ## Lessons learned
 
@@ -46,7 +43,7 @@ The steps that apply them are in `docs/new-game.md`.
   after the values it takes. Examples: a 0/128/255 byte that looked like
   black/grey/white was an acceleration; a field whose values (1000, 500,
   0) looked like fade milliseconds was a sort depth, which the handler
-  passed to the object creator (fixed in `6b22f6d`).
+  passed to the object creator.
 - **An operand can refer to state defined elsewhere.** An opcode may
   only name a preset that another opcode defines in a setup script; the
   context around the definitions (evening and night backgrounds next to
@@ -60,24 +57,20 @@ The steps that apply them are in `docs/new-game.md`.
   whole exe" into a bounded list of differences actually used; code
   reached only through function pointers has to be turned into functions
   before the decompiled output shows what a built-in does
-  (`docs/new-game.md` §2, "Mapping the whole exe").
-- **What the original does is a question for its code, not the user**
-  (2026-10-19). "Does a new BGM cut the one fading out?" went to the
-  user for a day; the decompiles answered it in an hour (俺たちに翼はない
-  and 月姫: their documents, "Sound channels" and "Two music slots"). It
-  stuck because Oretsuba's Ghidra export had gone with its deleted
-  worktree, Tsukihime's export predated its names, and in both only the
-  script command was named, not the sound manager under it. So: rebuild
-  a missing export from the game document's recipe
-  (`ghidra_export.sh`, minutes) and read it; name a subsystem whole (its
-  channels, their states, the per-frame update) when you first touch
-  it, not only the command's entry; ask the user only for decisions.
-- **A built-in "converted" can still drop an argument** (村正, 2026-10-16):
+  (`research/tools/ghidra/`).
+- **What the original does is a question for its code, not the user.**
+  "Does a new BGM cut the one fading out?" waited a day on the user; the
+  decompiles answered it in an hour. Rebuild a missing Ghidra export
+  from the game document's recipe (`ghidra_export.sh`, minutes); name a
+  subsystem whole (its channels, states, per-frame update) when you
+  first touch it, not only the command's entry. Ask the user only for
+  decisions.
+- **A built-in "converted" can still drop an argument** (村正):
   NSS `CreateWindow` was listed as converted because its children were
   placed, but its size, which clips them, was never read; the user saw
   the cockpit's tapes run the whole screen. Coverage is per argument and
   behaviour, and the built-in dispatch notes every argument it doesn't
-  read (`docs/new-game.md` step 5).
+  read (`docs/new-game-reference.md`, "Route simulation").
 - **Read the scripts' comments.** (俺たちに翼はない) Ports often keep the original's names
   in comments next to the numbers that replaced them (`:Texture 0 //
   BG_BLACK`, `:Voice 22562 // TAK1004`). Checking every commented number
@@ -106,7 +99,7 @@ The steps that apply them are in `docs/new-game.md`.
   run-time rules, the converted `0.txt`) and diff page by page,
   including the wrong-order clicks the walkthrough warns about. Static
   reading and spot runs missed a link that stayed clickable after a
-  jump skipped its record (`docs/new-game.md` step 11).
+  jump skipped its record (`docs/new-game-reference.md`, "Route simulation").
 - **Whole-corpus runs find what single scenes don't.** (村正) Two engine-killing
   bugs only showed on the full game: more than 254 transition effects
   (`effect` numbers stop at 255) and a half-width character in vertical
@@ -114,7 +107,7 @@ The steps that apply them are in `docs/new-game.md`.
   dry run, after every feature.
 - **Check duplicate definitions for comment blocks** before deciding which
   one is live (Muramasa keeps old helper versions inside `/* */`).
-- **Skip runs per ending find what logic checks can't** (村正, 2026-10-14): a
+- **Skip runs per ending find what logic checks can't** (村正): a
   `?` in text (NScripter reads an array and exits), a 270 s cross-fade,
   heap corruption after 500 files. Patch the choices into the script
   (one `if` per line: a false `if` skips the rest of its line) or write
@@ -126,23 +119,19 @@ The steps that apply them are in `docs/new-game.md`.
 **Matching the original.**
 - **Read the effect's code, then film only what it leaves open.** The
   exe's kernel gives the exact curve; static reading of the scripts
-  alone had got transitions wrong. Wine is the last resort (the user,
-  2026-10-16: it takes long and costs many tokens): when a real doubt
-  is left, run it silent on its own Xvfb display with a script copy
-  patched to slow the effect down, take the fewest shots at fixed
-  fractions and fit them to the curve (`CLAUDE.md`, "Rules").
+  alone had got transitions wrong. When wine is still needed (`CLAUDE.md`,
+  "Rules"), patch a script copy to slow the effect down, take the fewest
+  shots at fixed fractions and fit them to the curve.
 - **One short snapshot run beats long filming sessions for timing.**
   (続・殺戮のジャンゴ) A probe scene that dumps the process's memory
   before and after each overlap case took one 40 s wine run. The dumps
   answered the FadeFade question outright (the pan's step counter went
   on through `Fade(0)`), and the exe's own frame function then steps
-  them under Unicorn with no further wine (`docs/new-game.md`,
-  "Snapshot oracle").
-- **Use reference screenshots of the original** for layout: measuring
-  pixels settles the text box and name plate in one pass.
-- **A wine prefix shares the user's home by default.** Its Documents,
-  Desktop etc. are symlinks to the real folders, and games save there.
-  Replace them with real folders before the first run.
+  them under Unicorn with no further wine (`docs/tools.md`,
+  "Matching the original").
+- **Measure reference screenshots** for layout (text box, name plate).
+- **A wine prefix shares the user's home by default** (Documents etc.
+  are symlinks, and games save there): make them real folders first.
 - **Effects ONScripter can't draw: approximate in the converter first,
   then add them to the engine.** Pre-tinted sprite copies (~930 images,
   130 MB) were replaced by the engine's `spfilter`, which also follows
@@ -179,8 +168,7 @@ The steps that apply them are in `docs/new-game.md`.
   (`tests/snapshots/<game>.metrics.json`).
 - **Engine facts worth knowing early:** (村正) `:a` on a JPEG uses its right
   half as the mask; loose files with Japanese names were found only
-  once CONscripter looked for their UTF-8 names (4d94b92; before, pack
-  them); `;$Sw,h` sets any screen size, `,valueN` raises the global
+  CONscripter looks up by their UTF-8 names; `;$Sw,h` sets any screen size, `,valueN` raises the global
   border so more locals are saved per slot; `print 10,ms` works without
   an `effect` definition; `%%n` and `$%n` (the variable whose number is
   in `%n`) work as values and as targets.
@@ -238,8 +226,7 @@ The steps that apply them are in `docs/new-game.md`.
 - **An opaque WebP has no alpha channel** (月姫): libwebp leaves it out when
   every pixel is opaque, and on native builds (SDL_image) `lsp ":a;…"`
   took such a picture's right half as the mask; a PNG without alpha was
-  already exempt. CONscripter now treats a WebP as it treats a PNG
-  (engine PR #55); the web build's own decoder was never affected.
+  already exempt. CONscripter treats a WebP as it treats a PNG.
 - **Check a muxer's output with the strict reader** (月姫): Ogg Opus files
   with a wrong OpusTags vendor length played in ffmpeg and failed in
   opusfile, which the engine uses for chunks; music, through SDL_mixer,
@@ -251,39 +238,8 @@ The steps that apply them are in `docs/new-game.md`.
 
 ## Ways to speed up conversion
 
-Done, use them: the engine's debug trace with `--auto-play`, `--goto`
-`--vars`, `--shot-pages`, `--shot-effects` (replaces a static tracer, the
-smoke-test recipe and filming our side's effects on Xvfb;
-`engine/DEBUG.md`); `--dry-run` for logic (seconds, script only);
-`conscripter-convert lint`; `convert-script` for one scene; `nss route`
-for a route map; `tests/snapshot.sh`, whose dry runs also check that
-every file 0.txt names would be written (docs/tools.md).
-
-Still worth building, in rough order of payoff:
-1. **Incremental full builds**: keep extracted assets between runs and
-   repack only what changed, or stream archive entries straight into the
-   `.nsa`; extract in parallel. A full build is minutes, nearly all of it
-   assets.
-2. **Corpus tests in `cargo test`**: every message parses. (Every jump
-   target exists and every referenced asset is written: the dry run's
-   lint in `tests/snapshot.sh`, done.)
-3. **A frontier report**: compare the files a run reaches with the route
-   map's successors and print the condition that blocks each.
-4. **Game knowledge up front**: route structure, the choice mechanic,
-   known endings, given to an agent before it infers opcodes.
-5. **Run exe kernels at convert time**: call a transition's or an
-   easing's function from the user's own exe in an x86 emulator (for
-   example the `unicorn` crate) and keep its output as data: mask frames
-   for `cons_rule.dll`, curve tables for `spcurve`. The original's exact
-   pixels without porting its code, and nothing from the exe goes into
-   the engine or the repo. Works for self-contained functions; one that
-   reaches into the exe's objects or renderer still needs reading.
-
-## Open items from the October 2026 audit
-
-- **Colours into the IR:** skipped while one game has links; move them
-  into the IR when a second game needs other ones.
-- The `onsyuri` rename is done (web index `cons_index.json`, saves
-  `/cons_save`, JS factory `cons`, Android package
-  `io.github.blankiekun.conscripter`); the stock page does not move old
-  `/onsyuri_save` saves (the site's page does).
+Use them: the engine's debug trace with `--auto-play`, `--goto`
+`--vars`, `--shot-pages`, `--shot-effects` (`engine/DEBUG.md`);
+`--dry-run` for logic; `conscripter-convert lint`; `convert-script` for
+one scene; `nss route` for a route map; `tests/snapshot.sh`
+(`docs/tools.md`).

@@ -75,13 +75,10 @@ can be compared with this one.
 ## Status
 
 Only the open state: a table of the areas (✅ done, 🟡 partly, ❌ not
-started), then "Next", in order. About 60 lines at most. When an item
-is done, its write-up moves to `docs/history/<game>.md`.
+started), then "Next", in order. 50 lines at most. When an item is
+done, delete it (git log and the PR body are the record).
 
 ### Next
 
 1. …
 
-## History
-
-A link to `docs/history/<game>.md`, which holds finished work, newest first, each with its date.

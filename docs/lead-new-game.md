@@ -52,7 +52,7 @@ On every plan:
    `docs/games/TEMPLATE.md`, in one PR.
 2. Make its worktree: `git worktree add ../conscripter-convert-<game>
    -b <game>/start origin/main`.
-3. New engine: read `docs/new-engine.md`; the reader goes in
+3. New engine: `docs/new-game-reference.md`, "A new engine's code"; the reader goes in
    `crates/conv-engines/src/<engine>/`, one CLI subcommand.
 4. Start the lead's state file `out/lead-scratch/NEXT-LEAD-PROMPT.md`
    (start here, running agents, queue, rules, the user's decisions).

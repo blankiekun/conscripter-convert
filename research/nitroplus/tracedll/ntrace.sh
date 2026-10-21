@@ -39,7 +39,7 @@
 #
 # SPEED=N runs the game N times as fast (its clock and waits scaled by
 # research/tools/trace_speed.h; "ms" stays in game time, so the trace
-# diff's times hold: docs/new-game.md, "Trace speeds").
+# diff's times hold: docs/new-game-reference.md, "Trace speeds").
 #
 # Django: its 1.01 Django.exe is packed and asks for the disc: EXE = the
 # unpacked 1.01 exe (docs/games/django.md "The exe"), copied in; the boot

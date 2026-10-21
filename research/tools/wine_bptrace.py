@@ -17,7 +17,7 @@ are matched whole. Run `--self-test` for the check.
 --fold prints, per run of consecutive hits of one function, the first and
 last time (seconds from the first hit) and the count: a per-frame callback
 becomes one line whose count is the frames it ran. Tried on 最果てのイマ
-(wine 11, 32-bit exe): docs/new-game.md step 19.
+(wine 11, 32-bit exe): docs/new-game-reference.md, "Breakpoint trace".
 """
 import json
 import sys

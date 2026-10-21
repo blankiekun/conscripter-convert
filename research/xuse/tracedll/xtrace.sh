@@ -7,7 +7,7 @@
 #
 # SPEED=N runs the game N times as fast (its clock and waits scaled by
 # research/tools/trace_speed.h; "ms" and "f" stay in game time, so the
-# trace diff's times hold: docs/new-game.md, "Trace speeds").
+# trace diff's times hold: docs/new-game-reference.md, "Trace speeds").
 #
 # GAME = the install folder (required). XTRACE_HOME (default out/xtrace in
 # the repo) keeps the wine prefix between runs (prepared on the first run,

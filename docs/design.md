@@ -106,19 +106,9 @@ submodule. ONScripter-Yuri was chosen because it builds for the web
 (WebAssembly), Windows, Linux, macOS and Android from one tree, and adds
 UTF-8 scripts, Lua and arbitrary resolutions to the NScripter command set.
 
-**Rule for engine features.** Convert with existing NScripter/ONScripter
-commands first. When a feature of the original game can't be reproduced
-that way (or only with a workaround that visibly differs from the
-original), add the feature to CONscripter instead of approximating it:
-
-1. Implement it in `engine/src/cons/` as a new command or option, in the
-   style of the surrounding ONScripter code, so it works on every platform
-   the fork builds for (the web build especially).
-2. Don't make it opt-in (`CLAUDE.md`, "Rules"). Check that it doesn't
-   change the other games' builds for the worse.
-3. Document it in the engine's `COMMANDS.md`.
-4. Open the engine PR first, then the converter PR that uses it (the
-   steps are in `CLAUDE.md`, "Rules").
+**Engine features.** Convert with existing NScripter commands first;
+when a feature can't be reproduced that way (or only with a visible
+difference), add it to CONscripter (`CLAUDE.md`, "Rules").
 
 **Startup options.** CONscripter reads command-line options from an
 `ons_args` file in the game directory (whitespace-separated, up to 16).
@@ -137,7 +127,7 @@ make -C engine/build -j"$(nproc)"     # → engine/build/conscripter
 
 `engine/script/cross_web.sh` builds the WebAssembly version (needs emsdk).
 
-| Right-click menu / hide window | Everything behind the on-screen button bar | CONscripter has `rgosub *label` now (engine PR #20): a right click at a text wait gosubs and returns to the same wait. Not emitted yet: which menu a right click opens is each game's choice (its command menu, or hiding the window), to be set where the game's menus are written |
+| Right-click menu / hide window | Everything behind the on-screen button bar | CONscripter has `rgosub *label`: a right click at a text wait gosubs and returns to the same wait. Not emitted yet: which menu a right click opens is each game's choice (its command menu, or hiding the window), to be set where the game's menus are written |
 
 ### Done with stock commands
 
@@ -222,6 +212,5 @@ details, record layouts and handler addresses are in the game's document):
 
 - First game: 最果てのイマ (Saihate no Ima), engine Xuse.
 - Target: CONscripter (our ONScripter-Yuri fork, `engine/` submodule).
-  Until 2026-10-12 the target was ogapee's ONScripter with no engine
-  patches; now features the original games need and ONScripter lacks are
-  added to the engine ("Target engine: CONscripter").
+  Features the original games need and ONScripter lacks are added to the
+  engine ("Target engine: CONscripter").

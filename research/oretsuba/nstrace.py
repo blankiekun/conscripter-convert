@@ -1,5 +1,5 @@
-"""Route tracer for a converted 俺たちに翼はない 0.txt (docs/new-game.md
-step 11.3).
+"""Route tracer for a converted 俺たちに翼はない 0.txt (docs/new-game-reference.md,
+"Route simulation").
 
 Runs the control flow `conscripter-convert mages convert` writes (labels,
 goto, if, mov/add/sub, select, reset; everything else is skipped) along

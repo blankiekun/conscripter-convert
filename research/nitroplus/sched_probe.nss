@@ -1,5 +1,5 @@
 // The scheduler probe (ntrace.sh --probe, --dumps): the overlap cases of
-// docs/new-game.md step 15, with a memory dump before and after each.
+// docs/new-game-reference.md, "Timing and overlap", with a memory dump before and after each.
 // Run at the start of a new game (Django); labels: c<case>_<step>.
 // c0: dja010_01:76-78 as it stands: a 16 s pan left running, then FadeFade.
 CreateBGz("背景21",21, -560,-30, 700, "bg11100_0_断崖の上m");

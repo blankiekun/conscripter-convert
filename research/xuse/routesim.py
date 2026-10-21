@@ -5,7 +5,7 @@ usage: python3 -I routesim.py <game dir> <0.txt> <path> [--lore] [--show]
 Runs one click path through each side and diffs the event streams: chapters,
 text (compared as blocks between other events), the links each page offers,
 the links clicked and where they go, and the progression variables at each
-「お茶会－０」 (the start of a loop). docs/new-game.md step 11.4.
+「お茶会－０」 (the start of a loop). docs/new-game-reference.md, "Route simulation".
 
 The source side follows the original engine's run-time rules: link, ruby,
 style and indent records collect until a message uses them, so a jump past

@@ -11,7 +11,7 @@ ONScripter-Yuri fork, `engine/` submodule), especially its web build.
 | 俺たちに翼はない, Vita (paused) | ? | `oretsuba/` | `oretsuba.md` |
 | 月姫, Switch (paused) | TYPE-MOON | `tsukihime/` | `tsukihime.md` |
 
-New game: `docs/new-game.md` (new engine: `docs/new-engine.md`).
+New game: `docs/new-game.md`.
 
 Read first: the game's document ("Status": open state and next steps)
 and `docs/lessons.md`; `engine/COMMANDS.md` lists every engine command.
@@ -19,7 +19,7 @@ They are long: `grep -n '^##' <file>`, then only what the task touches.
 
 Docs are public: no local paths (`<game>` placeholders), only
 reproducible commands. Keep "Status" current with every commit, open
-items only; finished write-ups move to `docs/history/<game>.md`.
+items only; delete an item when done (git log is the record).
 Machine-local facts go in your memory.
 
 ## Rules (from the user)
