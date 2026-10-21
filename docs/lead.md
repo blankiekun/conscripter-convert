@@ -125,7 +125,7 @@ budget, stop and report; don't look for more work.
   user; never work around a denial.
 - **Don't add your own commits to a PR and then merge it**: auto mode flags that as an unreviewed merge and then
   blocks even `gh pr view` / `git pull`. Have the author fix it, or get a checker or the user to review it.
-- **Pre-approve routine steps.** Ask the user to add allow rules to `.claude/settings.local.json` for the commands
+- **Pre-approve routine steps.** Ask the user to add allow rules to the git-ignored `settings.local.json` in `.claude/` for the commands
   that always get approved (tests, build, `tests/land.sh`). Never add rules yourself.
 
 ## Mechanical guards
