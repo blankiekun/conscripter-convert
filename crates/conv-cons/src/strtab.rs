@@ -236,6 +236,8 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
     let code = |run: &[&str]| -> Vec<String> { run.iter().map(|l| if is_ref(l) { "^".to_string() } else { l.to_string() }).collect() };
     let refs = |run: &[&str]| -> Vec<String> { run.iter().filter(|l| is_ref(l)).map(|l| l[1..].to_string()).collect() };
     let own = (table(base.rows), table(other.rows));
+    // read once: rebuilding them per block made the JP+EN merge take ~17 min
+    let own_ids = (ids_of(&own.0), ids_of(&own.1));
     let (other_table, kept) = translated(base.rows, other.rows);
     // the other's text of each base row: by place ([`translated`]), then
     // where a run pairs up, its k-th line and the strings of its code
@@ -289,8 +291,8 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
         let n = seen.entry(place.clone()).or_insert(0);
         *n += 1;
         ids.at = format!("{place}\u{1}{n}");
-        let filled = |run: &[&str], t: &str| -> Vec<String> { if run.is_empty() { vec![] } else { fill(&run.join("\n"), t).lines().map(str::to_string).collect() } };
-        let (mut fa, mut fb) = (filled(a, &own.0), filled(b, &own.1));
+        let filled = |run: &[&str], t| -> Vec<String> { if run.is_empty() { vec![] } else { fill_from(&run.join("\n"), t).lines().map(str::to_string).collect() } };
+        let (mut fa, mut fb) = (filled(a, &own_ids.0), filled(b, &own_ids.1));
         m.blocks += 1;
         // the `language` line stays in the script, where the base has it
         let is_language = |l: &String| l.trim_start().starts_with("language \"");
@@ -330,7 +332,16 @@ pub fn first_language(script: &str) -> Option<&str> {
 /// `script` with its `^ID` lines and `"^ID"` strings filled from `table`,
 /// as CONscripter reads it (for lints and diffs).
 pub fn fill(script: &str, table: &str) -> String {
-    let t: HashMap<&str, &str> = table.lines().filter(|l| !l.starts_with(';')).filter_map(|l| l.split_once('\t')).collect();
+    fill_from(script, &ids_of(table))
+}
+
+/// A table's text by id, for [`fill_from`].
+fn ids_of(table: &str) -> HashMap<&str, &str> {
+    table.lines().filter(|l| !l.starts_with(';')).filter_map(|l| l.split_once('\t')).collect()
+}
+
+/// [`fill`] with the table already read ([`ids_of`]).
+fn fill_from(script: &str, t: &HashMap<&str, &str>) -> String {
     let is_id = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
     let mut out = String::with_capacity(script.len() * 2);
     for line in script.lines() {

@@ -215,7 +215,6 @@ dependencies = [
  "conv-core",
  "conv-engines",
  "image",
- "memmap2",
 ]
 
 [[package]]
@@ -223,7 +222,6 @@ name = "conv-cons"
 version = "0.1.0"
 dependencies = [
  "conv-core",
- "encoding_rs",
  "image",
  "thiserror",
  "webp",

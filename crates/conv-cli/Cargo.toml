@@ -12,7 +12,6 @@ path = "src/main.rs"
 ab_glyph.workspace = true
 anyhow.workspace = true
 clap.workspace = true
-memmap2.workspace = true
 image.workspace = true
 conv-core.workspace = true
 conv-engines.workspace = true

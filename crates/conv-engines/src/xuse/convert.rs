@@ -556,6 +556,16 @@ impl AssetBank {
     }
 
     /// Writes `data` to `name` in the output, unless this is a dry run.
+    fn write_png<P: image::PixelWithColorType>(&self, name: &str, img: &image::ImageBuffer<P, Vec<P::Subpixel>>) -> Result<(), ConvertError>
+    where
+        [P::Subpixel]: image::EncodableLayout,
+    {
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: name.to_string(), source })?;
+        self.write(name, &png)
+    }
+
     fn write(&self, name: &str, data: &[u8]) -> Result<(), ConvertError> {
         crate::output::record(name);
         if self.dry_run {
@@ -666,10 +676,7 @@ impl AssetBank {
             image::imageops::invert(&mut img);
         }
         let name = format!("system/mask{number:04}{}.png", if inverted { "r" } else { "" });
-        let mut png = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        self.write(&name, &png)?;
+        self.write_png(&name, &img)?;
         self.written.insert((kind, number), name.clone());
         Ok(name)
     }
@@ -684,10 +691,7 @@ impl AssetBank {
             return Ok(name);
         }
         let img = image::RgbImage::from_pixel(800, 600, image::Rgb([(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]));
-        let mut png = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        self.write(&name, &png)?;
+        self.write_png(&name, &img)?;
         self.written.insert(("fill", rgb as usize), name.clone());
         Ok(name)
     }
@@ -706,10 +710,7 @@ impl AssetBank {
             let turn = (d * f64::from(frequency) / 100.0) as i64;
             image::Luma([(turn.rem_euclid(1024) / 4) as u8])
         });
-        let mut png = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        self.write(&name, &png)?;
+        self.write_png(&name, &img)?;
         self.written.insert(key, name.clone());
         Ok(name)
     }
@@ -733,10 +734,7 @@ impl AssetBank {
             let along = if dx < 0 || dy < 0 { len - 1 - pos } else { pos };
             image::Luma([(along * 255 / (len - 1)) as u8])
         });
-        let mut png = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        self.write(&name, &png)?;
+        self.write_png(&name, &img)?;
         self.written.insert(key, name.clone());
         Ok(name)
     }
@@ -750,10 +748,7 @@ impl AssetBank {
             return Ok(name);
         }
         let img = image::GrayImage::from_fn(800, 600, |x, y| image::Luma([BAYER[y as usize % 4][x as usize % 4] * 16 + 8]));
-        let mut png = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        self.write(&name, &png)?;
+        self.write_png(&name, &img)?;
         self.written.insert(("dither", 0), name.clone());
         Ok(name)
     }
@@ -772,10 +767,7 @@ impl AssetBank {
             state ^= state << 5;
             image::Luma([(state >> 24) as u8])
         });
-        let mut png = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        self.write(&name, &png)?;
+        self.write_png(&name, &img)?;
         self.written.insert(("noise", 0), name.clone());
         Ok(name)
     }
@@ -829,11 +821,7 @@ impl AssetBank {
             image::imageops::replace(&mut strip, &pictures[p - 1], i64::from(w) * n as i64, 0);
         }
         let image = format!("fx/{name}.png");
-        let mut png = Vec::new();
-        strip
-            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-            .map_err(|source| ConvertError::Image { what: image.clone(), source })?;
-        self.write(&image, &png)?;
+        self.write_png(&image, &strip)?;
         Ok(Some(FxAnimation { image, frame_ms: script.frames.iter().map(|&(_, ms)| ms).collect(), looped: script.looped }))
     }
 
