@@ -92,11 +92,11 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
      links to it), so a session reads only what is open. There are no
      git-ignored handoff files; where the user keeps the game goes in
      your memory.
-   - A worktree per game (`../conscripter-convert-<name>`), one short-lived
-     branch and PR per feature from `origin/main`; game-specific code stays
-     out of shared files (`CLAUDE.md`, "Rules", "Working beside other agents").
-   - One item per session: do it, update "Status", open the PR, stop
-     (`CLAUDE.md`, "Keeping usage down").
+   - A worktree per game (`../conscripter-convert-<name>`), work on the
+     phase branch the brief names; game-specific code stays out of shared
+     files (`CLAUDE.md`, "Rules"; `docs/hot-spots.md`).
+   - One item per session: do it, update "Status", stop (`CLAUDE.md`,
+     "Usage and gotchas").
 5. **Plan in this order:** assets, script decoding, control flow, text and
    voices, pictures and sound in scripts, system screens, extras, matching
    effects to the original. Each phase ends with something the user can run.

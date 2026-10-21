@@ -34,7 +34,7 @@ except OSError:
 with open(seen, "a") as f:
     f.write(path + "\n")
 print(f"{path} is {w}x{h}: view it through research/tools/view.py instead "
-      "(crop, scale, side by side; CLAUDE.md, \"Numbers before pictures\"). "
+      "(crop, scale, side by side; docs/tools.md, \"Numbers before pictures\"). "
       "If view.py can't do what you need, say why in one line, then Read the same file again: "
       "the second Read goes through.", file=sys.stderr)
 sys.exit(2)
