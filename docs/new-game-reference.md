@@ -41,8 +41,8 @@ Follow the shape of `xuse/`, `nitroplus/`, `mages/` in
   `crates/conv-core/src/alloc.rs`, the next free index in `switches.rs`
   (never move a number once a build is out); `registry.rs`, `gui/games.py`
   with `gui/tests/test_games.py`; the baseline (step 9) writes
-  `<game>.metrics.json` (rerun `--update` on a conflict, never take one
-  side).
+  `<game>.metrics.json` (on a conflict rerun `--update`
+  rather than picking a side).
 - **Tests**: lowering on a tiny synthetic input (Nitroplus' `Fake` assets).
 - **Engine reference** (optional): `docs/engines/<engine>.md`
   (`docs/engines/README.md`), its `engine_doc` stem set in `build.rs`.
