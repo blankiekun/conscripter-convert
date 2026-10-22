@@ -25,11 +25,14 @@ Machine-local facts go in your memory.
 
 ## Rules (from the user)
 
-- **PRs only**: every change reaches `main` (and the engine's `master`)
-  through a PR the lead or user merges; theirs is the merge, yours the push.
+- **PRs only** (user, 2026-10-22): every change reaches `main` (and the
+  engine's `master`) through a PR. Agents open the PR; the lead reviews
+  it, then turns on auto-merge (`gh pr merge <n> --auto --squash`,
+  engine PRs `--merge`) and GitHub merges once the required checks pass.
 - **Branches**: one PR per goal phase, on the phase branch the brief
   names (from `origin/main`, then `git submodule update engine`); items
-  are commits on it; open a PR only if the brief says so. Small fixes
+  are commits on it; the first agent on the branch opens its PR when
+  its work is pushed. Small fixes
   ride in the session's `chores-<date>` PR (`docs/lead.md`, "Landing
   PRs"). Subjects under 72 chars; PRs are squash-merged. Commit
   messages and PR bodies carry no Co-Authored-By, Claude or session lines.
