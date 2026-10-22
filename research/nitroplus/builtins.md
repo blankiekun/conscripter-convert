@@ -214,7 +214,7 @@ priority and place). Notes from the whole-game dry run (`ma00_000.nss --chain 20
 | `WaitText` | 0, 1 | 23,689 | 0 |
 | `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
-| `Random` | read: picked at run time (`rnd`, "`Random`" in `docs/games/muramasa.md`); 771 calls still picked when converting | 7,411 | 0 |
+| `Random` | read: picked at run time (`rnd`; `docs/games/muramasa.md`, "How the compiler works"); 771 calls still picked when converting | 7,411 | 0 |
 | `Fade` | 3 tempo (read for a fade over time: its transition's curve; a 0 ms one sets at once, `cb_Fade` 0044f020; not for the text window's); 5 (a sixth argument, 1) | 0 | 0 |
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
 | `DrawTransition` | none: 4 softness read (`effectsoft` for a full sweep; a partial one noted), 2 from read (another opacity than shown noted), 5 tempo read; a missing mask: no transition | 0 | 0 |
@@ -544,7 +544,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 
 | Built-in | Uses | Meaning | CONscripter |
 |---|---|---|---|
-| `Shake(obj, time, x0, y0, x1, y1, n, tempo, wait)` | 1,343 | **exe** (`queue_shake` `004462d0`, `shake_frame` `004578e0`): the amplitude goes from (x0, y0) to (x1, y1) over `time` along `tempo`, the offset flipping sign each step; nearly every call ends at 0, a jolt that eases out. `n` above 1000 makes the call do nothing. Django.exe (`FUN_00431de0`, `FUN_0043f570`): the sign flips once 1000 ÷ (`n` × 0.001 × fps) ms have passed, fps 60 at the default game speed, so `n` 1000 is a flip a frame and `n` 200 every 83 ms (docs/games/django.md, History); Muramasa.exe the same (`queue_shake` 00446381-004463c3, fps the double at 005dcb40 + 8 × 4, set to 60.0 at 0048c5d0) | `screenshake` when `obj` is the whole screen (mode 2, to and fro, eased by the tempo); else a one-shot `spmotion` of the picture (`convert/shake.rs`), from the next sync if not shown yet |
+| `Shake(obj, time, x0, y0, x1, y1, n, tempo, wait)` | 1,343 | **exe** (`queue_shake` `004462d0`, `shake_frame` `004578e0`): the amplitude goes from (x0, y0) to (x1, y1) over `time` along `tempo`, the offset flipping sign each step; nearly every call ends at 0, a jolt that eases out. `n` above 1000 makes the call do nothing. Django.exe (`FUN_00431de0`, `FUN_0043f570`): the sign flips once 1000 ÷ (`n` × 0.001 × fps) ms have passed, fps 60 at the default game speed, so `n` 1000 is a flip a frame and `n` 200 every 83 ms; Muramasa.exe the same (`queue_shake` 00446381-004463c3, fps the double at 005dcb40 + 8 × 4, set to 60.0 at 0048c5d0) | `screenshake` when `obj` is the whole screen (mode 2, to and fro, eased by the tempo); else a one-shot `spmotion` of the picture (`convert/shake.rs`), from the next sync if not shown yet |
 | `SetBlur(obj, on, passes, alpha, lag, wait)` | 914 | **exe**: a motion trail (`nitroplus/convert/builtin.rs`); nearly always `true, 1–3, 500, 30–100, false`. `wait` `true` draws the copies before the picture (under it), anything else after it (over it; 00454ca4) | `sptrail` (`,1`: over) |
 | `Array(…)` / `AssocArray(…)` / `Count(a)` | 719 / 27 / 57 | Array literal, keyed array, length | converter: NScripter arrays (`dim`) or compile-time tables |
 | `CreateProcess(obj, prio, x, y, "Func")` | 493 | Runs NSS function `Func` as a parallel thread; `Request(obj, Start/Stop)`, `Delete(obj)` stops it | Lua coroutine (`docs/games/muramasa.md`, "Approach") |

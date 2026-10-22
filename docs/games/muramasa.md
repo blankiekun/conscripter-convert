@@ -269,7 +269,9 @@ of layers 4-5 filled with numbered tiles. `convert/muramasa/magiccube.rs`
 | %300-%799 | story flags (`$`, saved with each slot), in first-use order |
 | %800 up | `#` flags, `globalon` (header `value800`); past %969 at %5200 |
 
-**System screens** (each filmed in the original): title, right-click
+### System screens
+
+Each filmed in the original: title, right-click
 menu, quick bar, confirmations (`cg/sys/dialog`), save/load, backlog,
 settings, favour screen, click-wait icon; `convert/muramasa/screens.rs`,
 engine screens where they exist (`SaveGrid`,
@@ -277,7 +279,9 @@ engine screens where they exist (`SaveGrid`,
 opens the menu and closes any screen, wheel-up the backlog, Esc asks
 ゲームを終了しますか.
 
-**Extras:** 特別付加目録 (`extra_*.nss`; values in
+### Extras
+
+特別付加目録 (`extra_*.nss`; values in
 `convert/muramasa/extras.rs`, menu `conv-cons/src/picture_extras.rs`):
 画像映写機 (CG gallery, 805 CGs, each a `#<cg name>` flag), 回想映写機
 (ten H scenes), 電磁蓄音機/動画映写機 (BGM, songs, movies), 劒冑回転目録
