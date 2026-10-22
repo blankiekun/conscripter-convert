@@ -1,8 +1,7 @@
 # 俺たちに翼はない (PS Vita) (5pb./MAGES "TaskList" ADV)
 
-Paused game; process in `docs/new-game.md`, lessons in
-`docs/lessons.md`. `<pkg>` is the folder holding the Vita package and
-its license; `<game>` the decrypted app folder (Build).
+Paused. `<pkg>`: the folder with the Vita package and its license;
+`<game>`: the decrypted app folder (Build).
 
 ## Status
 
@@ -35,8 +34,8 @@ Paused 2026-10-20.
 ## Scope
 
 The **PS Vita version** (Prototype's port of 俺たちに翼はない R plus
-林田美咲's route), the whole game **with extras**. Nothing dropped.
-Menus: the Vita's look with mouse buttons of our own. Output 960×544.
+林田美咲's route): the whole game with extras, nothing dropped. Menus
+wear the Vita's look on mouse buttons of our own. Output 960×544.
 
 
 ## Build
@@ -56,7 +55,7 @@ Web build: loose files (`mages convert <game> -o out/oretsuba-web
 
 `<pkg>` holds `俺たちに翼はない.pkg` (3,267,708,688 bytes, content ID
 `JP0745-PCSG00299_00-ORETSUBA0000VITA`, APP_VER 03.010) and `work.bin`
-(512 bytes, its license). Two layers: the package (AES-CTR) and PFS.
+(512 bytes, the license). Two layers: package (AES-CTR), then PFS.
 
 1. zRIF from the license: `python3 rif2zrif.py work.bin` (in
    github.com/lusid1/pkg2zip).
@@ -68,7 +67,7 @@ Web build: loose files (`mages convert <game> -o out/oretsuba-web
    link a three-line `main` that calls `execute(zrif, src, dst,
    F00DEncryptorTypes::native, arg)`: `pfsdec app/PCSG00299 PCSG00299_dec
    <zRIF>`. It reports "keystone: matched retail hmac"; `media/SCRIPT.cpk`
-   then starts with `CPK `. `PCSG00299_dec` is `<game>`.
+   then starts with `CPK `: `PCSG00299_dec` is `<game>`.
 
 
 ## Executables
@@ -77,7 +76,7 @@ Web build: loose files (`mages convert <game> -o out/oretsuba-web
 |---|---|---|
 | `eboot.bin` (NPDRM SELF; addresses are those of the decrypted `eboot.elf`) | unknown (PCSG00299) | `56ebe9ed1a64d5e9e8d3af5aef0ce4ea21cf35ebffcf4c6cfae49dc6db343bd6` |
 
-The eboot supplies the few tables the data lacks. Decrypt it to an ARM
+The eboot supplies the few tables the data lacks (tables below). Decrypt it to an ARM
 ELF as Vita3K's `decrypt_fself` does (klicensee from `work.bin`, key
 revision 5; keys from Vita3K's `vita3k/packages/src/sce_utils.cpp`,
 fetchable alone):
@@ -88,10 +87,10 @@ fetchable alone):
         -- -loader ArmElfPrxLoader -postScript ThumbPointerFunctions.java
 
 The loader is the [VitaLoaderRedux](https://github.com/CreepNT/VitaLoaderRedux)
-extension (the release for the installed Ghidra, unzipped into Ghidra's
-user `Extensions` folder); it names the imports in its NID list.
+extension (the release matching the installed Ghidra, unzipped into
+Ghidra's user `Extensions` folder); it names imports from its NID list.
 `ThumbPointerFunctions.java` makes a function at every Thumb pointer
-stored as data (C++ virtual methods). About 4 minutes the first time.
+stored as data (C++ virtual methods). First run: about 4 minutes.
 Code loads at 0x81000000 (file offset 0xe0), data at 0x8115e000 (file
 offset 0x15d440). The decompiled C shows ASCII strings inline
 (`"TaskList/Task%d/Tasktype"`): grep `decomp/` for them. Every function
@@ -104,7 +103,7 @@ cuts every GXP program out of the ELF; `research/oretsuba/gxp2glsl/`
 builds Vita3K's shader recompiler alone and prints one as GLSL
 (its `CMakeLists.txt` says how).
 
-Tables found in the eboot and used by the converter:
+Eboot tables the converter uses:
 - Music room: int32 BGM.AWB IDs at 0x8116310c (67, in the order of
   `mu_bg.png`'s titles); a second 8-song table follows (no titles; left out).
 - Movie room: 100-byte name records at 0x81163348 (OP00-OP03.usm).
@@ -164,10 +163,9 @@ Control flow: `Tag` (`:Name`) is a label; `Jump_Tag` jumps;
 is a choice (`:AnswerMessageNumberN "<tag>","<text>"`, `:MessageNFlag
 "<flag>","+",1` adds points); `NextScene` goes to another file;
 `SceneJumpDialog` offers to skip a scene already read (`:JumpNextTag`,
-`:NextTag`, `:UnreadTag`). Messages hold no markup but `\n` (two
-characters, a new line).
+`:NextTag`, `:UnreadTag`). Messages carry one markup, `\n` (two characters: a new line).
 
-Script errors the eboot can't read either: five tasks with a missing or
+Script errors the eboot cannot read either: five tasks with a missing or
 misplaced `[TaskN]` header (S01_04L, S03_03J2, S03C_03C twice, S04_03D;
 skipped, as the eboot does), a SeStop inside S01_02A's EyeCatch (missing
 `}`), S03_06E2's task with two `:Tasktype`s (the first is taken).
@@ -200,9 +198,10 @@ check` parses them). One person's four personalities:
 6. **After-stories** P01-P04 (明日香, 京, 美咲, かるお): start scenes 1-4
    of adv.txt, title extras; each sets `Pre_<name>`.
 
-Route check: `research/oretsuba/nstrace.py` runs a `0.txt`'s control
-flow along choice paths (globals kept from run to run) and reports the
-ending; all eight endings are reached with:
+Route check: `research/oretsuba/nstrace.py` walks a `0.txt`'s control
+flow along choice paths (globals carried from run to run) and reports
+the ending. All eight endings (明日香, 京, 美咲, 日和子, 亜衣, bad end,
+鳴, 小鳩, in this order) come from:
 
     python3 -I research/oretsuba/nstrace.py out/oretsuba-cons/0.txt --quiet \
       "S01_02C:2,S01_02E:2,S01_03B:1,S01_04E:1,S01_04L:2,S01_08C0:1,S01_08D4:2,S01_09C0:1,=s01_19a" \
@@ -213,8 +212,6 @@ ending; all eight endings are reached with:
       "S02_05A:2,S03_03B:2,S03_03I:2,S03_05C:2,S03C_01D:2,=s04_06l" \
       "S02_05A:2,=s03_24" \
       "S04_05I:2,=s04_29a"
-
-(明日香, 京, 美咲, 日和子, 亜衣, bad end, 鳴, 小鳩, in that order.)
 
 
 ## Progression variables
@@ -241,16 +238,14 @@ order) and 30 `[GlobalFlag]`s kept across playthroughs (`%410`-`%439`).
   `docs/new-game.md`).
 - Steered route runs: `research/oretsuba/routes.py <game dir> <renamed
   engine> <out>` plays the eight paths in one save folder (`--only
-  9,10,11,12`: the after-stories). Run with a renamed engine copy. Each
-  run ends at auto-play's loop guard (exit 1); the ending scene is what
-  counts.
+  9,10,11,12`: the after-stories). Each run ends at auto-play's loop
+  guard (exit 1); the ending scene is the result.
 
 ### The original under Vita3K
 
 Timebox it (Vita3K is unreliable); the decompile and our traces come
-first. Run it only through `research/oretsuba/vita-emu.sh` (own Xvfb,
-private XDG dirs, no D-Bus, URL openers shimmed; its header lists the
-options).
+first. Run through `research/oretsuba/vita-emu.sh` (private XDG dirs,
+URL openers shimmed; its header lists the options).
 
 - Vita3K must be a source build with `research/oretsuba/vita3k-freed-texture.patch`
   (the game draws from a freed CDRAM block as S01_01 starts; unpatched
@@ -283,8 +278,8 @@ options).
 - Memory dumps: `gdbstub: true` in `config.yml`, port 2159 once the log
   says `GDB Server is listening`, one connection only;
   `research/tools/gdbdump.py 127.0.0.1:2159 <prefix> --scan
-  10000:fffe0000:10000` dumps the readable stretches. Breakpoints are no
-  use (they re-hit without stepping).
+  10000:fffe0000:10000` dumps the readable stretches. Breakpoints re-hit
+  without stepping, so dump instead.
 
 
 ## Milestones
