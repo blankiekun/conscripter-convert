@@ -25,8 +25,8 @@ the handoff file. Ask for a missing one before starting; at done or budget, stop
 ## Briefs
 
 - The first brief carries every constraint (a later SendMessage can arrive after the agent has acted): the
-  rules, numbers and paths the task needs, "follow docs/lead.md Team rules", phase branch, worktree, whether
-  the agent opens the PR, and the task's real shape ("N questions follow").
+  rules, numbers and paths the task needs, "follow docs/lead.md Team rules", phase branch, worktree, and the
+  task's real shape ("N questions follow").
 - Close with: **"Report as `key: value` lines, numbers first, no recap; detail goes in the commit messages."**
 
 ## Evidence
@@ -73,9 +73,8 @@ the handoff file. Ask for a missing one before starting; at done or budget, stop
 
 ## Team rules (every agent)
 
-- Work in the worktree and branch the brief names; commit at each logical step; open a PR only if the brief says
-  so. CLAUDE.md's Rules hold.
-- Never merge PRs. Rebase on origin/main and push before handing back.
+- Work in the worktree and branch the brief names; commit at each logical step. CLAUDE.md's Rules hold.
+- Rebase on origin/main, push, and open the branch's PR if it has none, before handing back. The lead merges.
 - A decision the brief didn't cover: stop and report it.
 - Long commands run in the foreground (timeout up to 10 min) or under Monitor.
 
@@ -90,6 +89,10 @@ the handoff file. Ask for a missing one before starting; at done or budget, stop
 - Tripwire: after ~5 PRs opened in a session, ask the user why before opening another.
 - Review the diff. A PR claiming a number: rerun one arm (yourself or a checker). A PR changing another game's
   `0.txt`: rerun `tests/snapshot.sh --diff origin/main` independently.
+- **Auto-merge** (user, 2026-10-22) lands a reviewed PR: `gh pr merge <n> --auto --squash` (engine PRs
+  `--merge`); GitHub merges once the required checks pass (`check`, `engine-on-master`; engine:
+  `build_linux (64, x64)`, `build_web`). Those checks accept a branch behind main, so a PR behind main that
+  touches shared code or snapshots lands through land.sh instead.
 - Land with `tests/land.sh <pr>` (`--dry-run` stops before the push), as a command on its own. It rebases in a
   scratch worktree, reruns `tests/snapshot.sh --update` when snapshots conflicted or shared code changed,
   pushes, waits for green checks and squash-merges. It holds `out/land.lock`, refuses a draft or non-OPEN PR,
