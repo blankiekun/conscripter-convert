@@ -35,8 +35,8 @@ Paused 2026-10-20.
 
 ## Scope
 
-The Switch release, dumped as NSP with the console's `prod.keys`. The
-whole game with every extra, on every platform, in Japanese (the
+The Switch release, dumped as NSP with the console's `prod.keys`:
+the whole game with every extra, on every platform, in Japanese (the
 release) and English (the Tsukihimates fan patch,
 `tsukihimates_patch_2023.09.05.5c86a2e06.nsp`). Nothing dropped.
 
@@ -45,7 +45,7 @@ release) and English (the Tsukihimates fan patch,
 
 Get the RomFS and ExeFS out with
 [hactool](https://github.com/SciresM/hactool). hactool 1.4 stops at a
-key whose value isn't a multiple of 32 hex digits; filter the keys
+key whose value is not a multiple of 32 hex digits, so filter the keys
 first (`awk -F' *= *' 'NF==2 && length($2)%32==0' prod.keys`). The
 Program NCA is the 22 GB one.
 
@@ -63,9 +63,9 @@ hactool -k prod.keys --basenca=nsp/<base Program NCA> \
 ```
 
 Convert Japanese from `<game-102>` (base + 1.0.2) and English from
-`<game-en>` (the fan patch is 1.0.2 plus the translation). The exe is
-read from `<RomFS>/../exefs/main` (`--exe` elsewhere); the base game's
-`main` has its tables elsewhere and is refused.
+`<game-en>` (the fan patch is 1.0.2 plus the translation). The converter reads
+the exe from `<RomFS>/../exefs/main` (`--exe` elsewhere); the base
+game's `main` keeps its tables elsewhere and is refused.
 
 ```sh
 conscripter-convert build <game-102> -o out/tsukihime-cons            # Japanese
@@ -84,8 +84,7 @@ background, else the larger of a name's two `.NXGZ`) as
 the 98 `RULE_*` masks always PNG; movies remuxed, not re-encoded, as
 `movie/<name>.mp4`; `stream/*.ogg` (the game's Opus repacked, loops as
 tags) and wave sounds as `se/*.wav` (loops as `smpl`) or `se/*.ogg`.
-Pictures and movies already written are kept, so a stopped run goes
-on. With `--english`, the fan patch's pictures and movies that differ
+A stopped run goes on: pictures and movies already written are kept. With `--english`, the fan patch's pictures and movies that differ
 go to `pic/en/`, `cg/en/`, `movie/en/`. Sound is the same in
 both copies and comes from `<game-102>`.
 
@@ -106,7 +105,7 @@ same tables. The ExeFS also holds `subsdk0`/`subsdk1`.
 
 ## The exe
 
-Reference for the converter's tables and the decompile. Decompile: `research/tools/ghidra/nso2elf.py <main> <main.elf>` (an ELF
+Decompile: `research/tools/ghidra/nso2elf.py <main> <main.elf>` (an ELF
 with the dynamic section, loaded at 0x100000), then
 `research/tools/ghidra/ghidra_export.sh <main.elf> research/typemoon/local/ghidra
 --names research/typemoon/names.tsv -- -postScript CodePointerFunctions.java`
@@ -413,16 +412,15 @@ conscripter --root <out> --save-dir <save> --auto-play 0 --trace <route>.jsonl \
 ```
 
 **The original under Ryubing** (flatpak `io.github.ryubing.Ryujinx`,
-`--no-gui`): boots to the title at full speed. Run it only through
-`research/typemoon/switch-emu.sh` (own Xvfb, no Wayland, its own data
-dir; setup: firmware NCAs into
+`--no-gui`; boots to the title at full speed), through
+`research/typemoon/switch-emu.sh` (setup: firmware NCAs into
 `bis/system/Contents/registered/<id>.nca/00`, `prod.keys` and
 `title.keys` in `system/`, 1.0.2 via
-`games/01001dc01486a000/updates.json`). The firmware must not need a
-newer master key than the keys (22.5.0 works). The data dir needs
-`bis/user` from a first boot. Inputs: `KEYS="40:z"` (z = A), `IDLEA=1`
+`games/01001dc01486a000/updates.json`). Match firmware to keys: it needs no newer master key than
+`prod.keys` has (22.5.0 works). The data dir needs `bis/user` from a
+first boot. Inputs: `KEYS="40:z"` (z = A), `IDLEA=1`
 (auto mode; `0.3` fast), `AVOID="<$ ids>"` (skip those options at a
-choice). Ryubing holds 5.5 GB.
+choice). Ryubing holds 5.5 GB of memory.
 
 **Command trace of the original**: an ExeFS mod logs every command
 (`research/typemoon/switchtrace/`: `hook.s` hooks `script_command`'s
