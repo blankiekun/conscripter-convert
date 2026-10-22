@@ -1,23 +1,51 @@
 # 月姫 -A piece of blue glass moon- (TYPE-MOON)
 
-The 2021 remake of 月姫, Nintendo Switch release (title ID
-`01001DC01486A000`). TYPE-MOON's own engine, the family of the
-魔法使いの夜 remake. Reader and compiler: `crates/conv-engines/src/typemoon/`;
-engine notes: `docs/engines/typemoon.md`.
+The 2021 remake, Nintendo Switch (title ID `01001DC01486A000`), in
+TYPE-MOON's own engine (the family of the 魔法使いの夜 remake). Reader
+and compiler: `crates/conv-engines/src/typemoon/`; engine notes:
+`docs/engines/typemoon.md`. Paused game.
+
+## Status
+
+Paused 2026-10-20.
+
+| Area | State |
+|---|---|
+| Extraction | ✅ NSP to every archive, picture (BNTX) and sound (with loops) of both copies; the exe's tables (`typemoon exe`); `typemoon media` |
+| Story | ✅ scripts convert and play from the prologue to all three endings and 21 lessons: flow, text, pictures, layers, motions, zooms, shaders, sound, choices, the 45 story movies |
+| Screens | 🟡 boot logos, title, Save/Load, Config, Gallery's CG gallery and Ending List done; Music Player, Movie, Flowchart drawn, not open |
+| Languages | ✅ `--english` builds both in one `0.txt`, switched in game |
+| Web build | ❌ never played through |
+
+### Next
+
+1. Resume: rebuild (`conscripter-convert build <game-102> -o
+   out/tsukihime-cons`) and play it in the web build; fix what blocks a
+   play-through before anything below.
+2. Layer commands not converted (open rows of `tsukihime.findings.tsv`):
+   quakes `_SQK2`/`_SHK2`/`_SSW2`, `_STPV`, `_SNX2`/`_SNX3`,
+   `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY`, `_VCWT`, `_VPL2`,
+   `_SESP`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`; motion keys' priority,
+   expression and stepped fields.
+3. Gallery's Music Player, Movie and Flowchart; the CG viewer's zoom
+   and pan; `allui` into the media folder.
+4. Backlog; several Config rows drawn without effect; the save list's
+   route picture and chapter labels.
+5. The first launch's prologue (ours goes straight to the title).
 
 ## Scope
 
-The user owns the Switch release and dumped it (NSP plus their
-console's `prod.keys`). Asked for: the whole game with every extra, on
-every platform, in Japanese (the release) and English (the
-Tsukihimates fan patch, `tsukihimates_patch_2023.09.05.5c86a2e06.nsp`).
-Nothing has been dropped.
+The Switch release, dumped as NSP with the console's `prod.keys`:
+the whole game with every extra, on every platform, in Japanese (the
+release) and English (the Tsukihimates fan patch,
+`tsukihimates_patch_2023.09.05.5c86a2e06.nsp`). Nothing dropped.
+
 
 ## Build
 
 Get the RomFS and ExeFS out with
 [hactool](https://github.com/SciresM/hactool). hactool 1.4 stops at a
-key whose value isn't a multiple of 32 hex digits; filter the keys
+key whose value is not a multiple of 32 hex digits, so filter the keys
 first (`awk -F' *= *' 'NF==2 && length($2)%32==0' prod.keys`). The
 Program NCA is the 22 GB one.
 
@@ -35,9 +63,9 @@ hactool -k prod.keys --basenca=nsp/<base Program NCA> \
 ```
 
 Convert Japanese from `<game-102>` (base + 1.0.2) and English from
-`<game-en>` (the fan patch is 1.0.2 plus the translation). The exe is
-read from `<RomFS>/../exefs/main` (`--exe` elsewhere); the base game's
-`main` has its tables elsewhere and is refused.
+`<game-en>` (the fan patch is 1.0.2 plus the translation). The converter reads
+the exe from `<RomFS>/../exefs/main` (`--exe` elsewhere); the base
+game's `main` keeps its tables elsewhere and is refused.
 
 ```sh
 conscripter-convert build <game-102> -o out/tsukihime-cons            # Japanese
@@ -56,10 +84,10 @@ background, else the larger of a name's two `.NXGZ`) as
 the 98 `RULE_*` masks always PNG; movies remuxed, not re-encoded, as
 `movie/<name>.mp4`; `stream/*.ogg` (the game's Opus repacked, loops as
 tags) and wave sounds as `se/*.wav` (loops as `smpl`) or `se/*.ogg`.
-Pictures and movies already written are kept, so a stopped run goes
-on. With `--english`, the fan patch's pictures and movies that differ
+A stopped run goes on: pictures and movies already written are kept. With `--english`, the fan patch's pictures and movies that differ
 go to `pic/en/`, `cg/en/`, `movie/en/`. Sound is the same in
 both copies and comes from `<game-102>`.
+
 
 ## Executables
 
@@ -73,6 +101,7 @@ The Ghidra addresses in this document are 1.0.2's.
 
 The fan patch's `main` differs from 1.0.2's by 65 bytes and reads the
 same tables. The ExeFS also holds `subsdk0`/`subsdk1`.
+
 
 ## The exe
 
@@ -187,6 +216,7 @@ picture's record against its texture, prints a motion's keys.
   unread sends the title setup (`FUN_00190180`) to the first launch's
   prologue (scene 0x104).
 
+
 ## Files and formats
 
 The RomFS, 21 GB, 16,729 files:
@@ -223,6 +253,7 @@ check <game>`, 8 min; `typemoon list|extract [--png] <archive>`):
   − 1 is taken. All 131 music streams loop; vgmstream agrees on the
   wave sounds' loops.
 
+
 ## Script language
 
 Read by `typemoon/script.rs`. `conscripter-convert typemoon script
@@ -255,6 +286,7 @@ text (`_SELR(1,$042614)  « ……部屋で外の様子をうかがう。 »`).
 - **Versions**: 1.0.2 changes 521 scripts (adds `_END_()`, `_SPFC`);
   the fan patch changes 213, keeps every text reference in order,
   turns 303 `_ZM` into `_MSAD`, adds `_NOP_`.
+
 
 ## Story structure and walkthrough
 
@@ -340,6 +372,7 @@ Other conditional options: day 2's 「ファミレスに行ってみる。」 (`
 「パンを買って教室で済ませよう。」); day 10's questions to Ciel
 (`10_01_CIEL10_3_2`), each gone once asked (`F065`–`F068`).
 
+
 ## Progression variables
 
 `G…` are presumably system data, `F…` save data. The many `G0nn |= 2`
@@ -360,9 +393,10 @@ are gallery unlocks, not mapped.
 | `F069` | day 12–13 variant (from `F063`) | `12_01_CIEL12_1_A`/`_B`, `*_FLAG*` | days 12–13, the glasses choice |
 | `G008` | scene number for the chapter select | `JUMP*`, `QACALL` | `JUMP*` |
 
+
 ## Testing
 
-No manual (the NSP's `Manual` NCA is legal text only).
+The NSP's `Manual` NCA is legal text only, so there is no manual.
 
 **Route runs in ours**: the three endings and 21 dead ends, headless,
 in one save folder so the globals carry over (run `arcueid`,
@@ -378,16 +412,15 @@ conscripter --root <out> --save-dir <save> --auto-play 0 --trace <route>.jsonl \
 ```
 
 **The original under Ryubing** (flatpak `io.github.ryubing.Ryujinx`,
-`--no-gui`): boots to the title at full speed. Run it only through
-`research/typemoon/switch-emu.sh` (own Xvfb, no Wayland, its own data
-dir; setup: firmware NCAs into
+`--no-gui`; boots to the title at full speed), through
+`research/typemoon/switch-emu.sh` (setup: firmware NCAs into
 `bis/system/Contents/registered/<id>.nca/00`, `prod.keys` and
 `title.keys` in `system/`, 1.0.2 via
-`games/01001dc01486a000/updates.json`). The firmware must not need a
-newer master key than the keys (22.5.0 works). The data dir needs
-`bis/user` from a first boot. Inputs: `KEYS="40:z"` (z = A), `IDLEA=1`
+`games/01001dc01486a000/updates.json`). Match firmware to keys: it needs no newer master key than
+`prod.keys` has (22.5.0 works). The data dir needs `bis/user` from a
+first boot. Inputs: `KEYS="40:z"` (z = A), `IDLEA=1`
 (auto mode; `0.3` fast), `AVOID="<$ ids>"` (skip those options at a
-choice). Ryubing holds 5.5 GB.
+choice). Ryubing holds 5.5 GB of memory.
 
 **Command trace of the original**: an ExeFS mod logs every command
 (`research/typemoon/switchtrace/`: `hook.s` hooks `script_command`'s
@@ -409,6 +442,7 @@ python3 -I research/typemoon/switchtrace/tmtrace.py <emu>/logs/ryu.log <scr> <tx
 `<scr>`, `<txt>`: `typemoon extract` of `allscr.mrg`, `script_text.mrg`.
 Ours: a `--dry-run --source-map map.tsv` build traced with `--trace --real-time`, then `trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms --merge-into _FADS`; over `00_00`'s first 297 pages the text matches.
 
+
 ## Milestones
 
 | Milestone | Date | PR |
@@ -420,35 +454,3 @@ Ours: a `--dry-run --source-map map.tsv` build traced with `--trace --real-time`
 | Extras | 2026-10-18 | - |
 | Progression verified | 2026-10-19 (3 endings, 21 dead ends, in ours) | - |
 | Finished | - | - |
-
-## Status
-
-Paused 2026-10-20.
-
-What works: extraction from the NSP; every archive, picture (BNTX) and
-sound (with loops) of both copies; the exe's tables (`typemoon exe`);
-`typemoon media`; the scripts convert and play from the prologue to all
-three endings and 21 lessons (flow, text, pictures, layers, motions,
-zooms, shaders, sound, choices, the 45 story movies); boot logos,
-title, Save/Load, Config, the Gallery's CG gallery and Ending List;
-`--english` builds both languages in one `0.txt`, switched in game.
-
-Missing:
-
-- Layer commands not converted (in `tsukihime.findings.tsv`, open
-  rows): quakes `_SQK2`/`_SHK2`/`_SSW2`, `_STPV`, `_SNX2`/`_SNX3`,
-  `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY`, `_VCWT`, `_VPL2`,
-  `_SESP`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`; motion keys' priority,
-  expression and stepped fields.
-- Gallery's Music Player, Movie and Flowchart (drawn, not open); the CG
-  viewer's zoom and pan; `allui` not in the media folder.
-- Backlog; several Config rows drawn without effect; the save list's
-  route picture and chapter labels.
-- The first launch's prologue (ours goes straight to the title).
-- Never played through in the web build.
-
-### Next
-
-1. To resume: rebuild (`conscripter-convert build <game-102> -o
-   out/tsukihime-cons`) and play it in the web build; fix what blocks
-   a play-through before anything in "Missing".

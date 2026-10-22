@@ -21,8 +21,9 @@ attached for each of them too (`conscripter-convert_<version>_<platform>`).
    The folder above the game data works too (the app looks three levels
    down), and so does one inside it (two levels up); file names match in
    any case. Muramasa and Django warn when their movie folder (`movie`,
-   `movies` or `ムービー`, in the game folder or beside it) is missing. The box says "Detecting the game…" while it looks, then which
-   game it found and where; with several, choose one under **Game**.
+   `movies` or `ムービー`, in the game folder or beside it) is missing.
+   The box says "Detecting the game…" while it looks, then which game it
+   found and where; with several, choose one under **Game**.
 2. Check the output folder. The default is a new folder beside the game
    folder. The app asks before using a folder that isn't empty, because
    the converter replaces what it writes there and deletes the folders it
@@ -63,16 +64,13 @@ to download CONscripter.
 | 続・殺戮のジャンゴ | `Django.exe` and the `.npa` archives; the game updated to 1.01 | `convert-nss`, IPA Gothic | ffmpeg (movies) |
 | 月姫 -A piece of blue glass moon- (Switch) | the RomFS (`allscr.mrg`, `script_text.mrg`, `allui.mrg`, `knife1.bfsar`) with `exefs/main` beside it; 1.0.2 or the fan patch | `typemoon convert`, IPA Gothic | ffmpeg (movies, sounds) |
 
-**Advanced options** are the converter flags: every game has the same
-ones, in the same order, then its own, two to a row; pointing at one
-shows what it does. The line under them shows the exact command.
-**Recommended
+**Advanced options** are the converter's flags
+([`docs/cli.md`](../docs/cli.md), "Build options"): every game has the
+same ones, in the same order, then its own, two to a row; pointing at one
+shows what it does. The game's own: `--file` and `--chain` for 村正
+(start at the script, story files to follow) and `--scenes` for 翼 (only
+these scenes). The line under them shows the exact command; **Recommended
 settings** puts them back.
-
-Each option is one of the converter's flags, described in
-[`docs/cli.md`](../docs/cli.md) ("Build options"); the GUI adds the game's
-own: `--file` and `--chain` for 村正 (start at the script, story files to
-follow) and `--scenes` for 翼 (only these scenes).
 
 **ffmpeg** is not included (its usual builds are GPL with libx264, and
 large). Install it so `ffmpeg` is on PATH (Windows: for example
@@ -127,5 +125,6 @@ Add a `Game` entry to `GAMES` in `games.py`: its marker files, an optional
 `check` for problems the markers can't see, the converter arguments from
 the game's document, its `options` (each a converter flag; their defaults
 are the recommended settings), its font, whether it needs ffmpeg and the
-finished build's size (the progress bar and the free-space check use it). Add a fake layout and the expected command to
+finished build's size (the progress bar and the free-space check use
+it). Add a fake layout and the expected command to
 `gui/tests/test_games.py`.

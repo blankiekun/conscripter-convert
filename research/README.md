@@ -1,16 +1,24 @@
 # Research scripts
 
-Throwaway Python used while reverse-engineering formats. Findings that hold
-up move into the Rust crates; these stay as a record of how they were found.
+Throwaway Python for reverse-engineering formats. What holds up moves
+into the Rust crates; the scripts stay as the record of how it was found.
+Paths are arguments, no game data is inside. Run `python3 -I` from
+outside the game directory. Shared helpers (traces, scratch runs, saves,
+diffs): `research/tools/`, see `docs/tools.md`. `local/` under each
+engine is git-ignored.
 
-They read files from your own install (paths are arguments) and contain no
-game data. Run them with `python3 -I` from outside the game directory.
+Listed below: the scripts to start from. Most others in each folder open
+with a docstring; `ls` the folder.
 
-## tools/ (any game)
+## tools/ghidra (any game)
 
-| Script | What it does |
-|---|---|
-| `ghidra/ghidra_export.sh <binary> <outdir> [--names <names.tsv>] [--rtti] [-- <import options>]` | Decompiles a binary with Ghidra (headless; finds `analyzeHeadless` on `PATH` or in `$GHIDRA_INSTALL_DIR/support`) into one pseudo-C file per function with its callers, callees and cp932 strings, plus `functions.tsv` and `strings.tsv`. Applies a names file first (`ApplyNames.java`) so identified functions keep their names; later runs reuse the analyzed project |
+`ghidra/ghidra_export.sh <binary> <outdir> [--names <names.tsv>] [--rtti] [-- <import options>]`
+decompiles a binary with Ghidra (headless; `analyzeHeadless` on `PATH` or
+in `$GHIDRA_INSTALL_DIR/support`) into one pseudo-C file per function
+with callers, callees and cp932 strings, plus `functions.tsv` and
+`strings.tsv`. A names file is applied first (`ApplyNames.java`), so
+identified functions keep their names; later runs reuse the analyzed
+project.
 
 ## xuse/ (最果てのイマ COMPLETE)
 
@@ -21,13 +29,13 @@ game data. Run them with `python3 -I` from outside the game directory.
 | `cdlib.py` | Helpers for .cd scripts: load sections, scan pool strings |
 | `decrypt_0cd.py <0.cd> <out>` | Decrypts 0.cd with the cipher found in the exe |
 | `gafkey.py` | GAF4 key generator and XOR from the exe |
-| `nstrace.py <0.txt> [steps] [--show]` | Runs the NScripter subset conscripter-convert emits (labels, goto, gosub/return, arithmetic, if) to find loops or trace the path to the first text page |
-| `smoke.py` | Runs a converted game headless in the built engine with scripted clicks and screenshots (see its docstring; it expects the title and menus `conv-cons` writes) |
 | `gaf_extract.py <outdir> <file.004…>` | Extracts the PNGs from GAF4 files (needs `gafkey.py`) |
-| `names.tsv` | Names for `Farthest2015.exe`'s functions and globals, for `ghidra_export.sh --names` |
-| `voice_align.py <game dir> <out.json>` | Statistically aligns voice ids to .xsa clips by text length vs clip length (needs numpy) |
+| `nstrace.py <0.txt> [steps] [--show]` | Runs the NScripter subset conscripter-convert emits (labels, goto, gosub/return, arithmetic, if) to find loops or trace the path to the first text page |
+| `smoke.py` | Runs a converted game headless in the built engine with scripted clicks and screenshots (docstring; expects the title and menus `conv-cons` writes) |
+| `voice_align.py <game dir> <out.json>` | Aligns voice ids to .xsa clips statistically, text length vs clip length (needs numpy) |
+| `names.tsv` | Names for `Farthest2015.exe`'s functions and globals (`ghidra_export.sh --names`) |
 
-## nitroplus/ (装甲悪鬼村正)
+## nitroplus/ (装甲悪鬼村正, 続・殺戮のジャンゴ)
 
 | File | What it is |
 |---|---|

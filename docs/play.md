@@ -7,10 +7,10 @@ plays it. Pick the way that matches your device. To make the folder, see
 [the converter reference](cli.md).
 
 CONscripter releases:
-<https://github.com/blankiekun/CONscripter/releases>. File names carry the
-version (`<version>`). The engine's own per-device pages are
-[PLATFORMS.md](https://github.com/blankiekun/CONscripter/blob/master/PLATFORMS.md)
-and the options list in its README.
+<https://github.com/blankiekun/CONscripter/releases> (file names carry the
+version, `<version>`). Per-device pages:
+[PLATFORMS.md](https://github.com/blankiekun/CONscripter/blob/master/PLATFORMS.md);
+options: the engine's README.
 
 ## With the converter's GUI (Windows, macOS, Linux)
 
@@ -44,9 +44,7 @@ download CONscripter; then use the next section.
 
 ## In the browser
 
-The site <https://blankiekun.github.io/?app=cons#cons> has a CONscripter window.
-What its code shows (the page itself is the reference; this is not a
-promise about its look):
+The site <https://blankiekun.github.io/?app=cons#cons> has a CONscripter window:
 
 1. Choose **Open Folder...** and pick the converted game folder (the one with
    `0.txt` in it), or drop the folder, or a `.zip` of it (**Open Zip...**),
@@ -63,9 +61,7 @@ promise about its look):
 
 Saves are kept per game under the folder's name.
 
-If you host the files yourself instead, see the engine's
-[PLATFORMS.md](https://github.com/blankiekun/CONscripter/blob/master/PLATFORMS.md)
-("Web").
+To host the files yourself, see PLATFORMS.md ("Web").
 
 ## Android
 
@@ -79,7 +75,7 @@ opens the menu; four fingers skip text.
 Each console has its own file in the releases and its own install steps
 (Switch, PS Vita, Miyoo Mini, Wii U, 3DS): see the engine's
 [PLATFORMS.md](https://github.com/blankiekun/CONscripter/blob/master/PLATFORMS.md).
-Big games may not fit a console's memory; the page says what fits.
+The page says which big games fit a console's memory.
 
 ## Kobo (KOReader)
 

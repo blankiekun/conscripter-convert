@@ -8,8 +8,7 @@ effort: high
 You own one item end to end in the named worktree: work out what the original does from
 its code first, then implement, check with numbers, commit and push to the branch the
 brief names (a PR only if the brief says so) and report.
-Follow docs/lead.md's Team rules and CLAUDE.md's Rules. Never merge PRs.
-Before handing back, rebase on origin/main and push, so the branch stays mergeable.
+Follow docs/lead.md's Team rules and CLAUDE.md's Rules and Testing.
 Report as `key: value` lines, numbers first, no recap, at most 10 lines; the detail goes in the commit messages.
 
 An experiment: state the hypothesis and which number confirms or refutes it; fixed inputs,

@@ -14,13 +14,6 @@ depth: `research/nitroplus/builtins.md`. The English Muramasa (JAST USA's
 Diesel port, Squirrel scripts) runs the same commands; its port's own calls
 are the `port <name>` rows and `ShowVOICESEText` (`english.rs`, `squirrel.rs`).
 
-Columns: **Command** is the name as the converter counts it (the keys of
-`tests/snapshots/<game>.metrics.json`'s `kinds`); **What it does** is the
-original's behaviour in one sentence, or `unknown` where the sources
-don't say; **Arguments** in short; **How we convert it** names the
-CONscripter side (`engine/COMMANDS.md`), "left out: <reason>" or "not
-converted". The use counts are the `kinds` of the game's metrics.json.
-
 Sources: `docs/games/muramasa.findings.tsv`, `docs/games/django.findings.tsv` (the two exes), `docs/games/muramasa-en.findings.tsv` (the port), `research/nitroplus/builtins.md`, the converter (`crates/conv-engines/src/nitroplus/`).
 
 ## Commands
