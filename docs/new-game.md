@@ -1,21 +1,17 @@
 # Converting a new game
 
-A checklist for an agent (or lead) starting a new game: what to do, when
-it is done, where the detail is (`docs/new-game-reference.md` by heading,
-`docs/tools.md`). House rules: `CLAUDE.md`; lessons: `docs/lessons.md`.
+A checklist for an agent (or lead) starting a new game: each step ends on a "Done:" criterion; detail is in
+`docs/new-game-reference.md` (by heading) and `docs/tools.md`. House rules: `CLAUDE.md`; lessons:
+`docs/lessons.md`.
 
-**The goal**: `CLAUDE.md`, "Goal". Matching the original frame by frame
-is not a step: only for a bug seen in play and with the user's yes
-(`docs/tools.md`, "Matching the original"). **Order of evidence** for any
-question about the original: its code (scripts, decompile, formats), the
-oracle (one exe function, memory dumps), then wine or an emulator, last.
+**Order of evidence** for any question about the original: its code (scripts, decompile, formats), the oracle
+(one exe function, memory dumps), then wine or an emulator. Matching the original frame by frame happens only
+for a bug seen in play, with the user's yes (`docs/tools.md`, "Matching the original").
 
 ## For the lead
 
-Lead notes: `docs/lead.md`. Set up the game in one PR: its id and branch
-prefix, its row in `CLAUDE.md`'s table, `docs/games/<game>.md` from
-`docs/games/TEMPLATE.md`; then its worktree (`git worktree add
-../conscripter-convert-<game> -b <game>/start origin/main`).
+Setting up the game (id, branch prefix, `CLAUDE.md` row, worktree) and dispatch: `docs/lead-new-game.md`,
+sections 3-4.
 
 ## Steps
 
@@ -54,8 +50,7 @@ prefix, its row in `CLAUDE.md`'s table, `docs/games/<game>.md` from
    `research/tools/ghidra/ghidra_export.sh`, every identified name in
    `research/<engine>/names.tsv`. Done: every script parses, every jump
    target exists. Detail: reference, "Decompiling the exe".
-7. **Convert what the corpus uses.** Decode, convert what the corpus
-   uses, and keep the ranked gaps in Status. Done: gaps ranked in Status.
+7. **Convert what the corpus uses**, most-used opcodes first. Done: the ranked gaps are in Status.
 
 ### Converting
 
