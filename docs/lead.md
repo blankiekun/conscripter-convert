@@ -96,7 +96,7 @@ the handoff file. Ask for a missing one before starting; at done or budget, stop
   and on a real conflict prints what to tell the agent. If denied, ask the user.
 - Route fixes to the PR's author, or have a checker or the user review: your own commits before merging read as
   an unreviewed merge, and auto mode then blocks even `gh pr view` / `git pull`.
-- The user adds allow rules (tests, build, `tests/land.sh`) to the git-ignored `.claude/settings.local.json`;
+- The user adds allow rules (tests, build, `tests/land.sh`) to the git-ignored `settings.local.json` in `.claude/`;
   ask for them.
 
 ## Mechanical guards
