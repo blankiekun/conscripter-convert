@@ -7,8 +7,8 @@ outside the game directory. Shared helpers (traces, scratch runs, saves,
 diffs): `research/tools/`, see `docs/tools.md`. `local/` under each
 engine is git-ignored.
 
-Listed below: the scripts to start from. The others in each folder carry
-a docstring; `ls` the folder.
+Listed below: the scripts to start from. Most others in each folder open
+with a docstring; `ls` the folder.
 
 ## tools/ghidra (any game)
 
