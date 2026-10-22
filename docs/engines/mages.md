@@ -8,13 +8,6 @@ A scene is a plain Shift-JIS text file: a list of tasks (`:Tasktype
 at 30 fps. Reader and compiler: `crates/conv-engines/src/mages/`. Game
 document: `docs/games/oretsuba.md`.
 
-Columns: **Command** is the name as the converter counts it (the keys of
-`tests/snapshots/<game>.metrics.json`'s `kinds`); **What it does** is the
-original's behaviour in one sentence, or `unknown` where the sources
-don't say; **Arguments** in short; **How we convert it** names the
-CONscripter side (`engine/COMMANDS.md`), "left out: <reason>" or "not
-converted". The use counts are the `kinds` of the game's metrics.json.
-
 Sources: `docs/games/oretsuba.findings.tsv` (the eboot), `docs/games/oretsuba.md`, the converter (`crates/conv-engines/src/mages/convert.rs`).
 
 ## Commands

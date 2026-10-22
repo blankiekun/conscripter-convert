@@ -1,10 +1,8 @@
 # conscripter-convert command reference
 
-Every subcommand and option of the converter. `conscripter-convert <command> --help`
-prints the same from the program itself; a test (`cargo test`) fails when a
-subcommand or `--flag` is missing from this page.
-
-Most players want only `build` (or the GUI, [`gui/README.md`](../gui/README.md)).
+Every subcommand and option, with the context `--help` lacks (which game
+takes which option, why). `cargo test` fails when a subcommand or `--flag`
+is missing here. Players: `build` or the GUI ([`gui/README.md`](../gui/README.md)).
 
 ## Building a game
 
@@ -14,22 +12,19 @@ Most players want only `build` (or the GUI, [`gui/README.md`](../gui/README.md))
 conscripter-convert build <game folder> -o <output> [options]
 ```
 
-Recognises the game in the folder (as `conscripter-convert games <folder>`
-does) and runs that game's convert command (`convert-game`, `convert-nss`,
-`mages convert`, `typemoon convert`) with its title and recommended
-options. Any convert option after `-o` is passed on and replaces the game's
-own (`--title`, `--file`, ...). Each game's document in `docs/games/` gives
-the command it runs.
+Recognises the game (as `games <folder>` does) and runs its convert
+command with its title and recommended options; any convert option after
+`-o` is passed on and replaces the game's own (`--title`, `--file`, ...).
+The game's document in `docs/games/` gives the command it runs.
 
-An English edition is built on the Japanese game:
+An English edition builds on the Japanese game:
 `build <english folder> --japanese <japanese folder> -o <output>` (Full Metal
-Daemon Muramasa on the Japanese 装甲悪鬼村正; Tsukihime's fan patch RomFS on
-1.0.2's).
+Daemon Muramasa on 装甲悪鬼村正; Tsukihime's fan-patch RomFS on 1.0.2's).
 
 ### `conscripter-convert games`
 
-`games` lists the games the converter builds; `games <folder>` lists the ones
-found in a folder; `games --json` prints the list as JSON.
+`games` lists the games the converter builds; `games <folder>` the ones found
+in a folder; `games --json` as JSON.
 
 ### `conscripter-convert lint`
 
@@ -45,7 +40,7 @@ as the engine reads it; `fill <dir> --language xx` from `text.xx.txt`.
 
 ### The convert commands
 
-`build` runs one of these; call them directly to choose every option.
+`build` runs one of these; call one directly to choose every option.
 
 | Command | Converts | Its own options |
 |---|---|---|
@@ -75,8 +70,8 @@ All but `convert-script` also take the build options below.
 
 `--original-archives` (`convert-game`, `convert-nss`) leaves the pictures and
 sounds out of the output; CONscripter reads them from the game's own archives,
-which the output's `cons_archives.txt` names. Background and how to build
-one: [`docs/original-archives.md`](original-archives.md).
+which the output's `cons_archives.txt` names
+([`docs/original-archives.md`](original-archives.md)).
 
 ### `conscripter-convert strtab`
 
@@ -88,7 +83,7 @@ map), `--scene-prefix <prefix>` (labels starting with it begin a scene).
 
 ## Format tools
 
-Low-level subcommands for inspecting each engine's files. `conscripter-convert <command> <subcommand> --help` lists the arguments.
+Low-level inspection of each engine's files; `--help` of a subcommand lists its arguments.
 
 | Command | What it does |
 |---|---|

@@ -4,7 +4,7 @@ With `--original-archives`, CONscripter reads the player's own archives
 in place instead of a re-encoded `arc.nsa`: a converted game is its
 script, a mapping file and the few pictures the converter makes. Builds
 are faster, no game data is handed out, an update is a few hundred KB,
-and saves stay valid because `0.txt` is byte-identical either way.
+and saves stay valid (`0.txt` is byte-identical either way).
 
 Supported: Django's NPA, Muramasa's zlib NPA (Japanese only:
 `--english` is refused, since the engine looks in the NPAs before
@@ -103,5 +103,5 @@ In order; each a PR of its own:
    decode per expression change; text, Opus voices via an `|nxopus`
    transform in place).
 
-Decoders taken into the engine must be GPLv2-compatible. The mapping
-carries only what the player's exe holds.
+Engine decoders must be GPLv2-compatible. The mapping carries only what
+the player's exe holds.

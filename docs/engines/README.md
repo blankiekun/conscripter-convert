@@ -13,11 +13,16 @@ converter turns it into CONscripter. One file per engine family. The game's
 
 The table format is read by the project site: keep the column names, backticked names and `unknown` stable.
 
-Each file has one table. Its **Command** cell is the name in backticks,
-exactly as the metrics' `kinds` key; **What it does** says what the
-original does in one plain sentence, or exactly `unknown` when the
-sources don't say (those are listed under "Unknown"). The sources are
-the game's `docs/games/<game>.findings.tsv`, its game document, and the
-converter; for our side, `engine/COMMANDS.md`. A row per command is
-optional (no lint requires it); a new engine's file needs its
-`engine_doc` stem in its `build.rs`.
+Each file has one table (`Command | What it does | Arguments | How we convert it`):
+
+- **Command**: the name in backticks, exactly as the key in
+  `tests/snapshots/<game>.metrics.json`'s `kinds` (whose values are the use counts).
+- **What it does**: the original's behaviour in one plain sentence, or
+  exactly `unknown` where the sources don't say (listed under "Unknown").
+- **Arguments**: in short.
+- **How we convert it**: the CONscripter side (`engine/COMMANDS.md`),
+  "left out: <reason>", or "not converted".
+
+Sources: the game's `docs/games/<game>.findings.tsv`, its game document and
+the converter. A row per command is optional (no lint requires it); a new
+engine's file needs its `engine_doc` stem in its `build.rs`.
