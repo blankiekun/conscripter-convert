@@ -1,21 +1,15 @@
 # 装甲悪鬼村正 (Nitroplus NSS)
 
-Full Metal Daemon Muramasa (Nitroplus, 2009), the reference for the
-Nitroplus NSS engine (`docs/engines/nitroplus-nss.md`). Scripts ship as
-**plain source text** in an encrypted NPA archive, so the converter is a
-compiler from NSS: no bytecode to reverse. The English release is a
-port to another engine, read into the same build
-(`docs/games/muramasa-en.md`).
+Full Metal Daemon Muramasa (Nitroplus, 2009), the reference game for
+Nitroplus NSS (`docs/engines/nitroplus-nss.md`): scripts are **plain
+source text** in an encrypted NPA, so the converter is an NSS compiler.
+The English port joins the same build (`docs/games/muramasa-en.md`).
 
-- **Game files:** the retail DVD (InstallShield 10.5). Install it, or
-  unpack `product/data1.hdr` from the disc with `unshield`: the game
-  data lands in `ゲームデータ/` (this is `<game>`), the movies in
-  `ムービー/`. No registry entries needed. Keep `<game>` on a local
-  disk: the full build reads 3 GB of archives.
-- **Code:** `crates/conv-engines/src/nitroplus/` (reader and compiler),
-  this game's rules in `nitroplus/convert/muramasa.rs` and
-  `convert/muramasa/`; research scripts in `research/nitroplus/`; the
-  built-ins' semantics in `research/nitroplus/builtins.md`.
+- **Game files:** install the retail DVD (InstallShield 10.5) or
+  `unshield` its `product/data1.hdr`: data in `ゲームデータ/` (`<game>`,
+  on a local disk: a full build reads 3 GB), movies in `ムービー/`.
+- **Code:** `crates/conv-engines/src/nitroplus/`, this game's part in
+  `convert/muramasa.rs` and `convert/muramasa/`; `research/nitroplus/`.
 
 ## Status
 
@@ -33,80 +27,65 @@ Active (Japanese and English in one build).
 
 Known bugs:
 
-- **The trace diff's missing pages** (`ma03_015` and others; lead's
-  lane R): pages the original shows that our run lacks.
-- **Scene-start findings** ("Scene-start check"; 640 of 865 scenes
-  clean): the battle HUD (`cg/cp/*`) shows from the first page in 17
-  battle scenes, where the original has none yet; `md05_027a`/`b`…
-  (8 scenes) miss their opening `ev253_飢餓虚空の内側.jpg` (black);
-  `mc04_014vsa`… (7 scenes) miss `ev187_銘伏の妖剣_i.jpg`.
-- **`--original-archives`** (`docs/original-archives.md`) works for the
-  Japanese build, not with `--english`.
-- **Engine:** CONscripter segfaulted once on `end` after a `dwave`
-  voice with Ctrl held (not looked into).
-- **Layer:** `layer\uncensored\` unchecked on a censored CG.
+- Trace diff: pages the original shows and ours lacks (`ma03_015`…;
+  lead's lane R).
+- Scene-start check (640 of 865 scenes clean): the battle HUD
+  (`cg/cp/*`) shows on the first page of 17 battle scenes, the
+  original's later; `md05_027a`/`b`… (8) open black, missing
+  `ev253_飢餓虚空の内側.jpg`; `mc04_014vsa`… (7) miss
+  `ev187_銘伏の妖剣_i.jpg`.
+- `--original-archives` (`docs/original-archives.md`) fails with
+  `--english`.
+- One engine segfault on `end` after a `dwave` voice, Ctrl held.
+- `layer\uncensored\` unchecked on a censored CG.
 
-Next:
-
-1. Play the web build through, Japanese then English; fix what blocks
-   or shows wrong.
-2. The known bugs above.
-3. Release.
+Next: (1) play the web build through, Japanese then English, fixing
+what blocks or shows wrong; (2) the known bugs; (3) release.
 
 ## Scope
 
-The user owns the retail PC DVD (version 1.00) and the English release
-(JAST USA 2021). One build holds both languages (`docs/string-tables.md`):
-English code and text per language, pictures in `layer\en\`, differing
-event CGs in `layer\uncensored\`, Language and Pictures rows in the
-settings; a language change restarts. Converted: the whole story, the
-system screens, the extras, the 立方陣 minigame, the movies. No manual
-in digital form (the retail one was printed); the English release's
+Owned: the retail PC DVD (1.00), the English release (JAST USA 2021).
+Converted: story, system screens, extras, 立方陣, movies, both languages
+in one build (`docs/string-tables.md`; `layer\en\` pictures,
+`layer\uncensored\` event CGs, Language and Pictures settings; a
+language change restarts). Manual: print only; the English
 `Manual.pdf` shows the same screens in the port's look.
 
 ## Build
 
-`conscripter-convert build <game> -o <output>` recognises the game and
-runs `convert-nss` with `--file ma00_000.nss --chain 2000 --title
-装甲悪鬼村正` (README, "Converting a game"); the convert options go after
-`-o`. Script only (about 10 s, 1.2 GB peak; use it for anything about
-logic):
+`conscripter-convert build <game> -o <output> [convert options]` runs
+`convert-nss --file ma00_000.nss --chain 2000 --title 装甲悪鬼村正`
+(README). The **dry run** (10 s, 1.2 GB) answers logic questions:
 
 ```sh
 target/release/conscripter-convert convert-nss <game> \
   --file ma00_000.nss --chain 2000 -o out/muramasa-dry --dry-run
 ```
 
-Full build: the same without `--dry-run`, plus `--font <a Japanese TTF,
-e.g. ipam.ttf> --title 装甲悪鬼村正` (about 3 minutes, 1.2 GB of memory,
-3.5 GB written; one at a time). The English: `build <english game>
---japanese <game>` (`docs/games/muramasa-en.md`).
+The **full build**: `--dry-run` replaced by `--font <Japanese TTF,
+e.g. ipam.ttf> --title 装甲悪鬼村正`; 3 min, 1.2 GB, 3.5 GB written, one
+at a time. English: `build <english game> --japanese <game>`.
 
-- `--webp` (near-lossless) or `--webp --webp-quality 80` stores pictures
-  as WebP for the web build (`--chain 2`: 66.5 MB PNG, 13.3 MB at 80).
-- Start at `ma00_000.nss` (the prologue, which also unlocks 魔王編).
-  `--file X.nss` without `--chain` compiles one scene; with
-  `--chain 6` and without `--dry-run`, a few files build only their
-  assets (seconds).
-- Movies are read from the disc's `ムービー/` (a `ムービー/`, `movie/` or
-  `movies/` in `<game>` or beside it; `--movies <dir>` names another)
-  and encoded to `movie/` (H.264) once. Without them a full build fails
-  unless given `--no-movies`.
-- `NSS_TRACE=1` prints each file as it compiles and a `flag %N name`
-  line per story flag. Every build prints a ranked "not converted or
-  approximated" list and lints the output. The output is deterministic.
+- `--webp [--webp-quality 80]` for the web (`--chain 2`: 66.5 MB PNG,
+  13.3 MB at 80).
+- The prologue `ma00_000.nss` also unlocks 魔王編. `--file X.nss` alone:
+  one scene; full build with `--chain 6`: a few files' assets, seconds.
+- Movies: `ムービー/`, `movie/` or `movies/` in or beside `<game>`, or
+  `--movies <dir>`; encoded once to `movie/` (H.264). Without them:
+  `--no-movies`.
+- `NSS_TRACE=1`: each file compiled, a `flag %N name` per story flag.
+  Builds rank what is "not converted or approximated", lint, and are
+  deterministic.
 
 ## Testing
 
-Logic checks use the dry run; the engine runs below need a full build.
 Recipes: `docs/tools.md`, `docs/new-game-reference.md`.
 
-- **Route check** ("Route simulation"): `nstrace.py` runs `0.txt`'s
-  control flow along each committed path and checks every file-to-file
-  step against the route map; every ending and five bad ends are
-  reached. `PUZZLE 1`/`PUZZLE 0` in a path solves or fails the 立方陣;
-  `--flags <file> --watch '$Muramasa_Flag,RC_N['` prints flags where
-  they change.
+- **Route check** ("Route simulation", dry run): `nstrace.py` walks
+  `0.txt` along each committed path against the route map, to every
+  ending and five bad ends. `PUZZLE 1`/`0` in a path solves or fails the
+  立方陣; `--flags <file> --watch '$Muramasa_Flag,RC_N['` prints flag
+  changes.
 
   ```sh
   conscripter-convert npa extract <game>/Muramasa.exe <game>/nss.npa -o out/muramasa-nss
@@ -115,17 +94,13 @@ Recipes: `docs/tools.md`, `docs/new-game-reference.md`.
     research/nitroplus/paths/{1-ichijou,2-kanae,3-chachamaru,4-muramasa}.txt \
     --route out/muramasa-route.txt --quiet
   ```
-- **Engine runs:** the debug trace (`docs/tools.md`) with
-  `--trace-ignore 999` (the runs' marker sprite); `--goto <label> --vars
-  <file>` starts at a scene with the story flags preset. Read the trace
-  with `engine/tools/cons_trace_check.py`, its `long wait` and `large
-  image` warnings included. Run long ones through a renamed engine copy
-  (other agents `pkill -x conscripter`).
-- **Route runs:** `research/nitroplus/engrun.py` plays each ending in
-  CONscripter, every page drawn, taking nstrace's options, and passes if
-  it reaches the end through the same files (`--all` adds the bad ends;
-  `--at <file>` starts at a story file with nstrace's variables;
-  `--wrap 'valgrind -q'`, or an ASan build as `--engine`):
+- **Engine runs** (full build): the debug trace with `--trace-ignore
+  999` (the marker sprite); heed `long wait` and `large image` warnings.
+- **Route runs:** `research/nitroplus/engrun.py` (nstrace's options)
+  plays each ending, every page drawn; it passes on reaching the end
+  through the same files. `--all` adds bad ends; `--at <file>` starts
+  there with nstrace's variables; `--wrap 'valgrind -q'` or an ASan
+  `--engine`:
 
   ```sh
   P=$(ls research/nitroplus/paths/*.txt)
@@ -137,42 +112,39 @@ Recipes: `docs/tools.md`, `docs/new-game-reference.md`.
 
 ### Running the original under wine
 
-The last resort (CLAUDE.md, Rules; recipes in `docs/tools.md`,
-"Matching the original"). Also the recipe for 続・殺戮のジャンゴ.
-- Through `research/tools/headless-run.sh`, with `LANG`/`LC_ALL=ja_JP.UTF-8`
-  (without it the save folder's name is garbled and a new game goes back
-  to the title) and `HKCU\Software\Wine\Drivers` `Graphics=x11`.
-- **Audio:** the game needs DirectSound. Use `Drivers\Audio=alsa`,
+Rules and recipe: CLAUDE.md, `docs/tools.md` ("Matching the
+original"); 続・殺戮のジャンゴ runs the same way.
+
+- Without `ja_JP.UTF-8` the save folder's name is garbled and a new
+  game falls back to the title. `HKCU\Software\Wine\Drivers`
+  `Graphics=x11`.
+- **Audio** (needs DirectSound): `Drivers\Audio=alsa`,
   `WINEDLLOVERRIDES="winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"`,
-  `PULSE_SERVER=unix:/nonexistent` and `ALSA_CONFIG_PATH=<file>` holding
+  `PULSE_SERVER=unix:/nonexistent`, `ALSA_CONFIG_PATH=<file>` holding
   only `pcm.!default { type null }` (+ `ctl.!default`, `pcm.null`).
-- `C:\muramasa\` a folder of symlinks to `<game>`'s files; `wine
-  Muramasa.exe` from there. Fullscreen 1024×576 is drawn at (128, 125)
-  on 1280×800 (`import -display :N -window root -crop 1024x576+128+125`;
-  film with `ffmpeg -f x11grab -video_size 1024x576 -i :N+128,125`).
-  Stop with `wineserver -k`, kill Xvfb by PID.
-- Wine has no ＭＳ 明朝: its substitute steps about 18 px a character at
-  size 20, not 20. Compare where columns start, not the step.
-- **Patch first, click last:** unpack `nss.npa` with `npa.py`, edit a
-  script (cp932), `--pack` it into a copy linked as `nss.npa`. For the
-  title with no logos, uncomment `//$Logo = true;` in `0_boot.nss`. Or
-  write a save that goes to any scene ("Save format"); `Load(3);` after
-  `#play_speed_plus = #SYSTEM_play_speed;` in `0_boot.nss` loads it.
-- **Trace DLL** ("Trace DLL"): `GAME=<game>
-  research/nitroplus/tracedll/ntrace.sh -o orig.jsonl --pages 60` plays
-  from `ma00_000` with no clicks and writes a `cmd` record per call
-  statement (`op`, `at` = `<file>:<line>`, `ms`, `th`, 0 the story) and
-  a `page` record per page (written when the block loads; the page shows
-  at its `Request($textnumber, Enter)`). `SPEED=8` plays 8× faster in
-  game time. `--frames` gives a per-frame state trace (as in
-  `docs/games/django.md`). Hook details in `ntrace.c`.
-- **Reference-trace patches:** for `reftrace.sh muramasa`, `mura-patch/`
-  turns the first H-mode screen's `select{` (`sys_hmode.nss`) into
-  `if(0){` and the 立方陣's (`function_magiccube.nss` line 261) into
+- `wine Muramasa.exe` in `C:\muramasa\` (symlinks to `<game>`).
+  Fullscreen 1024×576 sits at (128, 125) of 1280×800: `import -display
+  :N -window root -crop 1024x576+128+125`; `ffmpeg -f x11grab
+  -video_size 1024x576 -i :N+128,125`. Stop: `wineserver -k`, Xvfb by
+  PID.
+- Wine's ＭＳ 明朝 stand-in steps ~18 px a character at size 20: compare
+  column starts, not steps.
+- **Patch first:** unpack `nss.npa` (`npa.py`), edit (cp932), `--pack`
+  a copy linked as `nss.npa`. `0_boot.nss`: uncomment `//$Logo =
+  true;` to skip logos; `Load(3);` after `#play_speed_plus =
+  #SYSTEM_play_speed;` loads slot 3, a save written to any scene ("Save
+  format").
+- **Trace DLL:** `GAME=<game> research/nitroplus/tracedll/ntrace.sh -o
+  orig.jsonl --pages 60` plays from `ma00_000` unclicked; `th` 0 is the
+  story; a `page` record comes when the block loads, the page shows at
+  its `Request($textnumber, Enter)`. `--frames`: per-frame state (as
+  `docs/games/django.md`). Hooks: `ntrace.c`.
+- **Reference-trace patches** (`reftrace.sh muramasa`): `mura-patch/`
+  turns the first H-mode `select{` (`sys_hmode.nss`) into `if(0){` and
+  the 立方陣's (`function_magiccube.nss` line 261) into
   `$立方陣正解=true;$Loop_end=false;$Answer=true;if(0){`, each on its
   own line.
-- **Trace diff** ("Trace diff"): build with `--source-map`, run ours,
-  diff:
+- **Trace diff** (`--source-map` build):
 
   ```sh
   target/release/conscripter-convert convert-nss <game> --file ma00_000.nss \
@@ -183,14 +155,13 @@ The last resort (CLAUDE.md, Rules; recipes in `docs/tools.md`,
     --pages 50 --ms --fps 60 --thread 0
   ```
 
-  Not findings: the reader's wait after `Request(…, Enter)`; `extra`
-  from a page's own code; `procAutoIcon`; `missing` calls that change
-  nothing drawn; the text box's own calls; calls folded into one of ours.
+  Noise: the reader's wait after `Request(…, Enter)`; `extra` from a
+  page's own code; `procAutoIcon`; `missing` calls that draw nothing;
+  the text box's own calls; calls folded into one of ours.
 
 ### Per-scene snapshots
 
-A memory dump of the original at the start of every story scene, from
-saves (`docs/tools.md`, "Matching the original"):
+The original's memory at each story scene's start, from saves:
 
 ```sh
 python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa <nss>
@@ -199,18 +170,17 @@ GAME=<game> research/nitroplus/tracedll/ntrace.sh -o scenes.jsonl --patch <patch
     --scene-dumps research/nitroplus/local/<dir> --clicks 500 --pages 1 --seconds 5400
 ```
 
-`scene_saves.py` writes slot i sent to the i-th scene and patches each
-scene's `_MAIN` to `Load(i+1)` the next, so one wine process dumps every
-scene (about 2.5 s each; 881 story scenes in 41 min).
-`research/tools/dumppack.py` packs them; `muramasa-scene-dumps.tsv`
-indexes them; `exe_call.py`'s `load_dump` rebuilds one. A loaded save
-lacks moves in flight, sound positions, `CreateProcess` threads, timers,
-the backlog, and the route's flags beyond the template's.
+Slot i goes to scene i and each `_MAIN` is patched to `Load(i+1)`: one
+wine process dumps all 881 (2.5 s each, 41 min). `dumppack.py` packs,
+`muramasa-scene-dumps.tsv` indexes, `exe_call.py`'s `load_dump`
+rebuilds. A loaded save lacks moves in flight, sound positions,
+`CreateProcess` threads, timers, backlog, and route flags beyond the
+template's.
 
 #### Scene-start check
 
 The original's objects at each scene's first text block against our
-sprites on that page:
+sprites:
 
 ```sh
 python3 -I research/nitroplus/scene_saves.py <game>/Muramasa.exe <template slot> <nss> <saves> <patch> --at page > manifest.tsv
@@ -221,37 +191,37 @@ research/tools/.venv/bin/python -I research/tools/scene_check.py research/nitrop
 ```
 
 `scene_objects.py` reads a dump's objects, creating calls and render
-records (x, y, alpha; zoom and rotation not compared yet).
+records (x, y, alpha; zoom, rotation not compared yet).
 
 ## Save format
 
-What `builtin_Save` (`00411ea0` → `0046eb70`) writes and
-`0046fa80`/`00471b40` read back; `research/tools/nitroplus_save.py`
-(`dump`, `write`, `selftest`) reads and writes it, checked under wine.
+Written by `builtin_Save` (`00411ea0` → `0046eb70`), read by
+`0046fa80`/`00471b40`; `research/tools/nitroplus_save.py` `dump`,
+`write`, `selftest` (checked under wine).
 
-- Folder `AppData\Roaming\Nitroplus\装甲悪鬼村正\1.00\`: one per slot
-  (`0001` = slot 1) and `common` (`val.npf` the `#` variables, `cqst.npf`
-  the read marks); thumbnails in `images\`.
-- Every `.npf`: `NPSF`, u32 plain size, u32 1, u32 1, then zlib whose
-  first 0x1000 bytes are `table[b + key]` (`FUN_00401650`, `npa.py`'s
-  table), the key fixed per file name (`val` 100, `script` 164, `frames`
-  138, `bklg` 248, `cmt` 93, `cpt` 72, `date` 8, `tm` 52, `thum` 8,
-  `cqst` 32). Binary files start with a tag (`NPSL`, `NPSG`, `NPSS`,
-  `NPSF`, `NPSB`, `NPSI`), `c5 57 f2 f1`, u32 size. `cmt`, `cpt`,
-  `date`, `tm` are cp932 text.
-- `val.npf`: u32 count, then a 1024-byte entry per variable: u8 type (0
-  null, 1 string, 2 number), name, 4 NULs, f64, string, 4 NULs, array
-  key, 4 NULs. The page is `$SYSTEM_present_text`, the file `$GameName`.
+- `AppData\Roaming\Nitroplus\装甲悪鬼村正\1.00\`: `0001` = slot 1…,
+  `common` (`val.npf` `#` variables, `cqst.npf` read marks), `images\`
+  thumbnails.
+- `.npf`: `NPSF`, u32 plain size, u32 1, u32 1, then zlib whose first
+  0x1000 bytes are `table[b + key]` (`FUN_00401650`, `npa.py`'s table),
+  key per file name (`val` 100, `script` 164, `frames` 138, `bklg` 248,
+  `cmt` 93, `cpt` 72, `date` 8, `tm` 52, `thum` 8, `cqst` 32). Binary
+  files start with a tag (`NPSL`, `NPSG`, `NPSS`, `NPSF`, `NPSB`,
+  `NPSI`), `c5 57 f2 f1`, u32 size; `cmt`, `cpt`, `date`, `tm` are
+  cp932 text.
+- `val.npf`: u32 count, then 1024 bytes per variable: u8 type (0 null,
+  1 string, 2 number), name, 4 NULs, f64, string, 4 NULs, array key,
+  4 NULs. The page is `$SYSTEM_present_text`, the file `$GameName`.
 - `script.npf` (`NPSS`, `FUN_00471580`): per `call_chapter` level, the
-  **full text of every script loaded**, then a record per function,
-  scene and chapter: how far it was compiled. Loading recompiles the
-  saved texts, not `nss.npa`. `frames.npf`: the objects as the calls
-  that recreate them; `bklg.npf` the backlog; `thum.npf` 160×90 BGRA.
+  **full text of every loaded script**, then how far each function,
+  scene and chapter was compiled; a load recompiles these, not
+  `nss.npa`. `frames.npf`: objects as the calls recreating them;
+  `bklg.npf` backlog; `thum.npf` 160×90 BGRA.
 
-So `write` with `"scene": "<file>.nss"` cuts the current scene's text
-after the current page and its `_MAIN` after `call_scene
-$MainGameName`, setting `$GameName` to the target. The template must
-stand on a story page, not at a choice.
+So `write` with `"scene": "<file>.nss"` cuts the scene's text after the
+current page and `_MAIN` after `call_scene $MainGameName`, and sets
+`$GameName` to the target; the template stands on a story page, not a
+choice.
 
 ```
 python3 -I research/tools/nitroplus_save.py dump <game>/Muramasa.exe <saves>/0001
@@ -261,37 +231,33 @@ python3 -I research/tools/nitroplus_save.py write <game>/Muramasa.exe <saves>/00
 
 ## Approach
 
-Compile NSS to NScripter (functions as `gosub` labels, variables as
-NScripter variables, object names as sprite numbers), with Lua
-(`luasub`/`luacall`, built on every target) only where NScripter can't
-express it.
+NSS to NScripter: functions as `gosub` labels, variables as variables,
+object names as sprite numbers; Lua (`luasub`/`luacall`, every target)
+only where NScripter falls short.
 
 ## How the compiler works
 
-`convert.rs` (read its module doc first) is the plain NSS compiler; what
-only this game needs is in `convert/muramasa.rs` (`MURAMASA`, a `Game`,
-chosen when the folder has `Muramasa.exe`). It **runs the story at
-convert time**: helpers are inlined with parameters bound by token, the
-engine's objects are modelled, and what the player sees becomes IR ops
-at the points where the original waits (a blocking action, a `Wait`, a
-text page: the changes since the last one as one cross-fade). Zooms are
-scaled copies (`system/zoom/`), cut to the screen when large. Text
-windows come from the `SetText*` helper's layout, face windows and name
-plates drawn into a generated window picture. Each file is compiled once
-from the first state that reaches it; variables both set and tested by
-story files are story flags, and a condition on one compiles to a
-run-time comparison or a fork. `Random` is picked at run time (`rnd`)
-where the result stays in the script; 771 calls are still picked when
-converting. The heroine ranking and death (`RouteChicker*`,
-`SatugaiSystem`) are NScripter comparisons (`RANKINGS`).
+`convert.rs` (module doc first) is the NSS compiler;
+`convert/muramasa.rs` this game's part (`MURAMASA`, a `Game`, picked
+by `Muramasa.exe`). It **runs the story at convert time**: helpers
+inlined (parameters bound by token), engine objects modelled, and the
+changes since the last wait (blocking action, `Wait`, text page)
+emitted as IR ops, one cross-fade each. Zooms: scaled copies
+(`system/zoom/`), cut to the screen when large. Text windows follow
+`SetText*`; faces and name plates are drawn into a generated window
+picture. Each file compiles once, from the first state reaching it.
+**Story flags**: variables story files both set and test; a condition
+on one becomes a run-time comparison or a fork. `Random` is `rnd` where
+the result stays in the script; 771 calls are picked at convert time.
+Ranking and death (`RouteChicker*`, `SatugaiSystem`): NScripter
+comparisons (`RANKINGS`).
 
-**The 立方陣** (`function_magiccube.nss`): a 5×5×5 magic cube; the player
-fills 18 cells of layers 4-5 with numbered tiles. Ported
-(`convert/muramasa/magiccube.rs` → `Op::TilePuzzle` →
-`conv-cons/src/puzzle.rs`, a `btnwait` loop over `transbtn` sprite
-buttons); its result goes to `$立方陣正解` and the `_MAIN` scene forks to
-`md05_025end` or `md05_025gameover`. Failing offers a retry, then the
-easy mode (`$立方陣簡易フラグ`).
+**The 立方陣** (`function_magiccube.nss`): a 5×5×5 magic cube, 18 cells
+of layers 4-5 filled with numbered tiles. `convert/muramasa/magiccube.rs`
+→ `Op::TilePuzzle` → `conv-cons/src/puzzle.rs` (`btnwait` over
+`transbtn` sprites) → `$立方陣正解`; `_MAIN` forks to `md05_025end` or
+`md05_025gameover`. Failing offers a retry, then easy mode
+(`$立方陣簡易フラグ`).
 
 **Variables in `0.txt`:**
 
@@ -303,29 +269,29 @@ easy mode (`$立方陣簡易フラグ`).
 | %300-%799 | story flags (`$`, saved with each slot), in first-use order |
 | %800 up | `#` flags, `globalon` (header `value800`); past %969 at %5200 |
 
-**System screens:** title, right-click menu, quick bar, confirmations
-(`cg/sys/dialog` parts), save/load, backlog, settings, favour screen and
-the click-wait icon, each filmed in the original under wine. Built in
-`convert/muramasa/screens.rs` and drawn by engine screens where one
-exists (`SaveGrid`, `conv-cons/src/save_grid_screen.rs`). Seen in the
-original: right-click at a text wait opens the menu, wheel-up the
-backlog, right-click closes every screen, Esc asks ゲームを終了しますか.
+**System screens** (each filmed in the original): title, right-click
+menu, quick bar, confirmations (`cg/sys/dialog`), save/load, backlog,
+settings, favour screen, click-wait icon; `convert/muramasa/screens.rs`,
+engine screens where they exist (`SaveGrid`,
+`conv-cons/src/save_grid_screen.rs`). Keys: right-click at a text wait
+opens the menu and closes any screen, wheel-up the backlog, Esc asks
+ゲームを終了しますか.
 
 **Extras:** 特別付加目録 (`extra_*.nss`; values in
 `convert/muramasa/extras.rs`, menu `conv-cons/src/picture_extras.rs`):
 画像映写機 (CG gallery, 805 CGs, each a `#<cg name>` flag), 回想映写機
 (ten H scenes), 電磁蓄音機/動画映写機 (BGM, songs, movies), 劒冑回転目録
 (46 armour movies), the ライナー画像 button. 画像, 回想, 音楽 unlock with
-`#ClearG` (any route's end roll). The sound room and 3D viewer need the
-movies; `tests/extras_smoke.py <build>` checks a build.
+`#ClearG` (any end roll); the sound room and 3D viewer need the movies.
+Check: `tests/extras_smoke.py <build>`.
 
 ## Story structure and walkthrough
 
 Walkthrough: rodemass, "ゲーム攻略メモ～装甲悪鬼 村正～"
 (http://www5d.biglobe.ne.jp/~rodemass/game_k/gk_muramasa.html). The
 route map (`conscripter-convert nss route`, `route.rs`) reaches all 883
-story files from `ma00_000` (new game) and `ma02_001` (a title option
-that starts part 2); 84 files contain choices.
+story files from `ma00_000` (new game) and `ma02_001` (title option:
+part 2); 84 hold choices.
 
 | Route | Heroine | Files | Ending | How it opens |
 |---|---|---|---|---|
@@ -336,22 +302,20 @@ that starts part 2); 84 files contain choices.
 | 悪鬼編 | 村正 | `md05`-`md06` (village exploration `md05_004*`, 立方陣 at `md05_025`) | `md06_033a` 村正END, `md06_036` TRUE END | the other option at `md04_045` |
 | game over | — | `mz00_000`, `mz01_*`, `*gameover` | — | battles, failed explorations |
 
-Order: 一条 and 香奈枝 (either order) → 茶々丸 → 村正 (load the save made
-before `md04_045`). Every choice of the chart, with its file and option
-number, is in the committed paths `research/nitroplus/paths/*.txt`;
-the 茶々丸 options need `#復讐編終了` / `#魔王編解放`, and where the chart
-lists two, take the one that keeps `$Muramasa_Flag` ahead.
-
-Explorations: each room stores its destination in `$Next_GameName` and
-goes through a clock file (`mc02_031time`, `md05_004time`) that advances
-the time; past the limit, game over. The heroine with the most affection
-dies at the end of part 3 (`SatugaiSystem`).
+Order: 一条, 香奈枝 (either first), 茶々丸, 村正 (from the save before
+`md04_045`). `research/nitroplus/paths/*.txt` hold every chart choice
+(file, option number); 茶々丸 options need `#復讐編終了` / `#魔王編解放`;
+where the chart lists two, take the one keeping `$Muramasa_Flag` ahead.
+Explorations: each room puts its destination in `$Next_GameName` and
+passes a clock file (`mc02_031time`, `md05_004time`); past the limit,
+game over. The most-loved heroine dies at the end of part 3
+(`SatugaiSystem`).
 
 ## Progression variables
 
-`research/nitroplus/progress.py` lists the 207 variables story files set
-and read. Those that gate routes (`%N` from `NSS_TRACE=1`; they move
-when the compiler changes):
+`research/nitroplus/progress.py` lists the 207 variables story files
+set and read; the route gates (`%N` per `NSS_TRACE=1`, moves with the
+compiler):
 
 | Variable | Kept in | Set | Read | Meaning |
 |---|---|---|---|---|
@@ -373,14 +337,14 @@ when the compiler changes):
 |---|---|---|
 | `Muramasa.exe` (1.2 MB) | 1.00 | `1d67e4771a7229224daf8b8508e74313fadd950f70ea17f6ce18d089882722b5` |
 
-Addresses in this document, `research/nitroplus/names.tsv` and
-`docs/games/muramasa.findings.tsv` are this exe's. Decompile:
-`research/tools/ghidra/ghidra_export.sh` with `names.tsv`.
+Addresses here, in `research/nitroplus/names.tsv` and
+`docs/games/muramasa.findings.tsv` are this exe's; decompile with
+`research/tools/ghidra/ghidra_export.sh` and `names.tsv`.
 
 ## Files and formats
 
-All in `ゲームデータ/`: NPA v1 archives, zlib-compressed and encrypted;
-after decryption every asset is a standard format. **Screen 1024×576**.
+`ゲームデータ/`: NPA v1 archives (zlib, encrypted) of standard-format
+assets. **Screen 1024×576**.
 
 | File | Size | Contents |
 |---|---|---|
@@ -390,7 +354,7 @@ after decryption every asset is a standard format. **Screen 1024×576**.
 | `cg.npa` | 1.3 GB | 5,469 images (3,167 PNG, 2,293 JPEG); folders `sys/extra`, `fw` (face windows), `ev`, `bg`, `st`, `sys/magiccube`, `sys/config`, `sys/telop`, `data` (transition masks), `anime` |
 | `sound.npa` | 213 MB | 760 Ogg Vorbis: 56 BGM (`bgm/mbgmNN.ogg`), 704 sound effects |
 | `voice.npa` | 1.5 GB | 35,530 Ogg Vorbis, `voice/<script>/<id>` |
-| `../ムービー/*.ngs` | 353 MB | 78 MPEG-1 program streams that ffmpeg reads as is; 46 are extras (`3d/ex_NNN`) |
+| `../ムービー/*.ngs` | 353 MB | 78 MPEG-1 program streams ffmpeg reads as is; 46 are extras (`3d/ex_NNN`) |
 
 **NPA** (`npa.rs`; `conscripter-convert npa list|extract`):
 - Names: `byte[x] += 0xFC·x − (bytes of key1·key2) − (bytes of the entry
@@ -399,50 +363,49 @@ after decryption every asset is a standard format. **Screen 1024×576**.
   `b = inv[b] − k − i`, `inv` the inverse of a 256-byte permutation at
   exe file offset `0x134830`, `k` = low byte of
   `((0x87654321 − Σname) · len(name) + key1·key2) · size`.
-- `research/nitroplus/npa.py` decodes it and `--pack DIR NEW.npa` writes
-  a copy with the files in `DIR` replaced (for patched scripts).
+- `research/nitroplus/npa.py` decodes; `--pack DIR NEW.npa` writes a
+  copy with `DIR`'s files swapped in.
 
 ## Script language (NSS)
 
-C-like source text, interpreted at run time. The parser (`nss.rs`,
-module doc) accepts all of it; `conscripter-convert nss
-check|builtins|refs|route` inspect the corpus.
+C-like source, interpreted. The parser (`nss.rs`, module doc) takes
+all of it; `conscripter-convert nss check|builtins|refs|route` inspect
+the corpus.
 
-**Files** (913): story scripts `ma` 159, `mb` 115, `mc` 251, `md` 353,
-`mz` 4 (`NN_NNN` = part and scene; suffixes `a`/`b`/`c` branches, `vs`
-battles); the library `function*.nss` (8), menus `sys_*` (15), extras
-`extra_*` (5), the boot scripts `0_boot*.nss`, a debug select.
+**Files** (913): story `ma` 159, `mb` 115, `mc` 251, `md` 353, `mz` 4
+(`NN_NNN` part and scene; `a`/`b`/`c` branches, `vs` battles); library
+`function*.nss` (8), menus `sys_*` (15), extras `extra_*` (5), boot
+`0_boot*.nss`, a debug select.
 
 **Constructs:** `chapter`, `scene`, `function`, `call_scene`,
 `call_chapter`, `#include`, `if`/`else`, `while`, `select`/`case @label`
-(choices), `return`, `break`, labels. `$name` variables live with the
-save, `#name` ones in the system data. Arrays (`$a[0]`, `$Name[word]`),
-`Array()`/`AssocArray()`, string `+`. **Text** is `<PRE @box0> … </PRE>`
-blocks with `<voice name= class= src=>` (speaker and file), `<RUBY>`,
-`<k>` (a click wait mid-line), `<FONT>`, `<BR>`, inline code `{ … }`.
+(choices), `return`, `break`, labels; `$name` in the save, `#name` in
+system data; arrays (`$a[0]`, `$Name[word]`, `Array()`/`AssocArray()`),
+string `+`. **Text**: `<PRE @box0> … </PRE>` with `<voice name= class=
+src=>`, `<RUBY>`, `<k>` (mid-line click wait), `<FONT>`, `<BR>`,
+inline code `{ … }`.
 
-Easy to get wrong:
-- **Parameters are bound by token**, like macros: `function
+Traps:
+- **Parameters bind by token**, like macros: `function
   FadeM("ナット名", 描画時間, t, $x)` uses `"ナット名"` and `描画時間` as
-  written. Missing trailing arguments are empty; extra ones ignored.
-- **Strings can name variables**: `Fade("$現ナット名", …)`.
-- **Function lookup is per file**: the current file, then the library;
-  later definitions win (65 names are defined in several files).
-- **Block comments nest** (`function.nss` comments out old copies of
-  `TypeBegin*`/`SetText*` inside `/*=====*/` banners).
-- Typos the engine tolerates: `$a++:`, a missing `;` or comma, bare `@`,
-  `$$name`, `*/=====`, `ture`.
+  written; missing trailing arguments are empty, extras ignored.
+- **Strings name variables**: `Fade("$現ナット名", …)`.
+- **Lookup is per file**: current file, then library; later definitions
+  win (65 names defined twice or more).
+- **Block comments nest** (`function.nss` hides old
+  `TypeBegin*`/`SetText*` in `/*=====*/` banners).
+- Tolerated typos: `$a++:`, missing `;` or comma, bare `@`, `$$name`,
+  `*/=====`, `ture`.
 
-**Flow between files:** `0_boot_開始スクリプト.nss` loops
-`while($GameCircle) call_scene "nss/"+$GameName+"->"+$GameName+"_MAIN"`.
-Each story file has `chapter main`, `scene X.nss_MAIN` (skip check, CG
-flags, runs the content scene, sets `$GameName` to the next file) and
-`scene X.nss` (the content). `$GameCircle = 0` ends the game.
+**Flow:** `0_boot_開始スクリプト.nss` loops `while($GameCircle)
+call_scene "nss/"+$GameName+"->"+$GameName+"_MAIN"` (`$GameCircle = 0`
+ends). Each story file: `chapter main`, `scene X.nss_MAIN` (skip check,
+CG flags, the content, `$GameName` = next file), `scene X.nss` (content).
 
-**Built-ins:** about 1,700 functions are defined in NSS (`FwC`,
-`SetTextEXC`, `TypeBeginCI*`, `CreateSE`, `MusicStart`, `PrintBG`, …)
-over about 120 engine built-ins (`Fade`, `Move`, `Delete`, `Zoom`,
-`Wait`, `Request`, `SetVolume`, …). Objects ("nuts") are named by
-strings; the number after the name is the draw priority. Most timed
-calls take a last "wait" argument: with `false`, animations run at once
-until `Wait`/`WaitAction`. Each built-in: `research/nitroplus/builtins.md`.
+**Built-ins:** ~1,700 NSS functions (`FwC`, `SetTextEXC`,
+`TypeBeginCI*`, `CreateSE`, `MusicStart`, `PrintBG`, …) over ~120
+engine built-ins (`Fade`, `Move`, `Delete`, `Zoom`, `Wait`, `Request`,
+`SetVolume`, …; `research/nitroplus/builtins.md`). Objects ("nuts") are
+named by strings, the number after the name their draw priority. Most
+timed calls end in a "wait" argument: `false` lets animations run on
+until `Wait`/`WaitAction`.
