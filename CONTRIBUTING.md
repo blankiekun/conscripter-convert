@@ -22,22 +22,15 @@ from colliding.
 
 ## 1. Build what's there
 
-```sh
-git clone --recurse-submodules https://github.com/blankiekun/conscripter-convert
-cd conscripter-convert
-cargo build --release && cargo test
-cmake -B engine/build -S engine -DCMAKE_BUILD_TYPE=RelWithDebInfo
-make -C engine/build -j"$(nproc)"
-```
-
-Dependencies are in the [README](README.md#building). If you own one of
-the supported games, convert it once (README, "Converting a game") and
-play it: it shows you what a finished port looks like and what the
-output stage already does for you.
+Clone, build the converter and the engine, and run the tests as in the
+[README](README.md#for-contributors). If you own one of the supported
+games, convert it once (README, "Get a game playing") and play it: it
+shows what a finished port looks like and what the output stage already
+does for you.
 
 ## 2. Read, in this order
 
-1. [`README.md`](README.md), "How it works": the pipeline and the crates.
+1. [`docs/design.md`](docs/design.md), "Architecture": the pipeline and the crates.
 2. [`docs/new-game.md`](docs/new-game.md), steps 1-4: what to settle before
    writing code. The whole checklist is the playbook; it is written for
    AI agents but every step applies to people too.
@@ -45,12 +38,11 @@ output stage already does for you.
    [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md).
    For a game on an engine already supported, read that engine's game
    document instead (the table in the README).
-4. [`docs/design.md`](docs/design.md) (the IR, the output stage) and
-   [`docs/lessons.md`](docs/lessons.md) (lessons from earlier games);
-   what CONscripter adds to ONScripter is in
-   [`engine/COMMANDS.md`](engine/COMMANDS.md). They are long: read the
-   headings (`grep -n '^##' <file>`) and look up the rest when you need
-   it.
+4. The rest of `docs/design.md` (the IR, the output stage),
+   [`docs/lessons.md`](docs/lessons.md) (lessons from earlier games) and
+   [`engine/COMMANDS.md`](engine/COMMANDS.md) (what CONscripter adds to
+   ONScripter). They are long: read the headings
+   (`grep -n '^##' <file>`) and look up the rest when you need it.
 
 ## 3. Find out where your game fits
 
@@ -74,10 +66,8 @@ Either way, start `docs/games/<game>.md` before the code
 go. It is public: no local paths (write `<game>` for the install), only
 commands anyone with the game can run.
 
-Work in the order of `docs/new-game.md`: assets, script decoding,
-control flow, text and voices, pictures and sound, system screens,
-extras, play-through. Get one scene playing (text, a picture,
-a voice) before going wide.
+Follow the order of `docs/new-game.md`, and get one scene playing (text,
+a picture, a voice) before going wide.
 
 ## 4. Check your build
 
@@ -131,8 +121,9 @@ the feature goes into the engine, not an approximation in the converter
 - Update the game document's "Status" in the same commit as the work it
   describes. When an item is done, move its write-up from "Status" to
   git log.
-- Base your branch on `main` and bring later `main` in by merging, not
-  rebasing: other branches build on shared history.
+- Branch from `main`; to bring later `main` in, `git rebase origin/main`
+  (no merge commits). Pull requests are squash-merged.
+- Keep commit subjects under 72 characters.
 - Stage files by name. Don't commit `out/`, local paths or anything from
   the game.
 

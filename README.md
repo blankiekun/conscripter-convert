@@ -65,8 +65,6 @@ options: [docs/cli.md](docs/cli.md). The output holds `0.txt`,
 | Any browser | convert on a computer | [the web player](https://blankiekun.github.io/?app=cons#cons): open the folder |
 | RetroArch, Kobo | convert on a computer | the matching file from the [CONscripter releases](https://github.com/blankiekun/CONscripter/releases) |
 
-Step by step for each: [`docs/play.md`](docs/play.md).
-
 ## What doesn't convert
 
 Anything the converter can't convert yet stays in `0.txt` as a `;` comment
@@ -93,8 +91,9 @@ research/tools/build-engine.sh     # CONscripter (needs SDL2 and CMake); engine/
 cargo test
 ```
 
-Every change goes in through a pull request ([`CLAUDE.md`](CLAUDE.md),
-"Rules"; engine changes need their own PR to CONscripter first). CI runs
+Start with [`CONTRIBUTING.md`](CONTRIBUTING.md). Every change goes in
+through a pull request ([`CLAUDE.md`](CLAUDE.md), "Rules"; engine changes
+need their own PR to CONscripter first). CI runs
 `tests/snapshot.sh` and `tests/pr-report.sh`; see
 [`docs/tools.md`](docs/tools.md) for those and the rest of the tooling.
 
