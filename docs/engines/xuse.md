@@ -9,13 +9,6 @@ compiler: `crates/conv-engines/src/xuse/` (`cd.rs` reads, `convert.rs`
 lowers). Game document: `docs/games/saihate-no-ima.md` ("Script
 bytecode" has the opcode table with every record's layout).
 
-Columns: **Command** is the name as the converter counts it (the keys of
-`tests/snapshots/<game>.metrics.json`'s `kinds`); **What it does** is the
-original's behaviour in one sentence, or `unknown` where the sources
-don't say; **Arguments** in short; **How we convert it** names the
-CONscripter side (`engine/COMMANDS.md`), "left out: <reason>" or "not
-converted". The use counts are the `kinds` of the game's metrics.json.
-
 Sources: `docs/games/saihate-no-ima.findings.tsv` (the exe), `docs/games/saihate-no-ima.md` ("Script bytecode"), the converter (`crates/conv-engines/src/xuse/convert.rs`).
 
 ## Commands

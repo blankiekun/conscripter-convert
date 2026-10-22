@@ -1,10 +1,9 @@
 # Text tables and asset layers
 
-Text is separate from logic: the script names its text by ID, each
-language is one table, and English (or a fan translation) is a swapped
-table, not a second build. Pictures and other files that differ by
-edition live in layers the engine picks at run time. Every build writes
-its text in tables.
+The script names its text by ID; each language is one table, and English
+(or a fan translation) is a swapped table, not a second build. Files that
+differ by edition live in layers the engine picks at run time. Every build
+writes its text in tables.
 
 ## The engine (CONscripter)
 
@@ -105,12 +104,10 @@ as the engine reads it; the lint and `tests/snapshot.sh` read that.
 
 ## The translation kit
 
-`vn_lines.py` and `0txt-translation-guide.md` (the user's) translate
-0.txt in place. With tables: copy `text.ja.txt` to `text.xx.txt`,
-translate the text after each tab (one line in, one line out, tags
-kept), drop it beside 0.txt, and switch with `language "xx"`. Code can't
-be touched by mistake: the table holds only lines players read (and the
-window lines, which a translator leaves alone).
+Copy `text.ja.txt` to `text.xx.txt`, translate the text after each tab
+(one line in, one line out, tags kept), drop it beside 0.txt, and switch
+with `language "xx"`. The table holds only lines players read (and the
+window lines, which a translator leaves alone), so code stays out of reach.
 
 ## Planned
 
@@ -123,6 +120,5 @@ window lines, which a translator leaves alone).
 3. A rebuild re-matches a table line whose ID it dropped by the hash of
    its Japanese text, when that text is unique in its scene (in the kit).
 4. A save's place looked up across the whole script by its ID.
-5. `vn_lines.py` on tables.
-6. 月姫 (paused): the pages that line up share one script with two
+5. 月姫 (paused): the pages that line up share one script with two
    tables; it keeps its two copies, both in one table, until then.

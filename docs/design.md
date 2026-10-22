@@ -1,34 +1,22 @@
-# CONscripter-convert — Design
+# CONscripter-convert: design
 
-Converts Japanese visual novels (that you own) into games playable on
-**[CONscripter](https://github.com/blankiekun/CONscripter)**, our fork of
-ONScripter-Yuri, and helps reverse-engineer engines it doesn't support yet.
-The converter and the engine are developed
-together: when a game feature can't be reproduced with the engine's existing
-commands, the feature is added to CONscripter ("Target engine: CONscripter" below).
+Shared design of every game: architecture, IR, output stage, assets,
+testing. Per-game formats, opcodes and status: `docs/games/<game>.md`
+(list in `CLAUDE.md`); new game: `docs/new-game.md`; lessons:
+`docs/lessons.md`; engine commands: the engine's `COMMANDS.md`.
 
-- **Games:** each converted game has its own document in `docs/games/`
-  (formats, opcodes, progression variables, status, leftovers); the list
-  is in `CLAUDE.md` and `README.md`. How to start a new game:
-  `docs/new-game.md`. This file holds the design shared by every game:
-  architecture, IR, output stage, assets, testing. General lessons are in
-  `docs/lessons.md`; every engine command is in the engine's `COMMANDS.md`.
+Rust workspace for the converter; C++ for engine features, which go into
+CONscripter, our ONScripter-Yuri fork (`engine/` submodule). Input: an
+installed game directory. Output: `0.txt` + `arc.nsa` archives +
+converted media + `ons_args`, plus a conversion report.
 
-- **Language:** Rust (cargo workspace) for the converter; C++ for engine
-  features, which go into CONscripter (the `engine/` submodule).
-- **Input:** an installed game directory.
-- **Output:** `0.txt` / `nscript.dat` + `arc.nsa`/`.sar` archives + converted media,
-  + `ons_args`, runnable by CONscripter, plus a conversion report.
+## Scope
 
-## Scope and expectations
-
-- Games that are mostly text, sprites, backgrounds, music, voices and choices
-  convert well.
-- Custom systems (minigames, battle systems, heavily scripted menus written in
-  the engine's own scripting language) do **not** convert automatically. They
-  are reported clearly, never silently broken.
-- The deterministic pipeline is the source of truth, and the tool is fully
-  usable offline.
+Text, sprites, backgrounds, music, voices and choices convert well.
+Custom systems (minigames, battle systems, heavily scripted menus in the
+engine's own language) do not convert automatically; they are reported,
+never silently broken. The deterministic pipeline is the source of truth
+and works offline.
 
 ## Architecture
 
@@ -41,12 +29,10 @@ commands, the feature is added to CONscripter ("Target engine: CONscripter" belo
                                  └─→ Asset decode/transcode ─────┘
 ```
 
-Each source engine is compiled in (no dynamic plugins): its readers and
-compiler live in `crates/conv-engines/src/<engine>/`, and the CLI has one
-subcommand per engine (`crates/conv-cli/src/main.rs`).
-
-Only the output stage (`conv-cons`) knows about NScripter and CONscripter,
-so another output engine could be added later.
+Each source engine is compiled in (no plugins): readers and compiler in
+`crates/conv-engines/src/<engine>/`, one CLI subcommand per engine
+(`crates/conv-cli/src/main.rs`). Only the output stage (`conv-cons`) knows
+NScripter and CONscripter.
 
 | Path | Contents |
 |---|---|
@@ -55,7 +41,7 @@ so another output engine could be added later.
 | `crates/conv-cons` | CONscripter output: IR to `0.txt`, NSA archive writer |
 | `crates/conv-cli` | The `conscripter-convert` command |
 | `engine/` | CONscripter, the target engine (git submodule) |
-| `research/` | Scripts used while reverse-engineering formats (see `research/README.md`) |
+| `research/` | Reverse-engineering scripts (`research/README.md`) |
 | `docs/games/` | One document per game: formats, opcodes, progression variables, status |
 
 ## The IR (core design decision)
@@ -99,40 +85,25 @@ font setup, menu, `game`). The script is written in UTF-8.
 
 ### Target engine: CONscripter
 
-The target is [CONscripter](https://github.com/blankiekun/CONscripter), a
-fork of [ONScripter-Yuri](https://github.com/YuriSizuku/OnscripterYuri)
-(itself based on ONScripter-Jh). It is checked out as the `engine/`
-submodule. ONScripter-Yuri was chosen because it builds for the web
-(WebAssembly), Windows, Linux, macOS and Android from one tree, and adds
-UTF-8 scripts, Lua and arbitrary resolutions to the NScripter command set.
+[CONscripter](https://github.com/blankiekun/CONscripter) forks
+[ONScripter-Yuri](https://github.com/YuriSizuku/OnscripterYuri) (itself
+ONScripter-Jh), chosen because one tree builds for web (WebAssembly),
+Windows, Linux, macOS and Android and adds UTF-8 scripts, Lua and
+arbitrary resolutions to NScripter. Convert with existing NScripter
+commands first; add an engine feature when they can't reproduce a game
+feature (`CLAUDE.md`, "Rules"). Build commands: `CONTRIBUTING.md`,
+`docs/tools.md`.
 
-**Engine features.** Convert with existing NScripter commands first;
-when a feature can't be reproduced that way (or only with a visible
-difference), add it to CONscripter (`CLAUDE.md`, "Rules").
-
-**Startup options.** CONscripter reads command-line options from an
-`ons_args` file in the game directory (whitespace-separated, up to 16).
-The converter writes one with `--enc:utf8` (the script is UTF-8; CONscripter
-lays its text out as a Shift-JIS one's, `engine/COMMANDS.md`), because
-ONScripter-Yuri reads scripts as GBK by default. This is how every converted game passes
-options to the engine, including in the web build.
-
-**Building** (Arch Linux; `sdl2_mixer` from the package or built locally):
-
-```sh
-git submodule update --init engine
-cmake -B engine/build -S engine -DCMAKE_BUILD_TYPE=RelWithDebInfo
-make -C engine/build -j"$(nproc)"     # → engine/build/conscripter
-```
-
-`engine/script/cross_web.sh` builds the WebAssembly version (needs emsdk).
-
-| Right-click menu / hide window | Everything behind the on-screen button bar | CONscripter has `rgosub *label`: a right click at a text wait gosubs and returns to the same wait. Not emitted yet: which menu a right click opens is each game's choice (its command menu, or hiding the window), to be set where the game's menus are written |
+**Startup options.** CONscripter reads whitespace-separated options (up to
+16) from `ons_args` in the game directory; this is how every converted
+game passes options, web build included. The converter writes
+`--enc:utf8` (the script is UTF-8; CONscripter lays its text out as a
+Shift-JIS one's, `engine/COMMANDS.md`) because ONScripter-Yuri reads GBK
+by default.
 
 ### Done with stock commands
 
-Done without engine work (the stock commands are enough; the per-game
-details, record layouts and handler addresses are in the game's document):
+Stock commands suffice (per-game details live in the game's document):
 - **Window caption:** CONscripter's `caption` converts the title from the
   script's encoding to UTF-8, so Japanese titles show in the browser tab
   and the window manager.
@@ -165,18 +136,17 @@ details, record layouts and handler addresses are in the game's document):
   selectable text over the picture (for scanning and Yomitan). The
   player turns it off and on while the game runs
   (`Module.consNoTextOverlay`, engine `COMMANDS.md`, "Web hooks").
-- **Right-click menu (not emitted yet):** CONscripter has `rgosub *label`
-  (a right click at a text wait gosubs and returns to the same wait);
-  which menu a right click opens is each game's choice, to be set where
-  the game's menus are written.
+- **Right-click menu (not emitted yet):** `rgosub *label` gosubs at a
+  right click during a text wait and returns to the same wait. Which menu
+  it opens is each game's choice, set where the game's menus are written.
 
 ## Asset pipeline
 
 - **Images:** decode proprietary formats (TLG5/6, HG-3, CompressedBG, G00,
   PNA, …) into the `image` crate's types and save as PNG, or with
   `--webp` as near-lossless WebP (`docs/lessons.md`). Then sprite
-  composition, resize to the target resolution, and alpha conversion according
-  to `target_caps`. Run per-image work in parallel with `rayon`.
+  composition and resize to the target resolution. Per-image work runs in
+  parallel with `rayon`.
 - **Audio:** keep OGG where possible; transcode the rest with an `ffmpeg`
   subprocess. Loop points (KiriKiri `.sli`, RealLive loop metadata) can't be
   carried over directly: either note them in the report or bake intro + loop
@@ -187,30 +157,24 @@ details, record layouts and handler addresses are in the game's document):
 
 ## Testing and validation
 
-1. **Unit tests per engine** (`cargo test`), using small synthetic
-   archives and scripts written by hand. Never commit commercial assets.
+1. **Unit tests per engine** (`cargo test`) on small synthetic archives
+   and scripts written by hand; commercial assets stay out of the repo.
 2. **Snapshots:** `tests/snapshot.sh` dry-runs every game present on the
    machine and says which games' `0.txt` changed.
 3. **Linter** (`conscripter-convert lint`): every jump target exists,
    variable numbers are in range, referenced files exist in the archives,
    the text is valid.
 4. **Smoke test:** CONscripter's debug trace (`engine/DEBUG.md`) plays a
-   build headless by itself and records every page, choice, missing file
+   build headless and records every page, choice, missing file
    and script error; `engine/tools/cons_trace_check.py` checks it.
 5. **Conversion report** per run: fraction of instructions converted,
    unsupported instructions with source locations, assets dropped or
    approximated.
-## Legal and ethical guardrails
 
-- The tool only works on a copy the user has installed; it never downloads
-  games or ships assets.
-- Decryption keys are supplied by the user, not kept in the tool.
-- Converted output is for personal use; publishing it would distribute
-  copyrighted assets. The README says so.
+## Legal guardrails
 
-## Decisions
-
-- First game: 最果てのイマ (Saihate no Ima), engine Xuse.
-- Target: CONscripter (our ONScripter-Yuri fork, `engine/` submodule).
-  Features the original games need and ONScripter lacks are added to the
-  engine ("Target engine: CONscripter").
+- The tool works on the user's installed copy; it downloads no games and
+  ships no assets.
+- The user supplies decryption keys; the tool keeps none.
+- Converted output is for personal use (publishing would distribute
+  copyrighted assets); the README says so.
