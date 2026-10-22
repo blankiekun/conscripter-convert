@@ -7,6 +7,49 @@ with no NPA archives and no NSS scripts. It is part of the Muramasa
 work: the build converts the Japanese game's NSS and takes only the
 English text and pictures from the port.
 
+## Status
+
+Works: every stretch of the Japanese NSS takes its English; the full
+build plays to the end with the trace (25,430 pages). English boxes,
+pictures (`cg.npk`), name plates, telops, subtitles, captions, choices
+on the port's plates, faces at the port's `FwInfo` places. Port screens:
+title, boot logos, command menu, choices, line log, save/load (compared
+with the original under wine), settings (with the character voices
+window), questions, click icon, quick bar, back to the choice on R. The
+extras, CG gallery, backlog and save/load are the engine's `screen`s.
+The text area matches the original pixel for pixel (`ma00_000`); text
+speed and volume curves are the exe's.
+
+Open:
+
+- `docs/games/muramasa-en.findings.tsv`: `Move`/`Zoom`/`Rotate` keep the
+  Japanese curves (the port sends them through the tempo table, "Eased
+  fades"); the English pictures taken only for the name plates, quick
+  bar and telops (`ENGLISH_FIRST`) are inferred.
+- Guesses a frame could settle: the backlog's speaker icon x (102), the
+  save screen's thumbnails (158x90) and 300 ms page fade; the Q.Save
+  page shows our one quick save (the port keeps 20).
+- Not yet compared with the original: command menu, subtitles, telops,
+  quick bar, click icon, the quick-save notice, boxes across (H, CH,
+  Noh; 6 lines), backlog voice icon and scrolling, settings dragging.
+- Not done: the settings' text sample; `クイックセーブ中`,
+  `読み込んでいます`, `削除しました`, `ロック通知`; faces of `FwB`/`FwCH`
+  keep the Japanese place (the port's `FwInfo` has none); choices of 5-6
+  options use `select`, not plates (`choice_style_en`'s `shortcut:`).
+- Metrics: 4 "text window moved inside a page: kept" notes; the
+  English-side `Metrics::left_out` entries are not listed.
+- ma01_026's document is shown whole before its key sounds; the port
+  types it letter by letter.
+- 51 `logadd` lines carry Japanese: voice-only lines (ex/vs, ma02, mb04,
+  mc02 dishes), the date telops, lines the port folds into one row.
+- 22 rows of English placed nowhere (lines the NSS orders or splits
+  otherwise: mc01's route variants, ma01_003's `<CLICK>` rows).
+- From the coverage above: the larger-type boxes, `TransLog`, the
+  telops the port rewrote (md05_037vs, mc01_026) at the Japanese
+  places, the one-scene boxes, particles, the ignored port arguments.
+
+Next: play the web build through and fix what is seen (`docs/games/muramasa.md`, Status).
+
 ## Scope
 
 The Steam release (English), on top of the user's Japanese 装甲悪鬼村正
@@ -17,6 +60,12 @@ follow the port's redesigned screens; story `CreateText` without an
 English branch stays Japanese; a click on an empty slot at the title
 doesn't save (the original does); Continue loads the quick save, else
 the newest; no closer volume fit.
+
+Story structure, walkthrough and progression variables are the
+Japanese game's (`docs/games/muramasa.md`): the port's scenes are the
+NSS's, one for one. The choices whose options the port puts in
+variables (`Route.<name>`: mc02_031innsyoku, md05_004) take their
+values at run time.
 
 ## Build
 
@@ -31,6 +80,13 @@ port's title (`docs/cli.md`); `--dry-run` after `-o` writes `0.txt`
 only. The converter adds IPA Gothic as `fallback.ttf`, from which the
 engine draws what the font lacks (`「」・✓`, the Japanese a few kept
 lines carry). `--original-archives` doesn't work with `--english` yet.
+
+## Testing
+
+As the Japanese build (`docs/games/muramasa.md`, "Testing");
+`tests/snapshot.sh` covers it as `muramasa-en`.
+`python3 -I research/tools/cmdcheck.py --counts` counts the commands a
+build uses (it found back-to-choice missing: `savegame` 2 against 170).
 
 ## Executables
 
@@ -206,78 +262,3 @@ md02_009, md02_038, md04_*, md04_048vs take it (`put_captions`); the
 rest stay Japanese: ma01_009, ma01_026, mb04_015vs,
 mc02_031daidokoroa/aa (the menus), md04_002, md04_006, md04_015,
 md04_026vs, md04_030 (dates and times).
-
-## Story structure and walkthrough
-
-As the Japanese game (`docs/games/muramasa.md`): the port's scenes are
-the NSS's, one for one.
-
-## Progression variables
-
-As the Japanese game. The choices whose options the port puts in
-variables (`Route.<name>`: mc02_031innsyoku, md05_004) take their values
-at run time.
-
-## Testing
-
-As the Japanese build (`docs/games/muramasa.md`, "Testing");
-`tests/snapshot.sh` covers it as `muramasa-en`.
-`python3 -I research/tools/cmdcheck.py --counts` counts the commands a
-build uses (it found back-to-choice missing: `savegame` 2 against 170).
-
-## Milestones
-
-| Milestone | Date | PR |
-|---|---|---|
-| First commit | 2026-10-15 13:05 (reuses the NSS reader) | - |
-| First dry run | 2026-10-15 13:17 | - |
-| Story plays | - | - |
-| Title, save, settings | 2026-10-15 20:18 to 10-16 00:25 | - |
-| Extras | - | - |
-| Progression verified | - | - |
-| Finished | - | - |
-
-## Status
-
-**Works:** every stretch of the Japanese NSS takes its English; the full
-build plays to the end with the trace (25,430 pages). English boxes,
-pictures (`cg.npk`), name plates, telops, subtitles, captions, choices
-on the port's plates, faces at the port's `FwInfo` places. Port screens:
-title, boot logos, command menu, choices, line log, save/load (compared
-with the original under wine), settings (with the character voices
-window), questions, click icon, quick bar, back to the choice on R. The
-extras, CG gallery, backlog and save/load are the engine's `screen`s.
-The text area matches the original pixel for pixel (`ma00_000`); text
-speed and volume curves are the exe's.
-
-**Open:**
-
-- `docs/games/muramasa-en.findings.tsv`: `Move`/`Zoom`/`Rotate` keep the
-  Japanese curves (the port sends them through the tempo table, "Eased
-  fades"); the English pictures taken only for the name plates, quick
-  bar and telops (`ENGLISH_FIRST`) are inferred.
-- Guesses a frame could settle: the backlog's speaker icon x (102), the
-  save screen's thumbnails (158x90) and 300 ms page fade; the Q.Save
-  page shows our one quick save (the port keeps 20).
-- Not yet compared with the original: command menu, subtitles, telops,
-  quick bar, click icon, the quick-save notice, boxes across (H, CH,
-  Noh; 6 lines), backlog voice icon and scrolling, settings dragging.
-- Not done: the settings' text sample; `クイックセーブ中`,
-  `読み込んでいます`, `削除しました`, `ロック通知`; faces of `FwB`/`FwCH`
-  keep the Japanese place (the port's `FwInfo` has none); choices of 5-6
-  options use `select`, not plates (`choice_style_en`'s `shortcut:`).
-- Metrics: 4 "text window moved inside a page: kept" notes; the
-  English-side `Metrics::left_out` entries are not listed.
-- ma01_026's document is shown whole before its key sounds; the port
-  types it letter by letter.
-- 51 `logadd` lines carry Japanese: voice-only lines (ex/vs, ma02, mb04,
-  mc02 dishes), the date telops, lines the port folds into one row.
-- 22 rows of English placed nowhere (lines the NSS orders or splits
-  otherwise: mc01's route variants, ma01_003's `<CLICK>` rows).
-- From the coverage above: the larger-type boxes, `TransLog`, the
-  telops the port rewrote (md05_037vs, mc01_026) at the Japanese
-  places, the one-scene boxes, particles, the ignored port arguments.
-
-### Next
-
-1. Play the web build through and fix what is seen (Muramasa's Status).
