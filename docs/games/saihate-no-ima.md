@@ -6,10 +6,7 @@ Finished: only bugs are worked on. `<install>` is the folder holding
 
 ## Status
 
-Plays from start to end in CONscripter: text, voices, sprites with
-filters, backgrounds, BGM with loop points, sound effects, movies,
-every transition kind, screen effects, text modes, ruby, links and the
-blog bar, chapter titles, the system screens and the extras. All 82
+Plays from start to end in CONscripter ("Scope", Converted). All 82
 opcodes the corpus uses convert and agree with the exe (84,710 of
 84,713 instructions; 3 are the dropped debug menu).
 
@@ -51,17 +48,17 @@ different exe stops the build with an error.
 - **Scripted runs:** `python3 -I research/xuse/smoke.py <build>
   <workdir> "1,0,998,1,201,999"` plays a click queue on a patched copy
   (format in its docstring; 999 = screenshot). `--goto conv_link2`
-  jumps to a label after FIRST START. It can't answer `systemcall`
-  menus.
-- **Debug trace** (`docs/new-game-reference.md`, "Checking a build with the debug trace"):
-  `--trace t.jsonl --trace-ignore
+  jumps to a label after FIRST START. `systemcall` menus stay
+  unanswered.
+- **Debug trace** (`docs/new-game-reference.md`, "Checking a build
+  with the debug trace"): `--trace t.jsonl --trace-ignore
   22-48,lsp2:12-23 --auto-play 0`, then
   `engine/tools/cons_trace_check.py t.jsonl --script 0.txt --config
   research/xuse/cons_trace_check.json` (the config lists the findings
-  that are meant). Cover the routes with `cons_explore.py`: one
+  that are meant). Cover the routes with `cons_explore.py`; one
   `--auto-choice first` run leaves most labels unreached. Save slots
-  900+ hold the blog bar's levels: give `--checkpoint-every` a
-  `--checkpoint-slot` elsewhere (e.g. 500).
+  900+ hold the blog bar's levels, so point `--checkpoint-slot` elsewhere
+  (e.g. 500) when using `--checkpoint-every`.
 - **Control flow without the engine:** `python3 -I
   research/xuse/nstrace.py 0.txt 50000000 --pages N [--click K]`.
 - **Sprite numbers:** 0-5 yes/no dialog, 6-33 menus (more at 980-998),
@@ -85,7 +82,7 @@ user folders, own Xvfb, `ja_JP.UTF-8`, the null ALSA sink of
   (405, 463), click past the intro, wait ~14 s, FIRST START (675, 240).
   Ctrl skips (stops at links).
 - **Patching a `.cd`:** overwrite an instruction in place and fix the
-  MD5 footer (repointing a label in the file's own table does nothing).
+  MD5 footer (a label repointed in the file's own table has no effect).
   The opening's `s2_l17` `0x43` (#73) is a safe slot for experiments.
 - **Saves:** write one with `research/tools/xuse_save.py` ("Save
   format") and load it from the title's load (670, 262): slot rows at
@@ -101,8 +98,7 @@ user folders, own Xvfb, `ja_JP.UTF-8`, the null ALSA sink of
   the findings table's last column.
 - **Breakpoint trace:** `winedbg --gdb --no-start` plus
   `research/tools/wine_bptrace.py research/xuse/names.tsv <names>`;
-  break on handlers and their per-frame callbacks, not `frame_loop`.
-  Detaching crashes the game: stop it with `wineserver -k`.
+  break on handlers and their per-frame callbacks (not `frame_loop`). Detaching crashes the game; end it with `wineserver -k`.
 - **Trace diff** (`docs/new-game-reference.md`, "Trace diff") against a dry run with
   the same choices:
 
@@ -137,7 +133,7 @@ with the progress word `0x51eb3c`): `xuse_save.py`'s code.
 ## Scope
 
 - **Release:** the retail Windows game, installed (`<install>`, with
-  `HD/` and `CD/` in it). Manual: none in the install.
+  `HD/` and `CD/` in it); no manual.
 - **Engine:** Xuse's in-house engine (`Farthest2015.exe`, 32-bit, VC9;
   debug strings mention `AdvObject`, `Gaf004Loader`,
   `KeyFrameSequencer`; bundles libpng, zlib, libogg/libvorbis). No
@@ -145,8 +141,10 @@ with the progress word `0x51eb3c`): `xuse_save.py`'s code.
   exe.
 - **Reader:** `crates/conv-engines/src/xuse/`; research scripts in
   `research/xuse/`; the engine overview in `docs/engines/xuse.md`.
-- **Converted:** everything the story uses (all 82 opcodes of the
-  corpus), the system screens (title with the exe's intro, save/load,
+- **Converted:** everything the story uses (text, voices, sprites with
+  filters, backgrounds, BGM with loop points, sound effects, movies,
+  every transition kind, screen effects, text modes, ruby, links,
+  chapter titles), the system screens (title with the exe's intro, save/load,
   settings, backlog with names and voice replay, button bars, yes/no,
   the blog bar) and the extras (CG gallery, scene replay, BGM room).
   Movies play in the web, Windows and Android builds.

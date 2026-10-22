@@ -14,8 +14,8 @@ Goals: the story, the web build as the main platform, and the extras
   the `*.npa` archives and `movie/`, **with the 1.01 update applied**
   (`DjangoUpdate101`: its `Django.exe`, `nss.npa` and `cg2.npa` replace
   or join the installed ones; 1.00's scripts differ in about 60 files).
-  Keep the install untouched: make a folder of symlinks to its files with
-  the update's three files linked over them.
+  Work from a folder of symlinks to the install's files with the
+  update's three files linked over them; the install stays untouched.
 
 ## Status
 
@@ -53,10 +53,10 @@ runs `convert-nss` with `--title 続・殺戮のジャンゴ`; convert options
 target/release/conscripter-convert convert-nss <game> -o out/django-dry --dry-run
 ```
 
-Without `--file`, `convert-nss` compiles the whole story
-(`dja000_開始スクリプト.nss`, scene `SelectStoryMode`). The full build adds
-`--font <a Japanese TTF, e.g. ipag.ttf> --title 続・殺戮のジャンゴ` and
-drops `--dry-run`.
+`convert-nss` without `--file` compiles the whole story
+(`dja000_開始スクリプト.nss`, scene `SelectStoryMode`). The full build
+drops `--dry-run` and adds `--font <a Japanese TTF, e.g. ipag.ttf>
+--title 続・殺戮のジャンゴ`.
 
 **Web build** (loose files):
 
@@ -77,18 +77,18 @@ About 680 MB in 5,700 files.
   `research/nitroplus/django_routes.sh out/django-cons <conscripter>
   out/django-routes` plays the good path and the ten bad ends in
   parallel (`django_paths.py` writes the `--choices` files) and prints
-  each run's pages, choices and bad-end pictures: the good path none,
-  `badNN` only its own.
+  each run's pages, choices and bad-end pictures (green: the good path
+  shows none, `badNN` only its own).
 - **Save round trips**: `--roundtrip-every` (`docs/tools.md`).
 - **Wine** (last resort): Muramasa's silent off-screen recipe
   (`docs/games/muramasa.md`, "Testing") with the no-CD 1.01 exe copied
-  into a scratch game folder, and these differences: run it in wine's
-  virtual desktop (`wine explorer /desktop=django,1024x768
-  "C:\django\Django.exe"`); it only advances while it gets input (nudge
-  the pointer about 30 times a second); clicks are `mousedown`, 150 ms,
-  `mouseup`. Timed actions hang at random under wine (`SuspendThread` on
-  a thread waiting for the object mutex): `ntrace.dll` works around it
-  (comment in `research/nitroplus/tracedll/ntrace.c`).
+  into a scratch game folder, plus: run it in wine's virtual desktop
+  (`wine explorer /desktop=django,1024x768 "C:\django\Django.exe"`); it
+  advances only on input (nudge the pointer about 30 times a second);
+  click as `mousedown`, 150 ms, `mouseup`. Timed actions hang at random
+  (`SuspendThread` on a thread waiting for the object mutex);
+  `ntrace.dll` works around it (comment in
+  `research/nitroplus/tracedll/ntrace.c`).
 - **Patched boots**: `research/nitroplus/django_patch.py <table>
   <game>/nss.npa nss-patch.npa [CHAPTER [SKIP]]` (no logos, every ending
   seen, START from a chapter file or its call naming SKIP; `<table>` is
@@ -122,16 +122,16 @@ What differs from Muramasa (`conscripter-convert nss check|refs <dir>`):
 - **`cut name { … }`** blocks, called with **`call_cut name;`**: a scene
   and a `call_scene`. Every story file is `chapter main {
   InitChildChapter(…); call_cut main_stage; }` plus its cuts.
-- **`wait 1000;`** without parentheses (once): `Wait(1000)`.
+- **`wait 1000;`** (once): `Wait(1000)` without parentheses.
 - **Pages joined by a commented-out block** (`{/*</PRE> … <PRE
   box00>[text011]*/}`): the parser skips `{/* … */}` when it looks for
   `</PRE>`.
 - **`TypeBegin("@box00", "@text005")` comes before** the text block it
   shows; the compiler keeps the Enter and shows `[text005]` when it runs.
-- **Helpers** are in `function.nss` (included by `boot.nss`),
-  `function_select.nss` (choices) and `function_badend.nss`, which only
-  chapter files include: function lookup also searches the current
-  file's own `#include`s. `function.nss`'s uncalled `cut layer_number`
+- **Helpers** live in `function.nss` (included by `boot.nss`),
+  `function_select.nss` (choices) and `function_badend.nss` (both
+  included only by chapter files); function lookup also searches the
+  current file's own `#include`s. `function.nss`'s uncalled `cut layer_number`
   holds the developers' layer numbers.
 - Unparsed (56 places, none in the story): the system screens
   (`sys_backlog`, `sys_load`, `sys_save`), those notes, a stray
@@ -150,8 +150,8 @@ call agrees; `NoLog`, `PushText`, `NoIcon` do nothing in both):
 
 The choice's shot (`function_select.nss`: a bullet hole where the
 pointer clicked, the chosen plate tipping over) is drawn with `spcut`
-and `spzoom` steps. System screens' tags and built-ins belong to
-screens the converter draws itself (`django/screens.rs`).
+and `spzoom` steps. The system screens' tags and built-ins are replaced
+by screens the converter draws itself (`django/screens.rs`).
 
 ### How the compiler is set for Django
 
