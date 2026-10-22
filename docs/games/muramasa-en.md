@@ -1,71 +1,68 @@
 # Full Metal Daemon Muramasa (English, JAST USA 2021)
 
-The English release of 装甲悪鬼村正 is not a patch of the 2009 PC game
-(`docs/games/muramasa.md`) but a port to Nitroplus's newer "Diesel"
-engine (`muramasa_en.exe`, DirectX 11, Squirrel scripts, 1024×576),
-with no NPA archives and no NSS scripts. It is part of the Muramasa
-work: the build converts the Japanese game's NSS and takes only the
-English text and pictures from the port.
+The English 装甲悪鬼村正 is a port, not a patch, of the 2009 PC game
+(`docs/games/muramasa.md`) to Nitroplus's newer "Diesel" engine
+(`muramasa_en.exe`, DirectX 11, Squirrel scripts, 1024×576; no NPA, no
+NSS). The build converts the Japanese NSS and takes only the port's
+English text and pictures.
 
 ## Status
 
-Works: every stretch of the Japanese NSS takes its English; the full
-build plays to the end with the trace (25,430 pages). English boxes,
-pictures (`cg.npk`), name plates, telops, subtitles, captions, choices
-on the port's plates, faces at the port's `FwInfo` places. Port screens:
+Works: every stretch of the Japanese NSS gets its English; the full
+build traces to the end (25,430 pages). English boxes, pictures
+(`cg.npk`), name plates, telops, subtitles, captions, choices on the
+port's plates, faces at the port's `FwInfo` places. Port screens:
 title, boot logos, command menu, choices, line log, save/load (compared
-with the original under wine), settings (with the character voices
-window), questions, click icon, quick bar, back to the choice on R. The
-extras, CG gallery, backlog and save/load are the engine's `screen`s.
-The text area matches the original pixel for pixel (`ma00_000`); text
-speed and volume curves are the exe's.
+under wine), settings (with the character voices window), questions,
+click icon, quick bar, back to the choice on R; extras, CG gallery,
+backlog and save/load are engine `screen`s. The text area matches the
+original pixel for pixel (`ma00_000`); text speed and volume curves are
+the exe's.
 
 Open:
 
 - `docs/games/muramasa-en.findings.tsv`: `Move`/`Zoom`/`Rotate` keep the
   Japanese curves (the port sends them through the tempo table, "Eased
-  fades"); the English pictures taken only for the name plates, quick
-  bar and telops (`ENGLISH_FIRST`) are inferred.
-- Guesses a frame could settle: the backlog's speaker icon x (102), the
-  save screen's thumbnails (158x90) and 300 ms page fade; the Q.Save
-  page shows our one quick save (the port keeps 20).
-- Not yet compared with the original: command menu, subtitles, telops,
-  quick bar, click icon, the quick-save notice, boxes across (H, CH,
-  Noh; 6 lines), backlog voice icon and scrolling, settings dragging.
+  fades"); the English pictures for name plates, quick bar and telops
+  (`ENGLISH_FIRST`) are inferred.
+- A frame could settle: backlog speaker icon x (102), save thumbnails
+  (158x90) and 300 ms page fade; Q.Save shows our one quick save (the
+  port keeps 20).
+- Not compared with the original: command menu, subtitles, telops,
+  quick bar, click icon, quick-save notice, boxes across (H, CH, Noh;
+  6 lines), backlog voice icon and scrolling, settings dragging.
 - Not done: the settings' text sample; `クイックセーブ中`,
-  `読み込んでいます`, `削除しました`, `ロック通知`; faces of `FwB`/`FwCH`
-  keep the Japanese place (the port's `FwInfo` has none); choices of 5-6
-  options use `select`, not plates (`choice_style_en`'s `shortcut:`).
-- Metrics: 4 "text window moved inside a page: kept" notes; the
-  English-side `Metrics::left_out` entries are not listed.
-- ma01_026's document is shown whole before its key sounds; the port
-  types it letter by letter.
+  `読み込んでいます`, `削除しました`, `ロック通知`; `FwB`/`FwCH` faces at
+  the Japanese place (no `FwInfo` entry); 5-6 option choices use
+  `select`, not plates (`choice_style_en`'s `shortcut:`).
+- Metrics: 4 "text window moved inside a page: kept" notes; English-side
+  `Metrics::left_out` entries unlisted.
+- ma01_026's document shows whole before its key sounds; the port types
+  it letter by letter.
 - 51 `logadd` lines carry Japanese: voice-only lines (ex/vs, ma02, mb04,
-  mc02 dishes), the date telops, lines the port folds into one row.
-- 22 rows of English placed nowhere (lines the NSS orders or splits
+  mc02 dishes), date telops, lines the port folds into one row.
+- 22 English rows placed nowhere (the NSS orders or splits them
   otherwise: mc01's route variants, ma01_003's `<CLICK>` rows).
-- From the coverage above: the larger-type boxes, `TransLog`, the
-  telops the port rewrote (md05_037vs, mc01_026) at the Japanese
-  places, the one-scene boxes, particles, the ignored port arguments.
+- From "Coverage": larger-type boxes, `TransLog`, telops the port
+  rewrote (md05_037vs, mc01_026) at the Japanese places, one-scene
+  boxes, particles, ignored port arguments.
 
-Next: play the web build through and fix what is seen (`docs/games/muramasa.md`, Status).
+Next: the web play-through (`docs/games/muramasa.md`, Status).
 
 ## Scope
 
-The Steam release (English), on top of the user's Japanese 装甲悪鬼村正
-install. Manual: `Manual.pdf` in the install (29 pages: title, main and
-quick menus, save/load, backlog, extra, config); read it before asking
-for screenshots. Decided: the text font is the release's own; menus
-follow the port's redesigned screens; story `CreateText` without an
+The Steam release over the user's Japanese install. Manual:
+`Manual.pdf` in the install (29 pages: title, main and quick menus,
+save/load, backlog, extra, config). Decided: the release's own text
+font; menus follow the port's redesign; story `CreateText` without an
 English branch stays Japanese; a click on an empty slot at the title
-doesn't save (the original does); Continue loads the quick save, else
-the newest; no closer volume fit.
+saves nothing (the original saves); Continue loads the quick save, else the
+newest; no closer volume fit.
 
-Story structure, walkthrough and progression variables are the
-Japanese game's (`docs/games/muramasa.md`): the port's scenes are the
-NSS's, one for one. The choices whose options the port puts in
-variables (`Route.<name>`: mc02_031innsyoku, md05_004) take their
-values at run time.
+Story, walkthrough and progression variables: `docs/games/muramasa.md`;
+the port's scenes are the NSS's one for one. Choices whose options the
+port keeps in variables (`Route.<name>`: mc02_031innsyoku, md05_004)
+take them at run time.
 
 ## Build
 
@@ -76,17 +73,16 @@ target/release/conscripter-convert build <english game> --japanese <game> \
 ```
 
 `build` runs `convert-nss <game> --english <english game>` with the
-port's title (`docs/cli.md`); `--dry-run` after `-o` writes `0.txt`
-only. The converter adds IPA Gothic as `fallback.ttf`, from which the
-engine draws what the font lacks (`「」・✓`, the Japanese a few kept
-lines carry). `--original-archives` doesn't work with `--english` yet.
+port's title (`docs/cli.md`); `--dry-run` after `-o` writes only
+`0.txt`. IPA Gothic goes in as `fallback.ttf` for what the font lacks
+(`「」・✓`, the Japanese of a few kept lines).
 
 ## Testing
 
 As the Japanese build (`docs/games/muramasa.md`, "Testing");
-`tests/snapshot.sh` covers it as `muramasa-en`.
-`python3 -I research/tools/cmdcheck.py --counts` counts the commands a
-build uses (it found back-to-choice missing: `savegame` 2 against 170).
+`tests/snapshot.sh` covers it as `muramasa-en`. `python3 -I
+research/tools/cmdcheck.py --counts` counts a build's commands (it
+caught back-to-choice missing: `savegame` 2 against 170).
 
 ## Executables
 
@@ -100,68 +96,67 @@ Decompile:
       research/tools/ghidra/ghidra_export.sh <game>/muramasa_en.exe \
       research/nitroplus/local/ghidra-en --names research/nitroplus/en-names.tsv --rtti
 
-12,567 functions; `research/nitroplus/en-names.tsv` (1,806 rows) names
-them (Muramasa.exe's are in `names.tsv`). The registrations were read
-from objdump's disassembly (`research/tools/ghidra/`).
+12,567 functions, named by `research/nitroplus/en-names.tsv` (1,806
+rows; Muramasa.exe's are `names.tsv`); registrations read from
+objdump's disassembly (`research/tools/ghidra/`).
 
 - **Map:** 0x401960 `app_main` (reads `system.npk`'s `system.dat`,
-  opens the archives, starts Squirrel); the Diesel classes (RTTI
-  `Diesel::CText…`, `CTextTokenizer`, …); the natives 0x465260 …
-  0x52f360; NPK3 and AES 0x54cf40 … 0x555e00; Squirrel 2.2.4,
-  sqstdlib and SqPlus 0x555e00 … 0x57fe3f; the CRT after it; SEH
-  funclets 0x5c4000 … 0x5d4000. zstd and the vector maths are imports
-  from `Mware.dll`. The 17 code labels reached only through a pointer
-  are `cb_<addr>`.
-- **Natives** (`sq<Class>_<method>`, `sqfn_<name>`): each class has a
-  registrar `sqreg_<Class>` (SqPlus `SQClassDef`); the globals are
-  registered by `sqreg_globals` (0x46d890) and `sqreg_math`. 26
-  classes, 1,159 method handlers, 48 globals. Every method name occurs
-  in the corpus, because `framework/nut/cnut*.nut` wraps each native
-  one to one; the scenario never calls a native directly.
+  opens archives, starts Squirrel); Diesel classes (RTTI
+  `Diesel::CText…`, `CTextTokenizer`, …); natives 0x465260 …
+  0x52f360; NPK3 and AES 0x54cf40 … 0x555e00; Squirrel 2.2.4, sqstdlib,
+  SqPlus 0x555e00 … 0x57fe3f; then the CRT; SEH funclets 0x5c4000 …
+  0x5d4000. zstd and vector maths are `Mware.dll` imports. The 17 code
+  labels reached only by pointer are `cb_<addr>`.
+- **Natives** (`sq<Class>_<method>`, `sqfn_<name>`): a registrar
+  `sqreg_<Class>` per class (SqPlus `SQClassDef`); globals in
+  `sqreg_globals` (0x46d890) and `sqreg_math`. 26 classes, 1,159 method
+  handlers, 48 globals. `framework/nut/cnut*.nut` wraps each native one
+  to one, so every method name occurs in the corpus and the scenario
+  calls no native directly.
 - **NPK3:** `npk_open` 0x54cf40 (key: eight immediates at 0x401c28),
-  `aes256_expand_key` 0x554620, `aes256_decrypt_key` 0x554910; the
-  AES-NI CBC decryption is inline in `npk_open` and
-  `npk_read_segment_a/b` (0x54e0a0, 0x54e470), then `ZSTD_decompress`.
+  `aes256_expand_key` 0x554620, `aes256_decrypt_key` 0x554910; AES-NI
+  CBC decryption inline in `npk_open` and `npk_read_segment_a/b`
+  (0x54e0a0, 0x54e470), then `ZSTD_decompress`.
 - **Text:** `function_textbox.nut` defines `WAIT`, `WAITVOICE`, `FW`,
   `NW`, `RED`, `RED2`, `RED3`, `YELLOW`, `VALUE`, `BR` and handles
-  `voice`, `I`, `K`; the native `SQText` takes `RUBY`, `SMALL`,
-  `CENTER` (`text_tokenize_markup` 0x4c3440, `CTextEnglish_layout`
-  0x4a7f60: breaks at spaces and CR/LF, skips `# { }`).
+  `voice`, `I`, `K`; native `SQText` takes `RUBY`, `SMALL`, `CENTER`
+  (`text_tokenize_markup` 0x4c3440, `CTextEnglish_layout` 0x4a7f60:
+  breaks at spaces and CR/LF, skips `# { }`).
 
 ## Files and formats
 
 `<game>/*.npk`: system, script, cg, dx, font, sound, voice, particle,
-plus `patch/*.npk` mounted after them.
+then `patch/*.npk` mounted over them.
 
     python3 -I research/nitroplus/npk.py <game>/system.npk          # list
     python3 -I research/nitroplus/npk.py <game>/script.npk OUT [GLOB]
 
 - **NPK3:** `NPK3`, u32 version 1, 16-byte IV, u32 entries, u32 index
-  size; the index follows, AES-256-CBC. The key is eight dword
-  immediates in the code (not plain bytes, so a byte scan misses it);
-  value in `npk.py`. Entry: u8 flag, u16 name length, UTF-8 name, u32
-  size, 32-byte hash, u32 segments, then per segment u64 offset, u32
-  stored size (16-byte aligned), u32 packed size, u32 size. Segment:
-  AES-256-CBC (same key, the archive's IV), then zstd when packed size
-  < size. Some zstd frames don't record their size.
+  size; then the AES-256-CBC index. The key is eight dword immediates
+  in the code (a byte scan misses it); value in `npk.py`. Entry: u8
+  flag, u16 name length, UTF-8 name, u32 size, 32-byte hash, u32
+  segments, then per segment u64 offset, u32 stored size (16-byte
+  aligned), u32 packed size, u32 size. Segment: AES-256-CBC (same key,
+  archive IV), then zstd when packed size < size; some zstd frames omit
+  their size.
 - `script.npk`: 1884 compiled Squirrel files (framework, system,
   function, 884 scenario files, `lang/en/`). `cg.npk`, `particle.npk`:
-  the `.png` names hold lossless WebP. `font.npk`:
+  lossless WebP under `.png` names. `font.npk`:
   `droidserif-muramasa.ttf` only. `system.npk`: `setting.ini`
-  (1024×576, `WINDOW_NAME`, `[Font]`), DirectX shaders (not used).
-- `sound.npk`, `voice.npk`, `dx.npk`: not used; the Japanese build's
-  files stand in (the same files).
+  (1024×576, `WINDOW_NAME`, `[Font]`), unused DirectX shaders.
+- `sound.npk`, `voice.npk`, `dx.npk`: unused; the Japanese build's
+  identical files stand in.
 
 ### Eased fades
 
-The port's scenes pass a tempo to `Fade(name, time, dst, tempo, wait)`
-and `Transition(…, tempo, wait)` as a global (`GETK 'Dxl1'`) from
-`framework/constantvalue.nut`, which the compiled file keeps after its
-main function as a table (u16 length with the NUL, the name, NUL,
-`0x05000002`, the int32 value): `Linear` 0, `Axl1` 1, `Dxl1` 2, …
-`Dxl8` 16, `AxlDxl1` 17, `DxlAxl1` 18, … `DxlAxl8` 32, and the same 32
-with `a`-`d` (33-160). Paired call by call with the NSS
-(`python3 -I research/nitroplus/en_tempos.py <nss dir> <script dir>`):
+Scenes pass a tempo to `Fade(name, time, dst, tempo, wait)` and
+`Transition(…, tempo, wait)` as a global (`GETK 'Dxl1'`) from
+`framework/constantvalue.nut`, kept after the compiled file's main
+function as a table (u16 length with the NUL, name, NUL, `0x05000002`,
+int32 value): `Linear` 0, `Axl1` 1, `Dxl1` 2, … `Dxl8` 16, `AxlDxl1`
+17, `DxlAxl1` 18, … `DxlAxl8` 32, the same 32 with `a`-`d` (33-160).
+Paired call by call with the NSS (`python3 -I
+research/nitroplus/en_tempos.py <nss dir> <script dir>`):
 
 | NSS | Port | Id | Curve (share of the way at time share t) |
 |---|---|---|---|
@@ -173,19 +168,18 @@ with `a`-`d` (33-160). Paired call by call with the NSS
 | `AxlDxl` | `AxlDxl1` | 17 | (2t)²/2, then 1 - (2-2t)²/2 |
 | `DxlAxl` | `DxlAxl1` | 18 | (1 - (1-2t)²)/2, then (1 + (2t-1)²)/2 |
 
-In the exe `sqSprite_fade` (0x4eb0f0) and `sqSprite_transition`
-(0x4eb320) store the tempo (0 past 160) in an interpolator whose step
-(0x40bca0 fade, 0x437cc0 transition) calls `table[tempo]` from the
-161-entry table at 0x5e40a0. The NSS names match Muramasa.exe's curves
-(`tempo` in `convert.rs`) except `AxlDxl`/`DxlAxl` (`diesel_tempo` in
-`muramasa.rs`, whose test holds the exe's numbers;
-`research/nitroplus/en_tempo_exe.py <exe> [--all]` runs the table in the
-exe). Ids 7-16, 19-96 and 131-132 are used by no scene.
+`sqSprite_fade` (0x4eb0f0) and `sqSprite_transition` (0x4eb320) store
+the tempo (0 past 160) in an interpolator whose step (0x40bca0 fade,
+0x437cc0 transition) calls `table[tempo]` from the 161-entry table at
+0x5e40a0. The NSS names match Muramasa.exe's curves (`tempo` in
+`convert.rs`) except `AxlDxl`/`DxlAxl` (`diesel_tempo` in
+`muramasa.rs`, its test holding the exe's numbers;
+`research/nitroplus/en_tempo_exe.py <exe> [--all]` runs the exe's
+table). No scene uses ids 7-16, 19-96, 131-132.
 
 The port's `DrawTransition` edge, shake and text box metrics differ
-from Muramasa.exe's; the converter's notes on them are at
-`psUpdateTransitionRule`, `CEffectShake` (`nitroplus/convert.rs`) and
-`rowSpace` (`muramasa.rs`).
+from Muramasa.exe's; notes at `psUpdateTransitionRule`, `CEffectShake`
+(`nitroplus/convert.rs`) and `rowSpace` (`muramasa.rs`).
 
 ## Script language
 
@@ -195,27 +189,27 @@ Squirrel 2.2.4 (the exe's VM, `"Squirrel 2.2.4 stable"`):
 
 - Files: `SCRP`, u32 header size 0x10, two u32; then a Squirrel 2.2
   closure stream (32-bit SQInteger, 1-byte chars, UTF-8) whose header
-  keeps only sizeof(SQChar), and whose functions end in u32 stack size,
+  keeps only sizeof(SQChar) and whose functions end in u32 stack size,
   u8 generator, u8 varparams. All 1884 files parse.
 - `nut.py` still names 3.1's opcodes: `LINE` to `GETK` (0-9), `LOAD`,
   `LOADINT`, `PREPCALLK`, `CALL`, `NEWSLOT` decode right; 2.2's others
   are 17 `ARITH` (operator character as last operand: 43 `+`, 45 `-`,
   42 `*`), 19 `RETURN`, 20 `LOADNULLS`, 22 `LOADBOOL`, 30 `NEWTABLE`.
-  Switching `nut.py`'s `OPS` to 2.2's list is not done.
-- `nut/<scene>.nut`: one `scene` function calling the NSS builtins by
-  name. Each text block is `Print(key, japanese)`, the Japanese being an
-  NSS `<PRE>` block cut at its inline `{…}` code (39,038 Prints for
-  14,527 blocks).
+  `nut.py`'s `OPS` still awaits 2.2's list.
+- `nut/<scene>.nut`: one `scene` function calling NSS builtins by name.
+  Each text block is `Print(key, japanese)`, the Japanese an NSS
+  `<PRE>` block cut at its inline `{…}` code (39,038 Prints, 14,527
+  blocks).
 - `lang/en/<scene>.nut`: `TransText[key] = english` (39,010 rows),
   `TransChoice` (403), `TransLog` (125), `TransVoice` (subtitles). Each
   value repeats the Japanese as `//` lines, then the English with
   `<voice …>`, `<center>`, `<I>`, `<K>`, `<br>`, `<RUBY text='…'>`.
 - Join (`nitroplus/english.rs`): 38,465 of 38,798 NSS segments (99.1 %)
-  equal a Print's text once `//` lines, tags and whitespace are removed;
-  `align` pairs the rest by position between matched rows.
+  equal a Print's text once `//` lines, tags and whitespace go; `align`
+  pairs the rest by position between matched rows.
 
 **Coverage.** The converter compiles none of the port's scripts; each
-file's status says what stands in for it.
+file's status names its stand-in.
 
     R=<script>/media/script           # script.npk extracted with npk.py
     python3 -I research/nitroplus/nut_refs.py $R tables
@@ -239,8 +233,8 @@ file's status says what stands in for it.
 | `framework/` (59), `custom/` (4), `main.nut` | not used: the Diesel framework |
 | `particle.npk` (`CreateParticle`, 39 calls, 27 scenes) | **not converted**, as in the Japanese build (`CreateEffect Rain`) |
 
-Port-only scenario calls (205 of 635 names; the other 430 carry the
-NSS's names and come from the NSS):
+Port-only scenario calls (205 of 635 names; the other 430 are the
+NSS's and come from it):
 
 | Call | Converter |
 |---|---|
@@ -253,12 +247,11 @@ NSS's names and come from the NSS):
 | `SetTextEXC_ma01_009`, `SetFwRR`/`SetFwLL`, `TypeBeginTimeCIY` (mc01_003), `DeleteFwAll` (ma01_002) | **not converted** |
 | `CreateTextArea` (ma01_009, ma01_026, mb04_015vs), `FadeCharacter` (ma01_026) | **Japanese text**; ma01_026's document shown whole |
 
-`english.rs`'s `port_reads` records which arguments of the port's calls
-the converter reads; the build prints one `English: … port <function>
-argument <i> ignored` line per argument passed and not read
-(`UNREAD_HARMLESS` lists the harmless ones). Scenes with English written
-into the scenario (`LANG_NAME == "en"`, 15 scenes): mb03_006, mb03_022,
-md02_009, md02_038, md04_*, md04_048vs take it (`put_captions`); the
-rest stay Japanese: ma01_009, ma01_026, mb04_015vs,
-mc02_031daidokoroa/aa (the menus), md04_002, md04_006, md04_015,
-md04_026vs, md04_030 (dates and times).
+`english.rs`'s `port_reads` records which port-call arguments the
+converter reads; the build prints `English: … port <function> argument
+<i> ignored` per argument passed and unread (`UNREAD_HARMLESS` lists
+the harmless ones). Scenes with English in the scenario (`LANG_NAME ==
+"en"`, 15): mb03_006, mb03_022, md02_009, md02_038, md04_*, md04_048vs
+take it (`put_captions`); the rest stay Japanese: ma01_009, ma01_026,
+mb04_015vs, mc02_031daidokoroa/aa (menus), md04_002, md04_006,
+md04_015, md04_026vs, md04_030 (dates and times).
