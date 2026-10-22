@@ -2,10 +2,28 @@
 
 Copy this file to `docs/games/<id>.md` (the id of the game's entry in
 `crates/conv-engines/src/registry.rs` and of `tests/snapshots/<id>.txt`)
-and keep its headings, so that every session finds the same section in
-every game (`python3 -I research/tools/mdsec.py docs/games/<id>.md
-Status`). The document is public: no local paths (`<game>` for the game
-folder), only commands anyone with the game can run.
+and keep its headings and order, so every session finds the same
+section in every game (`python3 -I research/tools/mdsec.py
+docs/games/<id>.md Status`). The document is public: `<game>` for the
+game folder, only commands anyone with the game can run.
+
+Order is by reach: Status and Build serve every session, so they come
+first; formats, script language and variables are reference for the
+branch that touches them; Testing and Milestones come last. Keep a
+concept (a format, a command, a variable) under one heading. What
+`CLAUDE.md`, `docs/lessons.md`, `docs/tools.md` or a tool's `--help`
+already say belongs there; point to it.
+
+## Status
+
+Only the open state, 50 lines at most: a table of the areas (✅ done,
+🟡 partly, ❌ not started), then "Next". When an item is done, delete it
+(git log and the PR body are the record). A paused game says since when,
+and "Next" item 1 says how to resume.
+
+### Next
+
+1. …
 
 ## Scope
 
@@ -71,14 +89,3 @@ can be compared with this one.
 | Extras | - | - |
 | Progression verified | - | - |
 | Finished | - | - |
-
-## Status
-
-Only the open state: a table of the areas (✅ done, 🟡 partly, ❌ not
-started), then "Next", in order. 50 lines at most. When an item is
-done, delete it (git log and the PR body are the record).
-
-### Next
-
-1. …
-

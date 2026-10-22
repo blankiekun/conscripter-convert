@@ -1,16 +1,43 @@
 # 俺たちに翼はない (PS Vita) (5pb./MAGES "TaskList" ADV)
 
-The game's committed record: formats, how its features map to
-CONscripter, the routes and progression variables, and its status. The
-general process is in `docs/new-game.md`, general lessons in
-`docs/lessons.md`. `<pkg>` is the folder holding the game's Vita
-package and its license; `<game>` the decrypted app folder.
+Paused game; process in `docs/new-game.md`, lessons in
+`docs/lessons.md`. `<pkg>` is the folder holding the Vita package and
+its license; `<game>` the decrypted app folder (Build).
+
+## Status
+
+Paused 2026-10-20.
+
+| Area | State |
+|---|---|
+| Scenes | ✅ all 463 convert, no task left as a comment; the full build lints clean |
+| Routes | ✅ the route check reaches all eight endings and the four after-stories |
+| Screens | ✅ messages, voices, sprites, motions, transitions, effects, movies, title, START's story menu, button bar, save/load, backlog, settings (the Vita's look and defaults), CG gallery, music room, movie room, boot logos |
+| Web build | 🟡 passed a headless browser test; never played through |
+| Original | ✅ a 23,327-page reference trace of route 4 diffs with no text finding against ours |
+
+### Next
+
+1. Resume: decrypt the package (Build), `mages check <game>`, a full
+   build, then play the web build through one route and fix what shows
+   (the play-through is the definition of done).
+2. Arguments still dropped (dry-run notes "<Task> … ignored"; harmless
+   ones are in `convert.rs`'s `NOT_NEEDED`): SpriteMove `:Roll` (12,
+   turns); SceneJumpDialogEnd `:Fade` (the eboot keeps the skip dialog
+   up after the click, fading over `:Fade` frames, default 18);
+   EffectStart `:Priority` and the particles' motion; `EyeCatch :Image
+   0,-1`'s colour panels (7); Window `:Time` with `:Visible 1` (2).
+3. Not converted: the save-data check at boot; OP00 replayed from the
+   title (probably an idle timeout).
+4. Looks not checked against the original: text window place,
+   character heights, eye catch speed, the skip dialog's font sizes.
 
 ## Scope
 
 The **PS Vita version** (Prototype's port of 俺たちに翼はない R plus
 林田美咲's route), the whole game **with extras**. Nothing dropped.
 Menus: the Vita's look with mouse buttons of our own. Output 960×544.
+
 
 ## Build
 
@@ -22,8 +49,8 @@ target/release/conscripter-convert build <game> -o out/oretsuba-cons \
 
 Full build about 4 minutes, a 1.7 GB `arc.nsa` plus 12 MP4s.
 Web build: loose files (`mages convert <game> -o out/oretsuba-web
---loose`, 2.2 GB, 27,472 files), then `docs/new-game-reference.md`, "The web build", with
-the index made `--lazyload`.
+--loose`, 2.2 GB, 27,472 files), then `docs/new-game-reference.md`
+("The web build") with the index made `--lazyload`.
 
 ### Decrypting the package
 
@@ -43,16 +70,17 @@ the index made `--lazyload`.
    <zRIF>`. It reports "keystone: matched retail hmac"; `media/SCRIPT.cpk`
    then starts with `CPK `. `PCSG00299_dec` is `<game>`.
 
+
 ## Executables
 
 | File | Version | sha256 |
 |---|---|---|
 | `eboot.bin` (NPDRM SELF; addresses are those of the decrypted `eboot.elf`) | unknown (PCSG00299) | `56ebe9ed1a64d5e9e8d3af5aef0ce4ea21cf35ebffcf4c6cfae49dc6db343bd6` |
 
-The eboot is read for the few tables the data lacks. Decrypt it to an
-ARM ELF (the way Vita3K's `decrypt_fself` does; klicensee from
-`work.bin`, key revision 5; the keys are read from Vita3K's
-`vita3k/packages/src/sce_utils.cpp`, which can be fetched alone):
+The eboot supplies the few tables the data lacks. Decrypt it to an ARM
+ELF as Vita3K's `decrypt_fself` does (klicensee from `work.bin`, key
+revision 5; keys from Vita3K's `vita3k/packages/src/sce_utils.cpp`,
+fetchable alone):
 
     python3 -I research/tools/ghidra/self2elf.py <game>/eboot.bin work.bin <sce_utils.cpp> <work>/eboot.elf
     research/tools/ghidra/ghidra_export.sh <work>/eboot.elf <work>/ghidra \
@@ -84,6 +112,7 @@ Tables found in the eboot and used by the converter:
   player; BgmPlay cross-fades over `:Div` frames, a channel already
   fading out fades on under the new music (`bgm_start`, `bgm_stop`).
 
+
 ## Files and formats
 
 | File (`<game>/media/`) | Format | Contents |
@@ -98,13 +127,14 @@ Tables found in the eboot and used by the converter:
 | `VOICE.AWB` | AFS2 | 26,500 HCA voices (22,050 Hz mono, not encrypted) |
 | `data/*.usm` | Sofdec2 USM | OP00-03, Poem, 7 heroine endings |
 
-Nothing is CRILAYLA-compressed. ffmpeg decodes ADX and HCA;
+No CRILAYLA compression. ffmpeg decodes ADX and HCA;
 `research/oretsuba/cpk.py` lists and extracts all three containers.
 Manual: `sce_sys/manual/001-010.png` in the app (Japanese).
 
+
 ## Script language
 
-Plain Shift-JIS text, one scene per file: a list of `[TaskN]` blocks
+Shift-JIS text, one scene per file: a list of `[TaskN]` blocks
 (`:Tasktype "Message"`, …) with `:Key value` parameters. Every number
 is a file ID in an archive (the scripts' comments confirm it:
 `:Texture 0 // BG_BLACK`):
@@ -141,6 +171,7 @@ Script errors the eboot can't read either: five tasks with a missing or
 misplaced `[TaskN]` header (S01_04L, S03_03J2, S03C_03C twice, S04_03D;
 skipped, as the eboot does), a SeStop inside S01_02A's EyeCatch (missing
 `}`), S03_06E2's task with two `:Tasktype`s (the first is taken).
+
 
 ## Story structure and walkthrough
 
@@ -185,6 +216,7 @@ ending; all eight endings are reached with:
 
 (明日香, 京, 美咲, 日和子, 亜衣, bad end, 鳴, 小鳩, in that order.)
 
+
 ## Progression variables
 
 Declared in adv.txt: 33 per-save `[Flag]`s (`%60`-`%92`, in adv.txt's
@@ -201,6 +233,7 @@ order) and 30 `[GlobalFlag]`s kept across playthroughs (`%410`-`%439`).
 | one_clear … four_clear (global) | part cleared | S01_19A, S02_17A, S03_23A, S04_29A | S04_05I, the `NEXT_HINT` messages |
 | Pre_asuka, Pre_miyako, Pre_misaki, Pre_karuo (global) | after-story read | P01_01D, P02_01E, P03_01D, P04_02B | the title menu |
 
+
 ## Testing
 
 - Trace check: `engine/tools/cons_trace_check.py t.jsonl --script 0.txt
@@ -214,9 +247,10 @@ order) and 30 `[GlobalFlag]`s kept across playthroughs (`%410`-`%439`).
 
 ### The original under Vita3K
 
-Shaky (the user): timebox it; prefer the decompile and our traces. Run
-it only through `research/oretsuba/vita-emu.sh` (own Xvfb, private XDG
-dirs, no D-Bus, URL openers shimmed; its header lists the options).
+Timebox it (Vita3K is unreliable); the decompile and our traces come
+first. Run it only through `research/oretsuba/vita-emu.sh` (own Xvfb,
+private XDG dirs, no D-Bus, URL openers shimmed; its header lists the
+options).
 
 - Vita3K must be a source build with `research/oretsuba/vita3k-freed-texture.patch`
   (the game draws from a freed CDRAM block as S01_01 starts; unpatched
@@ -225,7 +259,7 @@ dirs, no D-Bus, URL openers shimmed; its header lists the options).
   --preset linux-ninja-clang && cmake --build --preset
   linux-ninja-clang-relwithdebinfo`; a folder `<v3k>` with `bin` linked
   to the build's `bin/RelWithDebInfo` and empty `lib/`, `share/`.
-- Setup in a folder `<emu>` of its own (never the user's Vita3K dirs):
+- Setup in a folder `<emu>` of its own:
   `<game>` as `<emu>/home/data/Vita3K/Vita3K/ux0/app/PCSG00299` (`cp -al`),
   `work.bin` as `ux0/license/PCSG00299/JP0745-PCSG00299_00-ORETSUBA0000VITA.rif`
   (without it: `No klic provided`). No firmware needed. `config.yml`:
@@ -252,6 +286,7 @@ dirs, no D-Bus, URL openers shimmed; its header lists the options).
   10000:fffe0000:10000` dumps the readable stretches. Breakpoints are no
   use (they re-hit without stepping).
 
+
 ## Milestones
 
 | Milestone | Date | PR |
@@ -263,33 +298,3 @@ dirs, no D-Bus, URL openers shimmed; its header lists the options).
 | Extras | 2026-10-14 | - |
 | Progression verified | - | - |
 | Finished | - | - |
-
-## Status
-
-Paused 2026-10-20.
-
-**What works:** all 463 scenes convert with no task left as a comment;
-the full build lints clean and the route check reaches all eight endings
-and the four after-stories. Messages, voices, sprites, characters and
-their motions, transitions, effects, movies, the title, START's story
-menu, the button bar, save/load, backlog, settings (the Vita's look and
-defaults), the CG gallery, music room and movie room, boot logos. The
-web build passed a headless browser test. A 23,327-page reference trace
-of route 4 diffs with no text finding against ours.
-
-**Missing:**
-- A play-through of the web build (the definition of done).
-- Arguments still dropped (dry-run notes "<Task> … ignored"; harmless
-  ones listed in `convert.rs`'s `NOT_NEEDED`): SpriteMove `:Roll` (12,
-  turns); SceneJumpDialogEnd `:Fade` (the eboot keeps the skip dialog up
-  after the click, fading over `:Fade` frames, default 18); EffectStart
-  `:Priority` and the particles' motion; `EyeCatch :Image 0,-1`'s colour
-  panels (7); Window `:Time` with `:Visible 1` (2).
-- Not converted: the save-data check at boot; OP00 replayed from the
-  title (probably an idle timeout).
-- Looks not checked against the original: text window place, character
-  heights, eye catch speed, the skip dialog's font sizes.
-
-**To resume:** decrypt the package (Build), run `mages check <game>` and
-a full build, then play the web build through one route and fix what
-shows.
