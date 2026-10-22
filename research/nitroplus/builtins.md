@@ -1,8 +1,9 @@
 # Nitroplus engine built-ins (装甲悪鬼村正)
 
-What the ~115 functions that NSS calls but never defines do, in the
-order we need them: first everything one story scene uses (text,
-backgrounds, fades, sound), then the rest by use count.
+What the ~115 functions that NSS calls but never defines do. Order: the
+exe's own tables, coverage of the scripts, shared conventions, then
+Tier 1 (everything one story scene uses: text, backgrounds, fades, sound)
+and Tier 2 (the rest by use count).
 
 Sources, strongest first:
 
@@ -22,9 +23,8 @@ Sources, strongest first:
    "**exe:**".
 
 **Unverified** marks a row that rests on a guess or on one
-reimplementation only. Check those in the exe or under wine before
-relying on them (`docs/games/muramasa.md`, "Running the original under
-wine").
+reimplementation only. Check it in the exe (wine last:
+`docs/games/muramasa.md`, "Running the original under wine").
 
 ## In the exe
 
@@ -198,14 +198,14 @@ dry run):
 | `DialogChangeState`, `DialogChangeState2`, `DialogCautionSignIn`, `DialogConfigStorage`, `XBOX360_LockVideo`, `XBOX360_IsSignin`, `SceneFadeBG` | sys only | not built-ins: skipped by the exe too |
 | `CreateCube`, `SetFov`, `TextureRoll00H` | lib, 1 each | in process bodies only |
 
-**Arguments not read** (2026-10-16). `Compiler::builtin` notes every
+**Arguments not read.** `Compiler::builtin` notes every
 argument a call passes and the converter doesn't read
 (`<Builtin> argument <i> ignored`), whatever its value: an argument
 not read means our own behaviour applies, so its value may differ from
 what we do. Arguments known to change nothing are in `UNREAD_HARMLESS`
 (`convert/builtin.rs`), each with the value it covers and why (a `null`
-tempo is linear, as ours; `Move` and `Zoom` read theirs; a process's priority and place). Notes from the
-whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャンゴ's
+tempo is linear, as ours; `Move` and `Zoom` read theirs; a process's
+priority and place). Notes from the whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャンゴ's
 (`convert-nss <game> --dry-run`), compiled occurrences:
 
 | Built-in | Argument (meaning) | Muramasa | Django |
@@ -314,7 +314,7 @@ under a name that already exists replaces it.
 - A trailing `*` is a prefix wildcard: `"絵背景*"` matches every object
   whose name starts with `絵背景`, `"@*"` every alias, `"*"` every object.
   Muramasa uses it constantly (`Delete("*")`, `SetVolume("@mbgm*", …)`).
-  **Children** (Muramasa.exe, 2026-10-16): a wildcard is matched against
+  **Children** (Muramasa.exe): a wildcard is matched against
   the objects of one level; for each match the call goes on to all its
   children (`FUN_0044d2a0` calls itself with `"*"` on the object's child
   list, `+0x12d8`) only when the object's flag at `+0x9d4` is set. The
@@ -322,8 +322,7 @@ under a name that already exists replaces it.
   `CreateName`, `CreateChoice`, `CreateMask` and `CreateCamera` set it to
   0. So a wildcard that matches a picture reaches its children, one that
   matches a window or a name doesn't. Checked under wine from a patched
-  `md04_006` (shots in `research/nitroplus/local/shots/star*/`):
-  `Fade("@試験親A*", 0, 300)` on a `CreateColor` faded its child too;
+  `md04_006`: `Fade("@試験親A*", 0, 300)` on a `CreateColor` faded its child too;
   `Fade("@試験窓A*", …)` (a `CreateWindow`) and `Fade("@試験名A*", …)` (a
   `CreateName`) left their children at full opacity. 続・殺戮のジャンゴ's exe
   differs: there a wildcard reaches no child, pictures' included
@@ -333,7 +332,7 @@ under a name that already exists replaces it.
   `Delete` is the exception: under wine `Delete("*")` takes the
   standing pictures in the locked name `遠３` (`遠３/StL01`) with it, so a
   wildcard `Delete` that matches a container also deletes its unlocked
-  children, and deleting a container deletes its children. Also seen in the same test: a picture's child is
+  children, and deleting a container deletes its children. Same test: a picture's child is
   placed from its parent's corner (a `CreateColor` child at (100, 150) of
   a parent at (50, 100) drew at (150, 250)), a window's child at its own
   place; the converter does the same (`Compiler::parent_offset`).
@@ -369,26 +368,18 @@ Volume 0–1000. Frequency 1000 = normal speed. Angles in degrees. Priority
 
 **Tempo** (easing), the argument before `wait` in every timed call:
 
-| Constant | Easing |
+| Constant | Easing, t from 0 to 1 (**exe** `apply_tempo`, `00449f40`; NitroSharp's `Animation.cs` agrees) |
 |---|---|
-| `null` | linear |
-| `Axl1` / `Axl2` / `Axl3` | ease-in, quadratic / cubic / quartic |
-| `Dxl1` / `Dxl2` / `Dxl3` | ease-out, quadratic / cubic / quartic |
-| `AxlAuto` / `DxlAuto` | sine ease-in / ease-out |
-| `AxlDxl` / `DxlAxl` | sine ease-in-out / out-in |
+| `null` (and any other name) | linear |
+| `Axl1` / `Axl2` / `Axl3` | ease-in: t², t³, t⁴ |
+| `Dxl1` / `Dxl2` / `Dxl3` | ease-out: 1−(1−t)², ³, ⁴ |
+| `AxlAuto` / `DxlAuto` | sine ease-in 1−cos(πt/2) / ease-out sin(πt/2) |
+| `AxlDxl` / `DxlAxl` | sine ease-in-out ½−½cos(πt) / out-in acos(1−2t)/π |
 
-**exe** (`apply_tempo`, `00449f40`): `Axl1/2/3` = t², t³, t⁴; `Dxl1/2/3` =
-1−(1−t)², ³, ⁴; `AxlAuto` = 1−cos(πt/2); `DxlAuto` = sin(πt/2); `AxlDxl` =
-½−½cos(πt); `DxlAxl` = acos(1−2t)/π; anything else linear. Constants such
-as tempos and shade levels are matched by the **sum of their bytes**,
-case-sensitively (`NULL` = 315 = `off`); a wrong-case spelling falls to
-the default. `Request` actions are compared letter by letter.
-
-NitroSharp's `Animation.cs` (`src/NitroSharp.Rebuild/`, branch `rebuild`)
-agrees with this table: its `Quadratic/Cubic/QuarticEaseIn` are t^2..t^4,
-the `EaseOut` ones 1-(1-t)^n, `SineEaseIn` 1-cos(pi t/2), `SineEaseOut`
-sin(pi t/2), `SineEaseInOut` (1-cos(pi t))/2, `SineEaseOutIn`
-acos(1-2t)/pi (checked 2026-10-18).
+Constants such as tempos and shade levels are matched by the **sum of
+their bytes**, case-sensitively (`NULL` = 315 = `off`); a wrong-case
+spelling falls to the default. `Request` actions are compared letter by
+letter.
 
 **Wait**, the last argument of every timed call: `true` (or `1`) blocks
 for the call's duration, `false`/`null` returns at once and the action
@@ -455,26 +446,26 @@ the face window, `Time…` = auto-advance variants.
 | `<RUBY text="…">…</RUBY>`, `<BR>`, `<FONT …>`, `<k>` (tags) | 6,929 RUBY | Ruby, line break, font change, `<k>` = click wait without clearing the page (seen under wine). **exe** (`parse_text_tags`, `00485760`), the full set: `FONT` (`incolor`, `outcolor`, `face`, `size`), `I`, `U`, `S` (strike), `K`, `CENTER`, `MIDDLE`, `PRE`, `SPAN value=`, `WAIT time=` (pause at that character), `INTERVAL` (speed), `RUBY text=`, `VALUE name=` (prints a variable), `VOICE name class src mode` (`mode` defaults to on; `off` unverified). `BR` isn't in it. |
 | `{ code }` inside the block | | Runs when typing reaches it (sound effects between lines in `ma01_001` text0040). |
 
-`Request` actions (31 constants; by use):
-`Smoothing` (1,029: bilinear filtering on scaled/rotated images, ignore),
-`Disused` (593: delete the object once it's idle — sounds when they finish,
-textures now), `Start`/`Stop` (511/418: a `CreateProcess` process, or a movie),
+`Request` actions (31 constants; use counts and converter status:
+"In the scripts: coverage"):
+`Smoothing` (bilinear filtering on scaled/rotated images, ignore),
+`Disused` (delete the object once it's idle: sounds when they finish,
+textures now), `Start`/`Stop` (a `CreateProcess` process, or a movie),
 `Lock`/`UnLock` (protect from `Delete`), `Play` (sound/movie),
 `Erase` (hide; libnpengine: disable), `Enter` (text: start typing it;
 others: show), `Hideable` (hidden along with the text window when the
 player hides it with right-click), `AddRender`/`SubRender`/`MulRender`
 (blend mode), `PushText` (show the whole text at once), `Pause`/`Resume`,
 `Passive` (`PrintBG`'s cover; probably "ignores input", **unverified**).
-From their use, **unverified**: `NoLog` (64, text kept out of the
-backlog, with `PushText` on the ASCII-art pages), `NoIcon` (4, a text
-box without the click icon), `Clickable`/`UnClickable` (18/33, a
-`CreateChoice` button on or off), `CompulsorySuspend`/`EntrustSuspend`
-(7/1, BGM in the staff roll: stopped at once / left to finish),
-`Prev`/`Next`/`Increment`/`Decrement` (1 each, `sys_backlog`'s
-scrolling), `OverlayRender`/`NormalRender` (9/1, more blend modes).
-`Smooting` (2) is a typo the exe's exact match ignores.
+From their use, **unverified**: `NoLog` (text kept out of the backlog,
+with `PushText` on the ASCII-art pages), `NoIcon` (a text box without
+the click icon), `Clickable`/`UnClickable` (a `CreateChoice` button on or
+off), `CompulsorySuspend`/`EntrustSuspend` (BGM in the staff roll:
+stopped at once / left to finish), `Prev`/`Next`/`Increment`/`Decrement`
+(`sys_backlog`'s scrolling), `OverlayRender`/`NormalRender` (more blend
+modes). `Smooting` is a typo the exe's exact match ignores.
 
-**Pages (seen under wine, 2026-10-13, `ma00_000` text0010–text0050):**
+**Pages (seen under wine, `ma00_000` text0010–text0050):**
 a blank line inside a `<PRE>` block ends a page. Each paragraph types
 into the empty box on its own, the click-wait icon (a flame, at
 `$SYSTEM_position_{x,y}_text_icon` = 452, 555) waits for a click, then
