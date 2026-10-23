@@ -19,12 +19,12 @@ use conv_core::ir::{PagedSettings, Placed, RowControl, Setting, SettingValue, Se
 use super::assets::ArchiveAssets;
 use super::menus::{Labels, difference, patch, place, side_by_side};
 
+/// The rows' middles on page 1 (page 2's are the first six, within 1).
 // src: exe 0x81072f60 (ROWS: page 1's sprite centres; page 2's, 0x81072bc6,
 // are 146, 183, 221, 258, 296, 333); LABEL_X to PAGE_TITLE measured, drawn
 // inside bg_config_01.png/bg_config_02.png, no eboot rect (routes tried:
 // the sprite records of 0x81072f60, 0x81072bc6 and config_draw_options
 // 0x8107145c, which draws only labels, option cells and the knob)
-/// The rows' middles on page 1 (page 2's are the first six, within 1).
 const ROWS: [u32; 8] = [146, 184, 221, 258, 295, 332, 369, 408];
 /// A row's label starts here on page 1 (page 2's are further left).
 const LABEL_X: i32 = 140;

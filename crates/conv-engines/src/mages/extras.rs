@@ -243,7 +243,7 @@ fn player(assets: &mut ArchiveAssets, atlas: &RgbaImage, room: &RgbaImage) -> Mu
 /// OP00, the Vita's opening, isn't played by any scene: it is always open
 /// (ours).
 // src: exe 0x81163348 (order); 0x81080dd0 (cells 288·i, 714, the fourth
-// 288, 545; at x 36, 336, 636, 36, y 101, 101, 101, 297)
+// 288, 545; eboot places x 36, 336, 636, 36, y 101, 101, 101, 297)
 const MOVIES: [(u32, u32, u32, i32, i32); 4] = [(0, 0, 714, 36, 101), (1, 288, 714, 336, 101), (2, 576, 714, 636, 101), (11, 288, 545, 36, 297)];
 /// The highlight frame the eboot moves over the cursor's thumbnail.
 // src: exe 0x81080dd0 (sprite 5)
@@ -310,10 +310,13 @@ fn gallery(assets: &mut ArchiveAssets, labels: &Labels, game: &Game, album: &Rgb
     // cards; row 929 is the one between its 545 and 1313); the rest of
     // the album's layout is ours
     let no_image = imageops::resize(&imageops::crop_imm(parts, 0, 545, 192, 114).to_image(), THUMB_W, THUMB_H, imageops::FilterType::Triangle);
+    // the frame: the eboot's gm_bg1.png cell next to it (0x8106725e)
     let frame = imageops::resize(&imageops::crop_imm(parts, 192, 545, 192, 114).to_image(), THUMB_W, THUMB_H, imageops::FilterType::Triangle);
     let locked = assets.put_system_png("album_locked", &no_image);
     let card = |row: u32, i: u32| {
+        // a card of gm_bg.png (exe 0x81066564)
         let c = imageops::crop_imm(album, 96 * i, row, 96, 384).to_image();
+        // ours: half size
         imageops::resize(&c, 48, 192, imageops::FilterType::Triangle)
     };
     let mut tabs = Vec::new();

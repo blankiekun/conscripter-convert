@@ -393,17 +393,18 @@ pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
     // 960×182), 0x8112cdfc (message at the window offset + (0x6f, 0x198)),
     // 0x8104a120 (font cell 22.0), 0x81009c04 (line gap scale × 24 × 0.5).
     // The scripts: rows, columns (the longest message).
-    let (x, y) = (480 - 960 / 2, 450 - 182 / 2);
+    let (centre_x, centre_y, w, h) = (480, 450, 960, 182);
+    let (x, y) = (centre_x - w / 2, centre_y - h / 2);
     TextWindow {
         wait_icon_at: None,
         image,
         x,
         y,
-        text_x: 111,
+        text_x: 111, // exe 0x8112cdfc
         text_y: 408,
         columns: 30,
-        rows: 4,
-        font_size: 22,
+        rows: 4, // the scripts' longest message
+        font_size: 22, // exe 0x8104a120
         line_gap: 12,
         vertical: false,
         name_plate: None,
@@ -2117,7 +2118,7 @@ fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>)
 /// scenes use (0.5, 1, 1.5, 2, 3) makes 2p whole; another rounds.
 // src: exe 0x8103cc18 (ease_value; checked by EBOOT_EASE, research/oretsuba/ease_exe.py)
 fn eboot_exponent(power: f64) -> u32 {
-    ((power * 2.0).round() as u32).max(1)
+    ((power * 2.0).round() as u32).max(1) // eboot: pow(t², p) = t^(2p)
 }
 
 #[cfg(test)]
