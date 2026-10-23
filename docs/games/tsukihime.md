@@ -34,12 +34,15 @@ Paused 2026-10-20.
 5. The first launch's prologue (ours goes straight to the title).
 6. Guesses the exe doesn't give without runtime state (exe-values pass,
    parked): gauss blur radius (in the compiled BNSH shader); text
-   window `text_y` (FUN_001a7790's +14 through its text object) and
-   `line_gap` (a font line measured at run time, 0x1391a0); the menu's
-   and Config's ground (part 0x52, named through runtime table
-   0x1A4DF90) and the save list's date place; Gallery's ground, row
-   cell anchor and fades (widget data at 0x54E410 not decoded); motion
-   mode 1 (natural cubic spline, FUN_001972c0/FUN_00197710) still eased.
+   `line_gap`: 0x1391a0 measures `" ^ "` (`^` is a line break,
+   FUN_001bdc2c), so the pitch is the NintendoWare TextWriter's line
+   feed (FUN_00245b78); the three fonts' ascent + descent is 1 em, but
+   the ScalableFont's line feed and the writer's line space are not
+   yet found (font set up near FUN_001ca500); the menu's and Config's
+   ground: part 0x52 is the render-target slot FUN_0013b9a0 registers
+   (FUN_001b7f00(0xe, 0, 0x52, PTR_FUN_00be0640)), its callback not
+   read yet; the save list's date place; Gallery's ground, row cell
+   anchor and fades (widget data at 0x54E410 not decoded).
 
 ## Scope
 

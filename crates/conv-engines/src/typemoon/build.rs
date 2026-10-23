@@ -66,10 +66,10 @@ fn text_window(english: bool) -> TextWindow {
         image: WINDOW.into(),
         x: 0, // src: txtwindow01-1920 (a full-screen panel)
         y: 0,
-        text_x: if english { 60 } else { 176 },  // src: exe 0x1391a0 (30 or 88, × 2)
-        text_y: if english { 88 } else { 104 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448); guess: FUN_001a7790's +14 (of 1080, on its own y 10) not added: how its text object places glyphs is runtime state
+        text_x: if english { 63 } else { 179 },  // src: exe 0x1391a0 (30 or 88, × 2) + FUN_001a7790's text origin ((0 + 4) × 1280 / 1920 = 2.67)
+        text_y: if english { 104 } else { 120 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448) + FUN_001a7790's text origin ((10 + 14) × 720 / 1080 = 16, object +0x18a34, read by FUN_001bf0f8's layout with the object's place)
         columns: if english { 41 } else { 30 },  // src: exe 0x1391a0 (584 × 2 = 1168 px / 28, or 928 px / 30.4); the window types ≥ 3 (table 0x44DEFC: 299.8, 405.6, 509.8) are the same in both languages and not drawn
-        rows: 14,     // ours: the exe has 16 line slots (0x1391a0, 0xBFECCC…0xBFED08); 14 fit 720 px at this pitch
+        rows: if english { 14 } else { 13 }, // ours: the exe has 16 line slots (0x1391a0, 0xBFECCC…0xBFED08); 14 or 13 fit 720 px at this pitch
         font_size: if english { 27 } else { 30 }, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4, × 0.9 in English = 27.4)
         line_gap: 15, // guess: a 45 px pitch; the exe's is a line of the font measured at run time (0x1391a0: FUN_001ab9a0's height)
         vertical: false,
