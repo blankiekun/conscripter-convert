@@ -80,6 +80,16 @@ def main():
         assert e.call(BASE + 0x1030)[0] == 1234
         assert e.load_dump(pre + "s") == 2  # the base's regions
         assert e.call(BASE + 0x1030)[0] == 5678
+        # an unstubbed memset/memcpy import does its work (args on a cdecl stack at 0x10000800)
+        e.imports[STUBS] = "msvcrt.dll!memset"
+        e.uc.mem_write(0x10000800, struct.pack("<III", 0x10000900, 0x41, 3))
+        assert e._builtin(STUBS)(e, 0x10000800) == 0x10000900 and e.read(0x10000900, 4) == b"AAA\0"
+        e.imports[STUBS] = "msvcrt.dll!_memcpy"
+        e.uc.mem_write(0x10000800, struct.pack("<III", 0x10000a00, 0x10000900, 2))
+        e._builtin(STUBS)(e, 0x10000800)
+        assert e.read(0x10000a00, 3) == b"AA\0"
+        e.imports[STUBS] = "k.dll!F"
+        assert e._builtin(STUBS) == 0
         try:  # a packed scene dump reads the same (Python 3.14's zstd; CI's older Python skips this)
             from compression import zstd
         except ImportError:

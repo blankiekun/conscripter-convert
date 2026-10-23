@@ -434,7 +434,7 @@ class Exe:
             except UcError as e:
                 pc = self._pc()
                 if pc in self.imports or pc not in range(*self.range):
-                    pc = self._stub(pc, self.stubs.get(pc, 0), f"{e}")
+                    pc = self._stub(pc, self.stubs.get(pc, self._builtin(pc)), f"{e}")
                     continue
                 raise SystemExit(f"stopped at {pc:#x}: {e}")
             if self._pc() == self._stub_pc:  # an inner --stub hit: return from it and go on
@@ -468,6 +468,28 @@ class Exe:
 
     def _pc(self):
         return self.uc.reg_read({"x86": X.UC_X86_REG_EIP, "x64": X.UC_X86_REG_RIP, "arm": A.UC_ARM_REG_PC, "arm64": A64.UC_ARM64_REG_PC}[self.arch])
+
+    def _builtin(self, pc):
+        """An unstubbed import's value: 0, but memset/memcpy/memmove done for real (a no-op one
+        leaves the previous call's data in the buffer)."""
+        fn = self.imports.get(pc, "").split("!")[-1].split("@")[0].lstrip("_")
+        if fn not in ("memset", "memcpy", "memmove"):
+            return 0
+
+        def run(exe, at):
+            d, src, n = exe._args(at, 3)
+            exe.uc.mem_write(d, bytes([src & 0xff]) * n if fn == "memset" else exe.read(src, n))
+            return d
+        return run
+
+    def _args(self, at, n):
+        """The first n integer arguments of a call: x86 cdecl from the stack at `at`, else registers."""
+        if self.arch == "x86":
+            return struct.unpack(f"<{n}I", self.read(at, 4 * n))
+        regs = {"x64": [X.UC_X86_REG_RDI, X.UC_X86_REG_RSI, X.UC_X86_REG_RDX],  # SysV: only ELF loads as x64
+                "arm": [A.UC_ARM_REG_R0, A.UC_ARM_REG_R1, A.UC_ARM_REG_R2],
+                "arm64": [A64.UC_ARM64_REG_X0, A64.UC_ARM64_REG_X1, A64.UC_ARM64_REG_X2]}[self.arch]
+        return [self.uc.reg_read(r) for r in regs[:n]]
 
     def _stub(self, pc, value, why):
         """Return value from a call that reached pc; the address to go on from."""
