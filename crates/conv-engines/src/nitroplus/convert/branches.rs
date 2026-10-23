@@ -267,11 +267,11 @@ impl<'a> Compiler<'a, '_> {
             text_x: text_x as i32,
             text_dy: MARGIN as i32,
             font_size: FONT as u32,
-            colour: "#000000".into(),
-            fade_ms: 500,
+            colour: "#000000".into(), // font colour of the port's script (function_select.nut, exe's scripts)
+            fade_ms: 500, // Fade 500 of the port script
             shot: None,
             vertical: true,
-            chosen_ms: 1000,
+            chosen_ms: 1000, // Wait 1000 of the port script
         };
         Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) })
     }

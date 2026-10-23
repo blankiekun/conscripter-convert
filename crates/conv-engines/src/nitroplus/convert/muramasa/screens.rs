@@ -488,7 +488,7 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     // src: frame period table 005dcb0c [1,2,4,8,16,20,25,33] filled by FUN_0048c5d0, index [005dcaf0]=4 -> 16 ms;
     // render loop 0044b3e0 waits FUN_00480750(3,-1,16)
     const PASS_MS: u32 = 16;
-    let frame_ms = vec![PASSES * PASS_MS; 32];
+    let frame_ms = vec![PASSES * PASS_MS; 32]; // 32 pictures, exe PASS_MS above
     Some(WaitIcon { image, frame_ms, w: w / 32, h })
 }
 
@@ -516,7 +516,7 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     // src: sys_backlog.nut 退出 906,443; function_textbox.nut backlogFieldRect, backlogRowSpace; rows: shot en/orig-backlog
     // src: sys_backlog.nut main: voice_offset x -38 from rect (backlogFieldRect, x 150), y 0; BackLogUpdateView
     // moves the speaker to rect.x + voice_offset.x
-    let ((close_x, close_y), text_x, columns, voice_x) = if en { ((906, 443), 150, 28, 150 - 38) } else { ((927, 438), 140, 26, 102) };
+    let ((close_x, close_y), text_x, columns, voice_x) = if en { ((906, 443), 150, 28, 150 - 38) } else { ((927, 438), 140, 26, 102) }; // script positions (sys_backlog.nut), see src lines above
     let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
         let parts: Vec<String> = names.iter().map(|n| format!("{dir}/{n}.png")).collect();
         let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
@@ -530,7 +530,7 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         close: button(a, dir, "退出", close_x, close_y, false)?,
         knob: strip(a, &["001-スクロール", "002-スクロール"], 860, 461)?,
         knob_y: (50, 461),
-        voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], voice_x, 0)?,
+        voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], voice_x, 0)?, // script voice (sys_backlog.nut) icon, see src lines above
         text_x,
         text_y: if en { 22 } else { 49 },
         row_step: if en { 34 } else { 30 },
@@ -742,7 +742,7 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         close: button(a, ["EXITボタン_bt_exit_off", "EXITボタン_bt_exit_over", "EXITボタン_bt_exit_off", "EXITボタン_bt_exit_on"], 0, 0)?,
         // The port has no larger picture, date or chapter.
         // src: SAVE_THUMBNAIL_WIDTH/HEIGHT 160×90 (sys_val_product.nut)
-        preview: Rect { x: -2000, y: -2000, w: 160, h: 90 },
+        preview: Rect { x: -2000, y: -2000, w: 160, h: 90 }, // SAVE_THUMBNAIL 160x90 (sys_val_product.nut); -2000: off screen, ours
         date: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
         play_time: text(25, 550, 18, 1, 24, 0, "#ffffff"),
         chapter: text(-2000, -2000, 18, 0, 0, 0, "#000000"),

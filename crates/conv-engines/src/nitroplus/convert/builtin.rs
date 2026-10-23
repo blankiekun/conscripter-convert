@@ -833,7 +833,7 @@ impl Compiler<'_, '_> {
                 // the first half as long, eased by the tempo, the size straight): the swings
                 // as turns (shortcut: drawn as jumps, not eased; they last 1-2 frames).
                 // src: the port's step 1000 / n × 20 (diesel_shake), else shake::exe_step (004462d0)
-                let (step, ease) = if self.game.diesel_shake { (if n > 0 { (1000 / n * 20) as u32 } else { 16 }, None) } else { (shake::exe_step(n), tempo) };
+                let (step, ease) = if self.game.diesel_shake { (if n > 0 { (1000 / n * 20) as u32 } else { 16 }, None) } else { (shake::exe_step(n), tempo) }; // the port's script frequency (1000 / n) * 20; 16 (a frame) when n is 0, see above
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
                     // The picture alone: now if it is on the screen, else

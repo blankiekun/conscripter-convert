@@ -193,7 +193,7 @@ impl<'a> Compiler<'a, '_> {
     // src: shot (続・殺戮のジャンゴ under wine: boxes at four priorities, six camera settings; docs/games/django.md)
     // src: exe 00489a52 (装甲悪鬼村正, FUN_00489570: a camera's picture at depth 1000 − priority, seen at the camera's z)
     pub(super) fn camera_zoom(&self, name: &str, priority: i64) -> Option<f64> {
-        let mut zoom = 1.0;
+        let mut zoom = 1.0; // identity zoom, exe FUN_00489570 starts from 1
         let mut end = 0;
         while let Some(i) = name[end..].find('/') {
             end += i;
@@ -201,7 +201,7 @@ impl<'a> Compiler<'a, '_> {
                 if priority >= 1000 {
                     return None;
                 }
-                zoom = zoom * p.zoom.0 as f64 / (1000 - priority) as f64;
+                zoom = zoom * p.zoom.0 as f64 / (1000 - priority) as f64; // exe 00489a52: depth 1000 minus priority
             }
             end += 1;
         }

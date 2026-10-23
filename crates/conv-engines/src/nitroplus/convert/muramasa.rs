@@ -110,7 +110,7 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
     let (image, _, _) = c.assets.strip(&[FREE, "cg/sys/select/en/select002.png", "cg/sys/select/en/select003.png"])?;
     // src: function_select.nut (/free /over /down: select001-003; Fade "choice*/txt", "choice*/free"
     // over 500 ms, in and out; the chosen one down for Wait 1000 first)
-    let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 500, shot: None, vertical: false, chosen_ms: 1000 };
+    let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 500, shot: None, vertical: false, chosen_ms: 1000 }; // function_select.nut: Fade 500 over, black text, 13 px text dy (script)
     Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) })
 }
 

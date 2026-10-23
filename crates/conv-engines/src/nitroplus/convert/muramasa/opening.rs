@@ -237,8 +237,8 @@ impl Trail {
     /// A copy's opacity (0-1) under the picture's `o` (0-1): the exe's
     /// alpha byte times alpha/1000, rounded (FUN_00456810).
     fn opacity(&self, o: f32) -> f32 {
-        let byte = (o as f64 * 255.0).round();
-        ((byte * self.alpha / 1000.0).round_ties_even() / 255.0) as f32
+        let byte = (o as f64 * 255.0).round(); // exe alpha byte 0-255 (FUN_00456810)
+        ((byte * self.alpha / 1000.0).round_ties_even() / 255.0) as f32 // exe alpha byte 0-255, alpha in 1/1000 (FUN_00456810)
     }
 }
 
@@ -264,7 +264,7 @@ struct Layer {
 impl Layer {
     fn new(pic: Pic, x: f64, y: f64, blend: Blend) -> Self {
         let pivot = (pic.w as f64 / 2.0, pic.h as f64 / 2.0);
-        Layer { pic, trail: None, x, y, blend, opacity: Track::new(0.0), zoom: Track::new(1000.0), turn: Track::new(0.0), pivot, dx: Track::new(0.0), dy: Track::new(0.0), jitter: None }
+        Layer { pic, trail: None, x, y, blend, opacity: Track::new(0.0), zoom: Track::new(1000.0), turn: Track::new(0.0), pivot, dx: Track::new(0.0), dy: Track::new(0.0), jitter: None } // zoom 1000 = 100 % in the exe's script units
     }
 
     fn draw(&self, t: f64, out: &mut [[f32; 3]]) {
@@ -286,7 +286,7 @@ impl Layer {
     }
 
     /// The picture placed as its motions have it at `t`, at opacity `o`.
-    fn paint(&self, t: f64, o: f32, out: &mut [[f32; 3]]) {
+    fn paint(&self, t: f64, o: f32, out: &mut [[f32; 3]]) { // exe paint, see Layer docs
         let pic = &self.pic;
         let z = self.zoom.at(t) / 1000.0;
         let (sin, cos) = self.turn.at(t).to_radians().sin_cos();
@@ -363,14 +363,14 @@ fn buttons(a: &mut dyn Assets, look: &TitleLook, at: f64) -> Option<Vec<Layer>> 
 
 /// `SetBlur(…, true, 2, 500, 50, false)`, from `from` (its zoom's start).
 fn trail(from: f64) -> Option<Trail> {
-    Some(Trail { passes: 2, alpha: 500.0, lag: 50.0, from })
+    Some(Trail { passes: 2, alpha: 500.0, lag: 50.0, from }) // SetBlur(…, true, 2, 500, 50, false) of the opening script
 }
 
 /// `SetShade(MEDIUM)`: the exe's 4 passes of a 3×3 mean (FUN_00465b10)
 /// spread as a Gaussian of the same variance (2/3 px² a pass, as
 /// builtin.rs's `shade_blur`).
 fn shade_sigma(passes: f32) -> f32 {
-    (passes * 2.0 / 3.0).sqrt()
+    (passes * 2.0 / 3.0).sqrt() // exe FUN_00465b10: 2/3 px² variance a pass
 }
 
 /// The first title after the game starts (`TitleFade`, `!$Logo`): 善悪相殺
@@ -411,7 +411,7 @@ pub fn at_launch(a: &mut dyn Assets, look: &TitleLook, picture: &str, name: &str
     layers.push(m);
 
     // SetShade(MEDIUM): drawn soft.
-    let mut m0 = Layer::new(blurred(a, muramasa, shade_sigma(4.0))?, 0.0, 0.0, Blend::Add);
+    let mut m0 = Layer::new(blurred(a, muramasa, shade_sigma(4.0))?, 0.0, 0.0, Blend::Add); // SetShade(MEDIUM) = 4 passes, exe FUN_00465b10
     m0.zoom = Track::new(1000.0).to(4000.0, 7000.0, 1500.0, AXL1);
     m0.opacity = Track::new(0.0).to(4000.0, 3000.0, 800.0, Ease::Linear).to(5000.0, 3000.0, 0.0, Ease::Linear);
     layers.push(m0);
@@ -427,7 +427,7 @@ pub fn at_launch(a: &mut dyn Assets, look: &TitleLook, picture: &str, name: &str
     layers.push(m2);
 
     let mut bg2 = layer(a, &fuji, 0.0, 0.0, Blend::Add)?;
-    bg2.trail = trail(10200.0);
+    bg2.trail = trail(10200.0); // SetBlur zoom start of the opening script (10200 ms)
     bg2.zoom = Track::new(2000.0).to(4000.0, 7000.0, 1500.0, AXL1).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 1200.0, Ease::Linear);
     bg2.opacity = Track::new(0.0)
         .to(7000.0, 500.0, 500.0, Ease::Linear)
@@ -451,7 +451,7 @@ pub fn at_launch(a: &mut dyn Assets, look: &TitleLook, picture: &str, name: &str
     layers.push(logo1);
 
     let mut logo2 = layer(a, &logo, look.logo.0, look.logo.1, Blend::Normal)?;
-    logo2.trail = trail(10200.0);
+    logo2.trail = trail(10200.0); // SetBlur zoom start of the opening script (10200 ms)
     logo2.zoom = Track::new(800.0).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 1200.0, Ease::Linear);
     logo2.opacity = Track::new(0.0).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 0.0, Ease::Linear);
     layers.push(logo2);
@@ -520,8 +520,8 @@ fn return_layers(a: &mut dyn Assets, look: &TitleLook) -> Option<Vec<Layer>> {
     copyright.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear);
     layers.push(copyright);
 
-    let mut bg2 = layer(a, &fuji, 0.0, 0.0, Blend::Add)?;
-    bg2.trail = trail(2000.0);
+    let mut bg2 = layer(a, &fuji, 0.0, 0.0, Blend::Add)?; // opening script zoom start
+    bg2.trail = trail(2000.0); // SetBlur zoom start of the opening script (2000 ms)
     bg2.zoom = Track::new(1000.0).to(2000.0, 1000.0, 1200.0, Ease::Linear);
     bg2.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear).to(2000.0, 1000.0, 0.0, Ease::Linear);
     layers.push(bg2);
@@ -532,7 +532,7 @@ fn return_layers(a: &mut dyn Assets, look: &TitleLook) -> Option<Vec<Layer>> {
     layers.push(logo1);
 
     let mut logo2 = layer(a, &logo, look.logo.0, look.logo.1, Blend::Normal)?;
-    logo2.trail = trail(2000.0);
+    logo2.trail = trail(2000.0); // SetBlur zoom start of the opening script (2000 ms)
     logo2.zoom = Track::new(1000.0).to(2000.0, 1000.0, 1200.0, Ease::Linear);
     logo2.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear).to(2000.0, 1000.0, 0.0, Ease::Linear);
     layers.push(logo2);
