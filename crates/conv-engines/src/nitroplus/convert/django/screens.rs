@@ -289,13 +289,16 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<(VoiceWindow, Vec<V
 
 /// The click-wait icon (system.ini `icon_page`: `Bullet-%03d.png#20`; the
 /// archive has 18 pictures of 18×18), looped after the text. The line icon
-/// (`Tumbleweed`, `icon_line`) isn't used: CONscripter has one icon. The
-/// frame time isn't in the files: 50 ms, ours.
+/// (`Tumbleweed`, `icon_line`) isn't used: CONscripter has one icon. A
+/// picture lasts 8 passes of the render thread, 16 ms each at NORMAL:
+/// 128 ms. Left out: the exe fades the icon in (alpha from 0, +16 at each
+/// picture), CONscripter's icon has no fade.
 fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     let parts: Vec<String> = (1..=18).map(|n| format!("cg/sys/icon/page/bullet-{n:03}.png")).collect();
     let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
-    // guess: no frame time in the files (装甲悪鬼村正's flame, watched: about 53 ms)
-    Some(WaitIcon { image, frame_ms: vec![50; 18], w: w / 18, h })
+    // src: Django.exe 0x42f30a (step 0x2000 of a 16.16 counter: 1/8 picture a pass), 004477f0 (the step,
+    // alpha +16), its caller 00435df0 and 00469580 (a pass waits 0x531a5c[4] = 16 ms ÷ the play speed 1.0)
+    Some(WaitIcon { image, frame_ms: vec![8 * 16; 18], w: w / 18, h })
 }
 
 /// The text log (`sys_backlog.nss`): the parchment scroll
