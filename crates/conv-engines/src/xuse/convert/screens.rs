@@ -376,8 +376,7 @@ impl AssetBank {
     /// (7, the same four states), current-page marker (1), row cursor (9,
     /// opaque, black where nothing is added: the game blends it
     /// additively), "New" icon (10). Buttons and pages from the exe
-    /// (SaveMode.cpp, 0x469850); the rest measured on a screenshot of the
-    /// original and on the frame's thumbnail boxes.
+    /// (SaveMode.cpp, 0x469850), rows, thumbnail and text from 0x46ac50.
     pub fn save_menu(&mut self) -> Result<SaveMenu, ConvertError> {
         let images = self.gaf_images("wnd.arc", "Save.004", "save menu")?;
         let get = |n: usize| {
@@ -421,7 +420,9 @@ impl AssetBank {
 
         // Row cursor: under the pointer it is drawn with alpha (brightness),
         // leaving the thumbnail clear; the selected row is added.
-        let thumbnail = Rect { x: 14, y: 10, w: 100, h: 75 };
+        // src: exe 0x46ac50 draws the thumbnail at (13, row + 5), rows at
+        // y 47 + 92 n, so (13, 8) from the cursor's top (y 44).
+        let thumbnail = Rect { x: 13, y: 8, w: 100, h: 75 };
         let cursor = get(9)?;
         let mut hover = cells(&cursor, &[0, 1]);
         let row_w = cursor.width();
@@ -463,12 +464,16 @@ impl AssetBank {
             row_hover,
             row_selected,
             thumbnail,
-            // guess: the exe puts "New" after the slot's text (0x46ac50);
-            // the text: shot (the user's, scaled).
+            // ours: the exe puts "New" at the slot text's end + (17, 9)
+            // minus the icon's hotspot (0x46ac50), known only at run time;
+            // a fixed spot here.
             new_icon: placed(self, "new", &get(10)?, 50, 67)?,
-            text_x: 124,
-            text_y: 11,
+            // src: exe 0x46ac50, the slot text object at (126, row + 12),
+            // 242x68; style 0x46b4d0: size 14, colours 0xffffff/0xfff0dc.
+            text_x: 126,
+            text_y: 15,
             font_size: 14,
+            // ours: the exe's line height is the font's (not read).
             line_height: 15,
             // src: exe 0x46ac50 (the preview at (389, 136)).
             preview: Rect { x: 389, y: 136, w: 400, h: 300 },
