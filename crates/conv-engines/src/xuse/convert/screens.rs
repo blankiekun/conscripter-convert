@@ -702,8 +702,11 @@ impl AssetBank {
             no,
             yes_label: "はい".into(),
             no_label: "いいえ".into(),
-            // guess: text_y (no shot of the original's dialog).
-            text_y: 16,
+            // src: exe 0x4a6b40: a one-line message at the dialog's top + 14
+            // + half its 16 px line (+0x224); two lines (quit, chapter:
+            // "\n" in the exe's strings) at + 14 and + 32. ours: one line,
+            // centred (the exe starts it at x + 20).
+            text_y: 22,
             // src: exe 0x4a6410 (16 px, weight 600, for the message and
             // the button words).
             font_size: 16,
@@ -835,10 +838,9 @@ impl AssetBank {
     /// The chapter history (`wnd.arc` → `ChapterHistory.004`: #0 base, #1
     /// frame, #2 and #3 the close button's base and lettering, four states
     /// of 21 px stacked, #4 the current chapter's bracket, #5 the row
-    /// highlight, additive, four states of 25 px stacked). Layout and
-    /// opacity measured on screenshots of the original under wine: rows 24
-    /// px apart from (16, 83), columns 258 px apart, 20 rows to a column
-    /// (`i % 20` in the exe, 0x4682a0).
+    /// highlight, additive, four states of 25 px stacked). Layout from the
+    /// exe (0x4682a0): rows 24 px apart, columns 258 px apart, 20 rows to
+    /// a column.
     pub(super) fn chapter_history(&mut self) -> Result<ChapterHistory, ConvertError> {
         let images = self.gaf_rgba("wnd.arc", "ChapterHistory.004", "chapter history")?;
         let get = |n: usize| images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "chapter history image", number: n });
@@ -869,8 +871,14 @@ impl AssetBank {
             // src: exe 0x468be0 (the base at the window opacity, 0x51ed12).
             base_opacity: (255 * WINDOW_OPACITY_PERCENT / 100) as u8,
             frame: self.place("chapters_frame", &get(1)?, None, 0, 0)?,
-            // src: shot (wine), for the rest of the layout.
-            close: self.place("chapters_close", &close, None, 715, 576)?,
+            // src: exe 0x4682a0: close button 72x21 at (715, 577); row i a
+            // 256x22 button at (17 + 258 (i / 20), 84 + 24 (i % 20)), its
+            // title at +(4, 4), 14 px. The 258x25 highlight sits 1 px up
+            // and left of the button (shot, wine): x, y and text_dx/dy here
+            // are the highlight's.
+            // ours: titles all white; the exe draws entries from one index
+            // (0x19c, runtime) on in 0xc8c8c8.
+            close: self.place("chapters_close", &close, None, 715, 577)?,
             hover: self.place("chapters_hover", &hover, None, 0, 0)?,
             current: self.place("chapters_current", &get(4)?, None, -16, 0)?,
             x: 16,
