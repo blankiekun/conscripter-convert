@@ -594,6 +594,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         column_step: -190,
         rows: 5,
         columns: 4,
+        // src: sys_save.nss #SYSTEM_save_thumbnail_width 160, _height 90; Fade("システム背景SL",300)
         thumb_w: 160,
         thumb_h: 90,
         hover: picture(a, "選択中サムネールワク", 0, 0)?,
@@ -722,7 +723,9 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         column_step: 195,
         rows: 3,
         columns: 5,
-        thumb_w: 158,
+        // src: sys_val_product.nut SAVE_THUMBNAIL_WIDTH 160, _HEIGHT 90 (SaveThumbnail's
+        // SaveImage size; drawn unscaled at PreSaveThumX 42 + SaveThumX_plus 195 per column)
+        thumb_w: 160,
         thumb_h: 90,
         hover: picture(a, "MouseOverBoard", 0, 0)?,
         hover_offset: (-3, -3),
@@ -733,14 +736,14 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         delete: none(a),
         delete_on: none(a),
         close: button(a, ["EXITボタン_bt_exit_off", "EXITボタン_bt_exit_over", "EXITボタン_bt_exit_off", "EXITボタン_bt_exit_on"], 0, 0)?,
-        // guess: thumbnails 158×90 (Slots-Grid's cells), page fade 300
         // The port has no larger picture, date or chapter.
-        preview: Rect { x: -2000, y: -2000, w: 158, h: 90 },
+        preview: Rect { x: -2000, y: -2000, w: 160, h: 90 },
         date: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
         play_time: text(25, 550, 18, 1, 24, 0, "#ffffff"),
         chapter: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
         line: text(339, 511, 15, 5, 22, 3, "#000000"),
         saved,
+        // src: sys_saveload.nut, the page switch: Fade(SCREEN, 300) over a snapshot of the old page
         fade_ms: 300,
         across: true,
         tabs,
