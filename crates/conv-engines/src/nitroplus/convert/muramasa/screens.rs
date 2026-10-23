@@ -476,17 +476,19 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
 /// The click-wait flame (System.ini `icon_line`, `icon_page`: the 32
 /// pictures of 改行改頁アイコン), looped, at each window's
 /// `$SYSTEM_position_{x,y}_text_icon`. Pictures 1-19 are the flame
-/// burning, 20-32 it withering to a wisp of smoke. Watched in the original
-/// (wine under Xvfb redraws the waiting screen only about once a second,
-/// so it couldn't be filmed): the flame burns about a second, withers
-/// about as long, and lights again after a pause (here half a second).
+/// burning, 20-32 it withering to a wisp of smoke. Each picture is shown
+/// for eight render passes, all alike, the loop restarting at once.
 fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     let parts: Vec<String> = (1..=32).map(|n| format!("cg/sys/icon/改行改頁アイコン/{n:03}.png")).collect();
     let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
-    // guess: watched, not filmed (clickwait-icon-60.mkv redraws about once a second)
-    let mut frame_ms = vec![53; 19];
-    frame_ms.extend([77; 13]);
-    frame_ms[31] += 500;
+    // src: Muramasa.exe FUN_00461470 (called once per pass by FUN_0044b850, the render thread at 0x44b3e0):
+    // a 16.16 counter at state+0x10 grows by state+0x14, 0x2000 (set in FUN_00442400), the picture is its
+    // high word, back to 0 at the count: 8 passes a picture, no pause
+    const PASSES: u32 = 0x10000 / 0x2000;
+    // ours: the pass rate follows the display's Present (no interval in the exe); 8 ms makes the ~2 s
+    // loop watched in the original (burning about a second, withering about as long)
+    const PASS_MS: u32 = 8;
+    let frame_ms = vec![PASSES * PASS_MS; 32];
     Some(WaitIcon { image, frame_ms, w: w / 32, h })
 }
 
