@@ -839,7 +839,8 @@ impl AssetBank {
         // exe's font height, + 1 for its weight-600 (synthesised bold)
         // ones; ours by font size + 1, so an 18 px weight-400 font is 17.
         // Columns: the text width (window - left - right margins, +0x20)
-        // over that pitch. Rows: our measurement under wine.
+        // over that pitch. ours: rows (the exe has no row count: its text
+        // object holds 30 lines, 0x4a0e7f; these are our wine measurements).
         let (font_size, line_gap, columns, rows, offset) = match preset.style {
             1 => (24, 12, 24, 12, (15, 23)),
             2 | 7 => (24, 12, 24, 13, (37, 35)),
@@ -858,12 +859,13 @@ impl AssetBank {
         self.layered(&image, &images[0], &images[1])?;
         let (x, y) = (preset.x, preset.y);
         // Only styles 0 and 6 show the name plate (bit 0 of the record),
-        // at (-21, -33), the name at +(24, 11) in it (+0x28, +0x3c).
+        // at (-21, -32) (+0x28: two shorts, added at 0x4a138f), the name at
+        // +(24, 11) in it (+0x3c), 24 px weight 600 (+0x60, +0x62: read by
+        // the name's font callback 0x4a0b10, unscaled).
         let name_plate = if preset.style == 6 {
             let plate = format!("system/nameplate{}.png", preset.style);
             self.layered(&plate, &images[2], &images[3])?;
-            // guess: font size 20 (shot k1: the ADV box's).
-            Some(NamePlate { image: plate, x: x - 21, y: y - 33, text_x: x + 3, text_y: y - 22, font_size: 20 })
+            Some(NamePlate { image: plate, x: x - 21, y: y - 32, text_x: x + 3, text_y: y - 21, font_size: 24 })
         } else {
             None
         };
@@ -914,8 +916,9 @@ impl AssetBank {
         self.layered(&plate, &images[2], &images[3])?;
         // src: the scripts' ADV preset (0x50: 53, 449) and exe 0x517678
         // style 0: text at +(28, 21), 24 px weight 600 (pitch 25: 650 px
-        // fit 26), line gap 12, plate at (-21, -33), name at +(24, 11);
-        // shot k1 (wine) has the frame and plate there to the pixel.
+        // fit 26), line gap 12, plate at (-21, -32) (+0x28, added at
+        // 0x4a138f), name at +(24, 11) in 24 px weight 600 (+0x60, read by
+        // the name's font callback 0x4a0b10); shot k1 (wine) has the frame there.
         Ok(TextWindow {
             wait_icon_at: None,
             image: window,
@@ -924,13 +927,13 @@ impl AssetBank {
             text_x: 81,
             text_y: 470,
             columns: 26,
-            // guess: rows (the 140 px box holds three of 36).
+            // ours: rows (no field in the exe, whose text object holds 30
+            // lines, 0x4a0e7f; the 140 px box holds three of 36).
             rows: 3,
             font_size: 24,
             line_gap: 12,
             vertical: false,
-            // guess: the name's font size (shot k1's glyphs fit 20).
-            name_plate: Some(NamePlate { image: plate, x: 32, y: 416, text_x: 56, text_y: 427, font_size: 20 }),
+            name_plate: Some(NamePlate { image: plate, x: 32, y: 417, text_x: 56, text_y: 428, font_size: 24 }),
         })
     }
 
