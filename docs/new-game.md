@@ -5,7 +5,11 @@ A checklist; each step ends on a "Done:" criterion. Detail: `docs/new-game-refer
 
 **Order of evidence** about the original: its code (scripts, decompile, formats), the oracle (one exe function,
 memory dumps), then wine or an emulator. Frame-by-frame matching: a bug seen in play, with the user's yes
-(`docs/tools.md`, "Matching the original").
+(`docs/tools.md`, "Matching the original"). Layouts, timings and lists are read from the user's exe, the address in a
+code comment, never measured from screenshots or guessed; a function the build needs is run with
+`research/tools/exe_call.py` and ported to Rust with a test whose numbers came from that run (the generator script
+in `research/<engine>/`, the decompile only in `local/`). A value the original has no counterpart for says
+`// ours: <reason>`.
 
 ## For the lead
 
