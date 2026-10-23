@@ -503,7 +503,8 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// `バックログ` in `function_textbox.nut`): rows 570 px wide; the
 /// field from y 10, 480 high, `backlogRowSpace` 10: 34 px apart (the
 /// font's height 24 + 10), 14 rows, the first drawn from y 22 (where the
-/// original's are, measured under wine).
+/// original's are, measured under wine); the speaker 38 px left of the
+/// field, x 112.
 fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
     // src: sys_backlog.nss (buttons, scrollbar, SetFont 20, Fade 300), system.ini word_in_row 26
@@ -511,8 +512,9 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     // _position_x 140, _position_y 49, _row_interval 30, _character_width 20 (sys_backlog.nss sets them;
     // the exe's defaults when unset: 17, 82, 120, 100, 24, 19)
     // src: sys_backlog.nut 退出 906,443; function_textbox.nut backlogFieldRect, backlogRowSpace; rows: shot en/orig-backlog
-    // guess: the speaker icon's x 102 in the English port (no voiced row filmed)
-    let ((close_x, close_y), text_x, columns) = if en { ((906, 443), 150, 28) } else { ((927, 438), 140, 26) };
+    // src: sys_backlog.nut main: voice_offset x -38 from rect (backlogFieldRect, x 150), y 0; BackLogUpdateView
+    // moves the speaker to rect.x + voice_offset.x
+    let ((close_x, close_y), text_x, columns, voice_x) = if en { ((906, 443), 150, 28, 150 - 38) } else { ((927, 438), 140, 26, 102) };
     let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
         let parts: Vec<String> = names.iter().map(|n| format!("{dir}/{n}.png")).collect();
         let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
@@ -526,7 +528,7 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         close: button(a, dir, "退出", close_x, close_y, false)?,
         knob: strip(a, &["001-スクロール", "002-スクロール"], 860, 461)?,
         knob_y: (50, 461),
-        voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], 102, 0)?,
+        voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], voice_x, 0)?,
         text_x,
         text_y: if en { 22 } else { 49 },
         row_step: if en { 34 } else { 30 },
