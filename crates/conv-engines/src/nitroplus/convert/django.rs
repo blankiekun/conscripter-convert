@@ -27,7 +27,7 @@ pub const DJANGO: Game = Game {
     // src: the exe's baseline 8 + 15 below the box (00461000: row top = trunc(lfHeight 18 x ruby 0.45),
     // 0042efb0: glyph top = row top + tmAscent - gmptGlyphOrigin.y; ＭＳ ゴシック's 220/256 em ascent at
     // lfHeight 18 gives tmAscent 15) less ipag.ttf's SDL_ttf ascent at 18 px (16, font height 18)
-    text_drop: 8 + 15 - 16,
+    text_drop: 8 + 15 - 16, // src: exe 00461000, 0042efb0
     family: true,
     string_vars: true,
     flags: extras::flags,

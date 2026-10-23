@@ -14,7 +14,7 @@ use super::super::{Compiler, Kind, StripObject, Value};
 /// the interval 30 × 500 ÷ 1000.
 // src: Django.exe layout_create_text 004608f0 ('.' adds 100), 004605b0 ($SYSTEM_text_interval 30),
 // 00461e40 (interval × text speed ÷ 1000), reset_system_defaults 0045cb30 (text speed 500)
-const LETTER_MS: u32 = 100 + 30 * 500 / 1000;
+const LETTER_MS: u32 = 100 + 30 * 500 / 1000; // src: exe 004608f0, 00461e40
 
 /// Where a line's letters wait for its `Enter`.
 fn key(name: &str) -> String {

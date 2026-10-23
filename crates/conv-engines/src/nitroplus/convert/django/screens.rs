@@ -330,14 +330,14 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         up: button(a, "バックログrew002", 708, 228)?,
         down: button(a, "バックログff003", 724, 284)?,
         close: strip(a, &["backlog-exit-001", "backlog-exit-002", "backlog-exit-001", "backlog-exit-003"], 690, 530)?,
-        knob: strip(a, &["スクロール001", "スクロール002"], 646, 90)?,
-        knob_y: (90, 490),
-        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 82, 0)?,
+        knob: strip(a, &["スクロール001", "スクロール002"], 646, 90)?, // src: exe 00430af0
+        knob_y: (90, 490), // src: exe 00430af0
+        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 82, 0)?, // src: exe 00402020
         text_x: 120,
-        text_y: 100,
+        text_y: 100, // src: exe 00403af0
         row_step: 24,
         rows: 17,
-        columns: 25,
+        columns: 25, // src: exe 00403230
         font_size: 20,
         colour: "#000000".into(),
         fade_ms: 300,
