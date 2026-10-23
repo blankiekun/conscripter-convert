@@ -305,9 +305,8 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// (`バックログ背景.jpg`); one row back (708,228) and on (724,284), EXIT
 /// (690,530), the knob on the rail at x 646 from y 90 to 490
 /// (`CreateScrollbar`). Black 20 px text with an #AAAA88 outline
-/// (`SetFont`, ＭＳ ゴシック) from (120,99), rows 24 px apart, 24
-/// characters wide (measured under wine; the rows fill the parchment down
-/// to 507). The voice icon (`スピーカー`) left of a voiced row is ours.
+/// (`SetFont`, ＭＳ ゴシック) from (120,100), 17 rows 24 px apart, 25
+/// characters wide; the voice icon (`スピーカー`) at x 82 on a voiced row.
 /// Left out: the page buttons (698,138 and 724,362) and the rolls turning as it
 /// scrolls.
 fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
@@ -323,20 +322,22 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
     };
     let (background, w, h) = a.image(&format!("{DIR}/バックログ背景.jpg"))?;
     // src: sys_backlog.nss (buttons, CreateScrollbar 646 from 90 to 490, SetFont 20 #000000/#AAAA88, Fade 300);
-    // text place, rows and columns: shot (wine, not kept); the knob's travel (its top 90-460): guess
+    // src: Django.exe 00403af0 (17 rows, row top 100), 00403400 (text from x 0x78 = 120, rows 0x18 = 24 apart),
+    // 00403230 (a row breaks after 25 characters, 24 when the 25th is a bad_end), 00402020 (voice icons at x 0x52
+    // = 82, the row's y), 00430af0 (the knob's top left on CreateScrollbar's line: 646, from 490 to 90)
     Some(LineLog {
         background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
         up: button(a, "バックログrew002", 708, 228)?,
         down: button(a, "バックログff003", 724, 284)?,
         close: strip(a, &["backlog-exit-001", "backlog-exit-002", "backlog-exit-001", "backlog-exit-003"], 690, 530)?,
-        knob: strip(a, &["スクロール001", "スクロール002"], 635, 90)?,
-        knob_y: (90, 460),
-        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 60, 0)?, // ours: x 60
+        knob: strip(a, &["スクロール001", "スクロール002"], 646, 90)?,
+        knob_y: (90, 490),
+        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 82, 0)?,
         text_x: 120,
-        text_y: 99,
+        text_y: 100,
         row_step: 24,
         rows: 17,
-        columns: 24,
+        columns: 25,
         font_size: 20,
         colour: "#000000".into(),
         fade_ms: 300,
