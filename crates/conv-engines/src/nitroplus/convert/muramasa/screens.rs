@@ -724,7 +724,7 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         rows: 3,
         columns: 5,
         // src: sys_val_product.nut SAVE_THUMBNAIL_WIDTH 160, _HEIGHT 90 (SaveThumbnail's
-        // SaveImage size; drawn unscaled at PreSaveThumX 42 + SaveThumX_plus 195 per column)
+        // SaveImage size; the script draws it unscaled at PreSaveThumX 42 + 195 per column)
         thumb_w: 160,
         thumb_h: 90,
         hover: picture(a, "MouseOverBoard", 0, 0)?,
@@ -737,6 +737,7 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         delete_on: none(a),
         close: button(a, ["EXITボタン_bt_exit_off", "EXITボタン_bt_exit_over", "EXITボタン_bt_exit_off", "EXITボタン_bt_exit_on"], 0, 0)?,
         // The port has no larger picture, date or chapter.
+        // src: SAVE_THUMBNAIL_WIDTH/HEIGHT 160×90 (sys_val_product.nut)
         preview: Rect { x: -2000, y: -2000, w: 160, h: 90 },
         date: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
         play_time: text(25, 550, 18, 1, 24, 0, "#ffffff"),

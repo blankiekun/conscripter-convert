@@ -10,6 +10,7 @@
 /// step). n 0 or below: a flip each frame (1000 ÷ 0 is _ftol's 0x80000000,
 /// and the signed `elapsed <= step` never holds).
 pub(super) fn exe_step(n: i64) -> u32 {
+    // src: Muramasa.exe queue_shake 004462d0 (see the doc above)
     if n > 0 { (1000.0 / (n as f64 * 60.0 / 1000.0)) as u32 } else { 16 }
 }
 /// `spmotion` takes 64 keys (engine `COMMANDS.md`; it was 32 before engine #44).

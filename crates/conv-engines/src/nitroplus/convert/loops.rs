@@ -343,6 +343,7 @@ impl<'a> Compiler<'a, '_> {
             }
         }
         let Some(target) = target else { return };
+        // src: shake::exe_step; 16 (a frame) when no Shake gave n
         let keys = shake_keys(&parts, step.unwrap_or(16)).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None }).collect();
         self.set_loop(name, &target, keys, 0);
     }

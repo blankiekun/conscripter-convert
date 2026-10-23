@@ -824,6 +824,7 @@ impl Compiler<'_, '_> {
                 // every [`shake::exe_step`] ms, the size eased by the tempo
                 // (the table FUN_00434ea0 picks).
                 let (n, tempo) = (arg(6).int(), super::tempo(&arg(7)));
+                // src: Muramasa.exe 004462d0, Django FUN_00431de0: n < 0x3e9
                 if n > 1000 {
                     return Value::Null; // src: FUN_00431de0, 004462d0 (n < 0x3e9), nor waited for
                 }
@@ -831,6 +832,7 @@ impl Compiler<'_, '_> {
                 // Squirrel integers; CEffectShake 00484990/00484c60: a swing each frequency ms,
                 // the first half as long, eased by the tempo, the size straight): the swings
                 // as turns (shortcut: drawn as jumps, not eased; they last 1-2 frames).
+                // src: the port's step 1000 / n × 20 (diesel_shake), else shake::exe_step (004462d0)
                 let (step, ease) = if self.game.diesel_shake { (if n > 0 { (1000 / n * 20) as u32 } else { 16 }, None) } else { (shake::exe_step(n), tempo) };
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
