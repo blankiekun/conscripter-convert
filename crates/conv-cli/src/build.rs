@@ -49,6 +49,11 @@ pub struct BuildArgs {
     /// explicit --audio-codec or --webp-quality still applies)
     #[arg(long)]
     pub small: bool,
+    /// The language a first start runs in (`ja`, `en`), one of the build's
+    /// editions (default: the edition the build was given; the player's
+    /// later choice is kept in language.txt)
+    #[arg(long, value_name = "CODE")]
+    pub language: Option<String>,
 }
 
 /// Where an edition's own files go, by language (CONscripter's asset
@@ -86,7 +91,7 @@ fn dedupe_layer(output: &Path, layer: &Path) -> Result<usize> {
 const SCREENS: &str = "screens";
 
 pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
-    let BuildArgs { output, font, loose, dry_run, source_map, parity_report, webp, audio, small } = args;
+    let BuildArgs { output, font, loose, dry_run, source_map, parity_report, webp, audio, small, language } = args;
     let webp = webp.get(small)?;
     // every engine's folders, the warp maps of its transitions and the screens
     let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS, LAYERS]).collect();
@@ -104,6 +109,8 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let conv_cons::Emitted { script: mut source, lines, rows } = conv_cons::emit_mapped(&ir, conv_cons::strtab::Strings::tables(translation.is_some()));
     let mut tables = vec![(ir.language.clone(), conv_cons::strtab::table(&rows))];
     let other = translation.as_ref().map(|t| conv_cons::emit_mapped(t, conv_cons::strtab::Strings::tables(true)));
+    // the language a first start runs in
+    let mut first = ir.language.clone();
     // the timing parity is of the edition whose counts the build's are (the other's when there is one)
     let parity = if dry_run { other.as_ref().map_or_else(|| (source.clone(), lines.clone()), |o| (o.script.clone(), o.lines.clone())) } else { Default::default() };
     if let (Some(t), Some(other)) = (&translation, &other) {
@@ -115,13 +122,21 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
             let m = merge(Edition { script: &source, lines: &lines, rows: &rows }, Edition { script: &other.script, lines: &other.lines, rows: &other.rows });
             println!("  {} runs of code differ from the {} build: {} lines per language", m.blocks, t.language, m.lines);
             // a build given the other edition starts in it: the edition the player gave
-            source = m.script.replacen(&format!("language \"{}\"", ir.language), &format!("language \"{}\"", t.language), 1);
+            source = m.script;
+            first = t.language.clone();
             tables[0].1 = m.tables.0;
             (m.tables.1, m.kept)
         };
         println!("  text.{}.txt: {} of {} text lines from the {} build, {kept} kept as in text.{}.txt", t.language, rows.len() - kept, rows.len(), t.language, ir.language);
         tables.push((t.language.clone(), table));
     }
+    if let Some(l) = language {
+        if !tables.iter().any(|t| t.0 == l) {
+            bail!("--language {l}: the build's languages are {}", tables.iter().map(|t| t.0.as_str()).collect::<Vec<_>>().join(", "));
+        }
+        first = l;
+    }
+    source = source.replacen(&format!("language \"{}\"", ir.language), &format!("language \"{first}\""), 1);
     if dry_run {
         // NSS fades each picture on its own: a print counts once per picture
         let ours = conv_cons::parity::animated_ms(&parity.0, &parity.1, |f| metrics.source_ms.contains_key(f), engine == "nitroplus");
@@ -307,7 +322,10 @@ pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, dry_run
     if dry_run {
         return Ok(conv_cons::webp::retarget_dirs(&source, dirs));
     }
-    let t = conv_cons::webp::convert_tree(output, dirs, quality).context("converting images to WebP")?;
+    let mut t = conv_cons::webp::convert_tree(output, dirs, quality).context("converting images to WebP")?;
+    // a language layer's pictures go by the base's names: the script names `system\a.png` for `layer/en/system/a.png`
+    let layered: Vec<String> = t.names.iter().filter_map(|n| n.strip_prefix(&format!("{LAYERS}/"))?.split_once('/').map(|(_, rel)| rel.to_string())).collect();
+    t.names.extend(layered);
     println!(
         "  {} images as WebP: {:.1} MB (PNG {:.1} MB); {} too large for WebP kept as PNG",
         t.totals.files,
