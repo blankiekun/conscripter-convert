@@ -5,8 +5,10 @@ Detail behind `docs/new-game.md`, by heading. Commands run from the repository r
 
 ## First contact
 
-- Read other extractors for the format (references, not dependencies): GARbro `ArcFormats/`, arc_unpacker
-  `src/dec/`, vgmstream `doc/FORMATS.md` (`vgmstream-cli -m` checks our audio).
+- Prior work first, as references, not dependencies: fan-translation tools for the game or its engine (they
+  solved the same formats and text), open-source reimplementations of the engine (Committee of Zero's `impacto`
+  for MAGES), extractors: GARbro `ArcFormats/`, arc_unpacker `src/dec/`, vgmstream `doc/FORMATS.md`
+  (`vgmstream-cli -m` checks our audio). Read their code, write our own.
 - Windows game: `research/tools/firstcontact/first_contact.py <install> [--ghidra <export> | --ghidra-run]`
   writes `out/<install name>-first-contact/report.md`: "Known family" (nearest game, readers that carry over;
   console dumps too), engine guesses, imports, files by extension, RTTI; with an export, `hooks.tsv` (candidate
@@ -44,6 +46,21 @@ Follow `xuse/`, `nitroplus/`, `mages/` in `crates/conv-engines/src/`; one game's
   standard unpacker, or a dump at the entry point under wine.
 - Exe notes go in `docs/games/<game>.findings.tsv` (no lint). The export's Function ID analyzer already names
   MSVC CRT functions; read `functions.tsv` before naming by hand.
+
+## Lifting from the exe
+
+What the exe's tables and self-contained functions hold matters; how they work does not. Lift them:
+
+- **Tables**: layouts, button rectangles, timings, text speeds, curves, CG and music lists often sit as constant
+  arrays in the data sections. Find the array through the code that indexes it, then read it from the user's
+  exe with a script; these numbers beat measuring screenshots.
+- **Self-contained functions** (decompression, decryption, name hashing, curves, layout math): call them with
+  `exe_call.py` (`docs/tools.md`, "The exe's own code") for the outputs or a sweep; when the build needs one,
+  port it to Rust from the decompile and test the port against `exe_call.py` outputs. The repo holds our own
+  code only; the decompiled C stays in `local/`.
+- **Command log**: when many script commands stay unclear after the decompile, one `wine_bptrace.py` run with a
+  breakpoint on the dispatcher (`hooks.tsv`) logs every command with its arguments and time; diff it against
+  our trace. It is a wine run: `CLAUDE.md`, "Wine is the last resort".
 
 ## Engine pieces
 
