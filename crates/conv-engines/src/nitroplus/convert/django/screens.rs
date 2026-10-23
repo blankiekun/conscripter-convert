@@ -343,6 +343,7 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         fade_ms: 300,
         outline: Some("#AAAA88".into()),
         row_width: None,
+        gap: -1, // src: exe 00403400 (the pen moves 0x13 = 19 px a character, the font is 20)
     })
 }
 
