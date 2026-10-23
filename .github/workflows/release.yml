@@ -2,9 +2,9 @@ name: release converter and GUI (Windows x64, Linux x64/arm64, macOS arm64/x64)
 on:
   push:
     tags: ['v*'] # v1.0, v0.2.0, …: builds and attaches to the release
-    branches: ['**'] # other pushes only build and test, when the GUI or this file changed
-    # (not applied to tags). Cargo.lock: a run on main saves the Rust cache
-    # the other branches and the tags start from.
+    branches: [main] # main only builds and tests, when the GUI or this file changed
+    # (not applied to tags); a branch is tested by its pull_request run.
+    # Cargo.lock: a run on main saves the Rust cache the PRs and tags start from.
     paths: ['gui/**', '.github/workflows/release.yml', 'Cargo.lock']
   pull_request:
     paths: ['gui/**', '.github/workflows/release.yml', 'Cargo.lock']
