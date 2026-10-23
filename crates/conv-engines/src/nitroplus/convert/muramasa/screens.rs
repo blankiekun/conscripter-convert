@@ -485,9 +485,9 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     // a 16.16 counter at state+0x10 grows by state+0x14, 0x2000 (set in FUN_00442400), the picture is its
     // high word, back to 0 at the count: 8 passes a picture, no pause
     const PASSES: u32 = 0x10000 / 0x2000;
-    // ours: the pass rate follows the display's Present (no interval in the exe); 8 ms makes the ~2 s
-    // loop watched in the original (burning about a second, withering about as long)
-    const PASS_MS: u32 = 8;
+    // src: frame period table 005dcb0c [1,2,4,8,16,20,25,33] filled by FUN_0048c5d0, index [005dcaf0]=4 -> 16 ms;
+    // render loop 0044b3e0 waits FUN_00480750(3,-1,16)
+    const PASS_MS: u32 = 16;
     let frame_ms = vec![PASSES * PASS_MS; 32];
     Some(WaitIcon { image, frame_ms, w: w / 32, h })
 }
