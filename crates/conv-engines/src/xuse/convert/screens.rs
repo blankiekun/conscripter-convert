@@ -52,9 +52,10 @@ impl AssetBank {
         // The intro plays at launch and back from the story alike.
         let movie = self.title_intro()?;
         let openings = [true, false].map(|at_launch| TitleOpening { movie: movie.clone(), at_launch, ..Default::default() }).to_vec();
-        // src: exe 0x459320 (BGM slot 13, looped), 0x45abe0 (Start fades it out over 2000 ms).
+        // src: exe 0x459320 (BGM slot 13, looped), 0x45abe0 (Start fades it
+        // out over 2000 ms, and the screen with a 2000 ms CrossFade, 0x45ac34).
         let bgm = Some(self.bgm(14)?);
-        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, openings, bgm, start_bgm_fade_ms: 2000, ..Default::default() })
+        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, openings, bgm, start_bgm_fade_ms: 2000, start_fade_ms: 2000, ..Default::default() })
     }
 
     /// The title's intro ([`titleintro`]) as a silent movie at 30 fps,

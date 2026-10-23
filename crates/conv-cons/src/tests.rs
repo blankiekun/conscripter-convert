@@ -147,13 +147,13 @@ fn clickable_links_call_their_target() {
 csp %conv_name_plate
 csp %conv_name_text
 print 1
-#FEE092一#FFFFFF行目
-#FEE092学校#FFFFFFに―――
-if ?conv_link_visited[0] == 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FEE092\",\"#FEC95E\"
-if ?conv_link_visited[0] != 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#DCB8FE\",\"#CB95FE\"
+#FFE193一#FFFFFF行目
+#FFE193学校#FFFFFFに―――
+if ?conv_link_visited[0] == 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FFE193\",\"#FFCA5E\"
+if ?conv_link_visited[0] != 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#DDB9FF\",\"#CC96FF\"
 *conv_link1_wait
-if ?conv_link_visited[0] == 0 lsp 6,\":c;>49,1,#FEE092\",107,532
-if ?conv_link_visited[0] != 0 lsp 6,\":c;>49,1,#DCB8FE\",107,532
+if ?conv_link_visited[0] == 0 lsp 6,\":c;>49,1,#FFE193\",107,532
+if ?conv_link_visited[0] != 0 lsp 6,\":c;>49,1,#DDB9FF\",107,532
 lsp 7,\":c;>49,1,#000000\",108,533
 spbtn %conv_link0,1
 print 1
@@ -1073,7 +1073,7 @@ csp 65
 print 1
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
-地#FEE092の文#FFFFFF。\\
+地#FFE193の文#FFFFFF。\\
 dwaveloop 1,\"se\\k001.ogg\"
 dwavestop 1
 bgmfadeout 2000
@@ -1164,12 +1164,12 @@ fn multi_line_text() {
         hang: None,
         continues: false,
     }]);
-    assert!(emit(&s).contains("一行目\n　#FEE092abc #FFFFFF\n三行目\\\n"));
+    assert!(emit(&s).contains("一行目\n　#FFE193abc #FFFFFF\n三行目\\\n"));
 }
 
 #[test]
 fn links_are_coloured() {
-    assert_eq!(with_markup("あいうえお", &[link(1, 2, None), link(3, 9, None)], &[], &[]), "あ#FEE092いう#FFFFFFえお");
+    assert_eq!(with_markup("あいうえお", &[link(1, 2, None), link(3, 9, None)], &[], &[]), "あ#FFE193いう#FFFFFFえお");
     assert_eq!(with_markup("a#b", &[], &[], &[]), "a＃b");
 }
 
@@ -1273,7 +1273,7 @@ fn single_byte_runs_keep_their_pairs() {
     assert_eq!(align_single_bytes(" xyz続"), " xyz 続");
     assert_eq!(align_single_bytes("a b続"), "a b 続");
     assert_eq!(align_single_bytes("ｼｬﾄﾞｳshadow）"), "ｼｬﾄﾞｳshadow ）");
-    assert_eq!(align_single_bytes("x#FEE092y#FFFFFF。"), "x #FEE092y #FFFFFF。");
+    assert_eq!(align_single_bytes("x#FFE193y#FFFFFF。"), "x #FFE193y #FFFFFF。");
     assert_eq!(align_single_bytes("ab c"), "ab c ");
 }
 
@@ -1561,7 +1561,7 @@ fn style_colours() {
     );
     assert_eq!(
         with_markup("あいうえ", &[link(2, 1, None)], &[], &[st(0, 4, Some(0x00ff00)), st(3, 1, Some(0x0000ff))]),
-        "#00FF00あい#FEE092う#0000FFえ#FFFFFF"
+        "#00FF00あい#FFE193う#0000FFえ#FFFFFF"
     );
     assert_eq!(with_markup("あい", &[], &[], &[st(0, 2, None)]), "あい");
     let sized = |start, len, p| TextStyle { start, len, size_percent: Some(p), ..Default::default() };
@@ -1581,9 +1581,9 @@ fn ruby_markup() {
     // Inside a link, but not across its edge or a line.
     assert_eq!(
         with_markup("あ獄い\nう", &[link(0, 3, None)], &[r(1, 1, "ひとや"), r(2, 3, "x")], &[]),
-        "#FEE092あ(獄/ひとや)い#FFFFFF\nう"
+        "#FFE193あ(獄/ひとや)い#FFFFFF\nう"
     );
-    assert_eq!(with_markup("あいう", &[link(1, 2, None)], &[r(0, 2, "x")], &[]), "あ#FEE092いう#FFFFFF");
+    assert_eq!(with_markup("あいう", &[link(1, 2, None)], &[r(0, 2, "x")], &[]), "あ#FFE193いう#FFFFFF");
     // ONScripter reads the markup one byte at a time.
     assert_eq!(align_single_bytes("a(獄/ひとや)"), "a (獄/ひとや)");
 }

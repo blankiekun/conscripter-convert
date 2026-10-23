@@ -47,6 +47,8 @@ pub struct TitleScreen {
     /// Full-screen picture (logo included).
     pub background: String,
     pub fade_ms: u32,
+    /// Start's fade to black, when it differs from `fade_ms` (0 = `fade_ms`).
+    pub start_fade_ms: u32,
     pub buttons: Vec<TitleButton>,
     /// Button strips have a third cell, shown while the mouse button is
     /// held on the button.
@@ -92,6 +94,13 @@ pub struct TitleScreen {
     /// Buttons and pictures moving by themselves at rest (続・殺戮のジャンゴ's
     /// buttons jolting now and then, its tumbleweed rolling by).
     pub motions: Vec<TitleMotion>,
+}
+
+impl TitleScreen {
+    /// Start's fade to black.
+    pub fn start_fade(&self) -> u32 {
+        if self.start_fade_ms == 0 { self.fade_ms } else { self.start_fade_ms }
+    }
 }
 
 /// [`TitleScreen::openings`]: a silent movie of the title coming up, ending
