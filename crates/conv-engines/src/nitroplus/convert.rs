@@ -762,7 +762,7 @@ type Ramp = (u32, u32, Option<(u8, u32)>);
 type Tempo = fn(&Value) -> Option<(u8, u32)>;
 
 /// An NSS tempo as [`Op::MoveEase`]'s (ease, exponent), the exe's
-/// curves (`apply_tempo`, `research/nitroplus/builtins.md`): `Axl1`-`3`
+/// curves (apply_tempo 00449f40, run by research/nitroplus/tempo_exe.py; test `tempos_are_the_exes`): `Axl1`-`3`
 /// t^2-t^4, `Dxl1`-`3` 1-(1-t)^2-^4, the sine ones as eases 4-7; any
 /// other (`null` too) straight: `None`.
 fn tempo(v: &Value) -> Option<(u8, u32)> {
