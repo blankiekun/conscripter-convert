@@ -56,7 +56,8 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// (`function_textbox.nut`; a 25 px pitch in the original), down to the
 /// click icon at 500: 12 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
-// src: function_textbox.nut text0 (280 wide, font 20, rowSpace 1); text_drop 2: shot en/orig-page1
+// src: function_textbox.nut text0 (280 wide, font 20, rowSpace 1)
+// ours: text_drop 2, the gap between the two renderers' glyph placement (shot en/orig-page1), no exe constant
 pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, diesel_shake: true, diesel_transition: true, fade_tempo: Some(diesel_tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS_EN), ..MURAMASA };
 
 /// The port's tempo of a `Fade` or `Transition` (its `DrawTransition`), as
