@@ -307,7 +307,10 @@ pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, dry_run
     if dry_run {
         return Ok(conv_cons::webp::retarget_dirs(&source, dirs));
     }
-    let t = conv_cons::webp::convert_tree(output, dirs, quality).context("converting images to WebP")?;
+    let mut t = conv_cons::webp::convert_tree(output, dirs, quality).context("converting images to WebP")?;
+    // a language layer's pictures go by the base's names: the script names `system\a.png` for `layer/en/system/a.png`
+    let layered: Vec<String> = t.names.iter().filter_map(|n| n.strip_prefix(&format!("{LAYERS}/"))?.split_once('/').map(|(_, rel)| rel.to_string())).collect();
+    t.names.extend(layered);
     println!(
         "  {} images as WebP: {:.1} MB (PNG {:.1} MB); {} too large for WebP kept as PNG",
         t.totals.files,
