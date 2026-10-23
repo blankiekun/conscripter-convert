@@ -26,6 +26,8 @@ run "doclint (template headings, Status length)" python3 -I research/tools/docli
 eng=$(git diff --name-only "$base"...HEAD -- 'crates/conv-engines/src/*' | cut -d/ -f4 | sort -u | tr '\n' ' ')
 if [ -n "$eng" ] && [ -z "$(git diff --name-only "$base"...HEAD -- 'docs/games/*.md')" ]; then
     fail=1; echo "- **engine code changed (${eng% }) but no docs/games/*.md**: update the game's Status"; fi
+# numbers added to an engine converter with no source comment (a flag, not a failure)
+python3 -I research/tools/source_lint.py "$base" | sed 's/^\(.*\)$/- **no source: \1**: exe address or `\/\/ ours: <reason>` (docs\/new-game.md, step 12)/'
 # a change to an engine's sync code with no change to its tests (a flag, not a failure)
 python3 -I research/tools/sync_check.py "$base" | sed 's/^\(.*\)$/- **\1**: add a test of the composed output, or say in the body why none/'
 echo; echo "## tests/snapshot.sh --diff $base"
