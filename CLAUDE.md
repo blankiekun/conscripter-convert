@@ -70,7 +70,7 @@ Machine-local facts go in your memory.
   `research/tools/headless-run.sh` (hook `emu_run.py`): scratch prefix
   with real user folders, `LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8`, reach
   the moment by patching scripts or saves; stop wine when done.
-- **No agent past 100k context** (2026-10-19): at ~80k push the WIP,
+- **No agent past 120k context** (2026-10-23): at ~100k push the WIP,
   write HANDOFF.md in your worktree, report, stop (hook
   `context_cap.py`). Only a task planned over the cap before dispatch
   goes on.
