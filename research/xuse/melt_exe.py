@@ -11,7 +11,7 @@ its port against.
   seeds it from the clock, srand(_time64) at 0x407150);
 - 0x4458e0: the draw, on a 16 x 12 picture whose pixel holds its row + 1
   (0: the new picture shows), edge from seed 1, acceleration of 255, at
-  progress 0, 1/4, 1/2, 3/4 (16.16).
+  progress 1/2, 5/8, 3/4, 7/8 (16.16).
 """
 import struct
 import sys

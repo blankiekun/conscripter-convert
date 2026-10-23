@@ -16,10 +16,8 @@ Open bugs:
   `digit.png` at (492, 173), `0x488f30`).
 - Hide (button and right-click) also hides the link words, bars and
   name plate.
-- Values still not from the exe: the chapter history greys entries
-  from a runtime index (`+0x19c`, `0x4682a0`; ours all white); the
-  Melt transition's edge curve (spline `0x445310`/`0x4458e0`/`0x4451e0`,
-  ours fitted to footage).
+- Value still not from the exe: the chapter history greys entries
+  from a runtime index (`+0x19c`, `0x4682a0`; ours all white).
 - Unchecked: that `arc.nsa` (about 1.2 GB) loads in the web build
   (else split the voices into `arc1.nsa`), and that saves, thumbnails
   and `kidoku.dat` persist there.

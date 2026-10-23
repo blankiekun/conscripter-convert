@@ -467,7 +467,7 @@ fn transition_styles() {
         Op::EndTransition,
         begin(TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 }),
         Op::EndTransition,
-        begin(TransitionStyle::Melt { stretch_percent: 71 }),
+        begin(TransitionStyle::Melt { speed: 128 }),
         Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
     ]);
     let text = emit(&s);
@@ -475,7 +475,7 @@ fn transition_styles() {
 effect 2,16,500
 effect 3,17,500
 effect 4,14,1000
-effect 5,99,1000,\"cons_warp.dll/warp\\melt_71_1.png,33\"
+effect 5,99,1000,\"cons_warp.dll/warp\\melt_128_1.png,33\"
 effect 6,99,1000,\"cons_warp.dll/warp\\slide_0_-1_0.png,2\"
 effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
 ";

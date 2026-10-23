@@ -1348,8 +1348,8 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
     }
 }
 
-/// cons_melt's seed for the melting edge: the plugin picked a new one
-/// each time, a map keeps one.
+/// MSVC rand()'s seed for the melting edge.
+// ours: fixed seed, the exe seeds rand from the clock (srand(_time64) 0x407150)
 const MELT_SEED: u32 = 1;
 
 /// The warp map that draws a transition style (with no mask picture):
@@ -1358,7 +1358,7 @@ const MELT_SEED: u32 = 1;
 fn warp_kind(style: TransitionStyle) -> Option<warp::Kind> {
     Some(match style {
         TransitionStyle::Flip { horizontal, grow } => warp::Kind::Flip { axis: u8::from(!horizontal), layer: u8::from(!grow) },
-        TransitionStyle::Melt { stretch_percent } => warp::Kind::Melt { stretch: stretch_percent, seed: MELT_SEED },
+        TransitionStyle::Melt { speed } => warp::Kind::Melt { speed, seed: MELT_SEED },
         TransitionStyle::Cube { dx, dy } => warp::Kind::Cube { dx, dy },
         TransitionStyle::Wave { direction, amplitude, waves } => warp::Kind::Wave { direction, amplitude, waves },
         TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy } if dx == 0 || dy == 0 => return None,

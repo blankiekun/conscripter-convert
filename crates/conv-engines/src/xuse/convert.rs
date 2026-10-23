@@ -3358,19 +3358,11 @@ fn transition_style(sub: u16) -> TransitionStyle {
         // off, the old picture collapsing into a line (one frame of it
         // filmed under wine); drawn as a vertical flip.
         TRANSITION_TV_POWER_SWITCH => TransitionStyle::Flip { horizontal: false, grow: false },
-        // Trans_MeltDown (setup 0x445e50, draw 0x4458e0; filmed 45 under
-        // wine): a Doom-style melt. The old picture's columns fall away
-        // behind a smooth random edge (a spline through 11 random points,
-        // 0x445310, clipped at 0: flat stretches between bumps); the
-        // filmed edge fits h * ((p - d) / (1 - d))^2 with d 0.2-0.3. The
-        // byte 45 0, 46 128, 47 255 (not a colour) sets the per-row
-        // acceleration (a/255)^2 * 0.45 + 0.03 (0x4451e0) that stretches
-        // the falling columns.
-        45..=47 => {
-            let a = [0.0f64, 128.0, 255.0][usize::from(sub - 45)] / 255.0;
-            // guess: the scale to our stretch (Status, "Accuracy").
-            TransitionStyle::Melt { stretch_percent: ((a * a * 0.45 + 0.03) * 500.0).round() as u32 }
-        }
+        // Trans_MeltDown (setup 0x445e50, draw 0x4458e0): a Doom-style
+        // melt, ported in conv-cons warp.rs. The byte (not a colour) sets
+        // the fall's acceleration (0x4451e0).
+        // src: exe 0x445e50 (45 0, 46 128, 47 255).
+        45..=47 => TransitionStyle::Melt { speed: [0, 128, 255][usize::from(sub - 45)] },
         27 => TransitionStyle::Mosaic,
         // Dot4x4: a dotted cross-fade; Dissolve passes through white (both
         // seen in the original under wine, 0004.cd #13 slowed to 8 s).
@@ -3642,8 +3634,8 @@ mod tests {
         assert_eq!(transition_style(29), TransitionStyle::Cube { dx: 1, dy: 0 });
         assert_eq!(transition_style(32), TransitionStyle::Flip { horizontal: true, grow: true });
         assert_eq!(transition_style(35), TransitionStyle::Flip { horizontal: false, grow: false });
-        assert_eq!(transition_style(45), TransitionStyle::Melt { stretch_percent: 15 });
-        assert_eq!(transition_style(47), TransitionStyle::Melt { stretch_percent: 240 });
+        assert_eq!(transition_style(45), TransitionStyle::Melt { speed: 0 });
+        assert_eq!(transition_style(47), TransitionStyle::Melt { speed: 255 });
         assert_eq!(transition_name(20), "Slide out");
     }
 
