@@ -181,8 +181,8 @@ impl Motion {
         if mode == Some(1)
             && let Some((a, b)) = self.spline(f, end)
         {
-            // FUN_00197710, in floats as the exe works it out
             let (from, to, u) = (from as f32, to as f32, u as f32);
+            // src: FUN_00197710, in floats as the exe works it out
             return Some(f64::from(from + u * ((to - from) - (b + a + a) + u * (a * 3.0 + u * (b - a)))));
         }
         Some(from + (to - from) * u)
@@ -217,6 +217,7 @@ impl Motion {
             points.push(value(last)?);
         }
         let n = points.len();
+        // src: FUN_001972c0 (linear under 3 points)
         if n < 3 {
             return None;
         }
@@ -225,16 +226,19 @@ impl Motion {
         // right side / diag belongs: its values, so its curve.
         let d: Vec<f32> = points.windows(2).map(|w| w[1] - w[0]).collect();
         let (mut diag, mut rhs) = (vec![0f32; n], vec![0f32; n]);
+        // src: FUN_001972c0's elimination, step for step
         (diag[1], rhs[1]) = (4.0, d[1] - d[0]);
         for i in 2..n - 1 {
+            // src: FUN_001972c0
             rhs[i] = (d[i] - d[i - 1]) - diag[i - 1] * (1.0 / diag[i - 1]);
-            diag[i] = 4.0 - 1.0 / diag[i - 1];
+            diag[i] = 4.0 - 1.0 / diag[i - 1]; // src: FUN_001972c0
         }
         let mut c = vec![0f32; n];
         for i in (1..n - 1).rev() {
             c[i] = (rhs[i] - c[i + 1]) / diag[i];
         }
         let j = point_of[k - 1];
+        // src: FUN_001972c0 (c is 0 past the last point)
         Some((c[j], c.get(j + 1).copied().unwrap_or(0.0)))
     }
 

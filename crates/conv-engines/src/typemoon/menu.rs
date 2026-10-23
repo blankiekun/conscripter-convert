@@ -88,7 +88,7 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) 
         row,
         row_hover,
         // src: exe 0x14f240 (FUN_001a62c0's 1280 / 640 × 100 × 0.827 = 165 by
-        // 720 / 448 × 53 × 1.092 = 93, scaled 1.15: 190 × 107)
+        // 720 / 448 × 53 × 1.092 = 93, scaled 1.15: 190 × 107; exe 0x14f240)
         thumb: Rect { x: tx, y: ty, w: 190, h: 107 },
         // guess: the date where the picture digits are, in the font
         date: text((lx, ty), 20, 20, 1),
