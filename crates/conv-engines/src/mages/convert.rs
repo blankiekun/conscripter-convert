@@ -382,29 +382,29 @@ fn tag_label(scene: &str, tag: &str) -> String {
     format!("{}_{tag}", scene_label(scene))
 }
 
-/// The text window: `meswin.png` across the bottom of the screen, above
-/// the button bar. Its panel is x 77-883, y 28-152, with round ends; the
-/// text fills x 120-840, y 40-144: four lines of 30, enough for the
-/// longest message (109 characters with the name).
+/// The text window: `meswin.png` across the bottom of the screen, as the
+/// eboot's window type 0 (adv.txt's `MainWindow0 :Type 0`) draws it:
+/// SystemData 42's top-left 960×182 centred at (480, 450); the message
+/// from (111, 408) in the 22-pixel font, lines 22 + 12 apart. Four lines
+/// of 30, enough for the longest message (109 characters with the name).
 pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
-    let (image, w, h) = assets.window().unwrap_or_default();
-    let (w, h) = (w as i32, h as i32);
-    // ours: centred, above the button bar. src: meswin.png (measured):
-    // text_x, text_y; the scripts: rows, columns (the longest message).
-    // guess: font_size, line_gap. The eboot's message layout is not read.
-    let x = (SCREEN_W - w) / 2;
-    let y = SCREEN_H - h - 16;
+    let (image, _, _) = assets.window().unwrap_or_default();
+    // src: exe 0x81050980 (window type 0: picture 0x2a, centre (480, 450),
+    // 960×182), 0x8112cdfc (message at the window offset + (0x6f, 0x198)),
+    // 0x8104a120 (font cell 22.0), 0x81009c04 (line gap scale × 24 × 0.5).
+    // The scripts: rows, columns (the longest message).
+    let (x, y) = (480 - 960 / 2, 450 - 182 / 2);
     TextWindow {
         wait_icon_at: None,
         image,
         x,
         y,
-        text_x: x + 120,
-        text_y: y + 40,
+        text_x: 111,
+        text_y: 408,
         columns: 30,
         rows: 4,
-        font_size: 23,
-        line_gap: 4,
+        font_size: 22,
+        line_gap: 12,
         vertical: false,
         name_plate: None,
     }
