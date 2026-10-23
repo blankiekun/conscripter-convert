@@ -27,8 +27,20 @@ Paused 2026-10-20.
    (7); Window `:Time` with `:Visible 1` (2).
 3. Not converted: save-data check at boot; OP00 replayed from the title
    (probably an idle timeout).
-4. Unchecked against the original: text window place, character
-   heights, eye catch speed, skip dialog font sizes.
+4. Unchecked against the original: character heights, eye catch
+   speed.
+5. Off the eboot (goal phase 4, PR #651): settings row 5 cells sit
+   36-79 px right of bg_config_01's words (0x8107145c); the knob's
+   centre is 514 + level*258/100 while CONscripter's slider has one
+   travel (ours rides the fill line 508..776); the speaker's name is
+   drawn apart at (176, 373) in NameFontScale 0.8125 (0x8112ce0c),
+   ours stays in the message; letter advance 23 (conv-cons adds 1 px
+   for every game) vs the eboot's 22.
+6. EffectQuake: `mages::quake` reproduces the eboot's offsets (checked
+   under exe_call), but 0.txt still uses screenshake's sine: the
+   eboot's 10-point path needs an engine mode taking a path, or keyed
+   screen motion. Not yet read from the eboot: `:Roll` (0x8103d53c),
+   particles 51/52/54, wave scale.
 
 ## Scope
 
