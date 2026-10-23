@@ -226,7 +226,11 @@ impl<'a> Compiler<'a, '_> {
     /// the screen; the options in black, vertical, one per plate.
     pub(super) fn vertical_choice_style(&mut self, n: i64) -> Option<ChoiceStyle> {
         // src: function_select.nss SetChoiceBase ($SelectX_plus 100, + 50, SetFont 20 #000000)
-        // guess: MARGIN (the text 40 px down its plate) and the red under the pointer, not filmed
+        // ours: MARGIN, the text 40 px down its plate: the original's is a child of the plate at its
+        // origin (CreateText inherit, auto size, font "@ＭＳ 明朝"), Rotate z 90, Move x -11; where
+        // the exe's auto size and rotation put it is not decoded
+        // ours: 0xA00000 under the pointer: the original keeps the text #000000 (SetFont) and swaps
+        // the plate to Select002 (MouseOver/hit, near white); ChoicePlates has no vertical layout
         const PITCH: i64 = 100;
         const FONT: i64 = 20;
         const MARGIN: i64 = 40;
