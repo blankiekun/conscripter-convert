@@ -59,6 +59,9 @@ Setup and dispatch: `docs/lead-new-game.md`, sections 3-4.
 12. **Pictures, sound, transitions** with real durations; sprite references checked against asset names. For an
     effect ONScripter can't draw, try existing commands first (masks, `effect` numbers, `spfilter`), then step
     13. Done: no missing files in the trace, transitions timed from the code.
+    Every number that copies the original's behaviour (place, duration, colour, size, curve) names its source on its
+    line or the comment above: an exe address, a data file, or `// ours: <reason>`. `tests/pr-report.sh` flags added
+    ones without (`research/tools/source_lint.py`); values already on main get a source when touched.
 13. **Engine additions**, only for what the engine's general pieces (`spmotion` keys, `spcurve` tables,
     `cons_rule.dll` masks, Lua) can't take as data. Code in `engine/src/cons/`, working in the web build, kept
     in saves, listed in `COMMANDS.md`; the engine PR goes first (`CLAUDE.md`, "Rules"). Done: submodule on a

@@ -19,7 +19,7 @@ the handoff file. Ask for a missing one before starting; at done or budget, stop
   passed 130k context).
 - Machines do the mechanical checks (CI or a hook, not a checker agent); a task done twice becomes a one-command
   script. Verification depth follows CLAUDE.md's testing rule.
-- Size an item to finish under ~100k context (CLAUDE.md, "No agent past 100k context").
+- Size an item to finish under ~120k context (CLAUDE.md, "No agent past 120k context").
 - CLAUDE.md holds build/test commands and the conventions agents get wrong.
 
 ## Briefs
@@ -106,7 +106,7 @@ the handoff file. Ask for a missing one before starting; at done or budget, stop
 
 `.claude/hooks/bash_guards.py` (every Bash call; self-test `--test`) refuses `pkill -f`/`pgrep -f`, a
 `git commit` with a Claude-Session line, and heavy commands (cargo, snapshot, pr-report, engine builds,
-convert-game) under 6 GiB free memory. `.claude/hooks/context_cap.py` tells an agent past 80k context to hand off.
+convert-game) under 6 GiB free memory. `.claude/hooks/context_cap.py` tells an agent past 100k context to hand off.
 
 ## Session mechanics
 

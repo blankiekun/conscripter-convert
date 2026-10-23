@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PostToolUse hook: tell a subagent past 80k tokens of context to hand off.
+"""PostToolUse hook: tell a subagent past 100k tokens of context to hand off.
 
-The cap (user, 2026-10-19): no agent past 100k context. At 80k the agent
+The cap (user, 2026-10-19; raised 2026-10-23): no agent past 120k context. At 100k the agent
 commits/pushes its WIP, writes HANDOFF.md in its worktree, reports and
 stops; the lead starts a fresh agent from that file. The main session
 (the lead) isn't checked. An agent planned over the cap may go on: its
@@ -11,7 +11,7 @@ import json
 import os
 import sys
 
-WARN, CAP = 80_000, 100_000
+WARN, CAP = 100_000, 120_000
 
 
 def context(path):
@@ -41,7 +41,7 @@ def main(hook):
     n = context(path)
     if n < WARN:
         return None
-    what = "PAST THE 100k CAP" if n >= CAP else "near the 100k cap"
+    what = "PAST THE 120k CAP" if n >= CAP else "near the 120k cap"
     return (f"Context is {n // 1000}k tokens, {what}. Unless your prompt plans this task over the cap: "
             "commit and push your WIP now, write HANDOFF.md in your worktree (done, in progress, running "
             "jobs, next), report to the lead and stop. Start long runs with nohup/setsid so they outlive you.")
