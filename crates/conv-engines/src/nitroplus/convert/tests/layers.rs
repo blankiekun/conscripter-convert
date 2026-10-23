@@ -130,7 +130,7 @@ scene a.nss
 
 #[test]
 fn a_song_line_types_out_from_its_enter() {
-    // 続・殺戮のジャンゴ's hooks (django/song.rs): 0, 1, 2 letters, 125 ms each.
+    // 続・殺戮のジャンゴ's hooks (django/song.rs): 0, 1, 2 letters, 115 ms each (100 ms a dot + 15 ms text interval, django/song.rs).
     let story = r#"
 scene a.nss
 {
@@ -143,8 +143,8 @@ scene a.nss
     static GAME: Game = Game { call: DJANGO.call, ..Game::PLAIN };
     let files = nss_files(LIBRARY, &[("a.nss", story)]);
     let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut fake()).unwrap();
-    let at = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 3, frame_ms: 125, looped: false, .. }));
-    assert!(at.is_some_and(|i| c.ops[i + 1..].iter().any(|op| matches!(op, Op::Wait { ms: 250 }))), "{:?}", c.ops);
+    let at = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 3, frame_ms: 115, looped: false, .. }));
+    assert!(at.is_some_and(|i| c.ops[i + 1..].iter().any(|op| matches!(op, Op::Wait { ms: 230 }))), "{:?}", c.ops);
 }
 
 #[test]
