@@ -2,6 +2,7 @@
 //! lead to, and the story flags set and tested at run time.
 
 use super::*;
+use conv_core::ir::ChoicePlates;
 
 /// Branches that end with different pictures on screen (the favour
 /// screen adds a picture in one branch, and every sprite after it moves
@@ -223,29 +224,32 @@ impl<'a> Compiler<'a, '_> {
 
     /// 装甲悪鬼村正's choice plates of `SetChoiceBase` (function_select.nss):
     /// `n` vertical plates 100 px apart, the first at the right, centred on
-    /// the screen; the options in black, vertical, one per plate.
+    /// the screen; the options in black, vertical, one per plate. The plate
+    /// under the pointer is Select002; the chosen one Select003 for a
+    /// second (ChoiceFade), then all fade out.
     pub(super) fn vertical_choice_style(&mut self, n: i64) -> Option<ChoiceStyle> {
-        // src: function_select.nss SetChoiceBase ($SelectX_plus 100, + 50, SetFont 20 #000000)
+        // src: function_select.nss SetChoiceBase ($SelectX_plus 100, + 50, SetFont 20 #000000,
+        // MouseUsual Select001, MouseOver Select002, Fade 500); ChoiceFade (img2 Select003, Wait 1000, Fade 500)
         // ours: MARGIN, the text 40 px down its plate: the original's is a child of the plate at its
         // origin (CreateText inherit, auto size, font "@ＭＳ 明朝"), Rotate z 90, Move x -11; where
         // the exe's auto size and rotation put it is not decoded
-        // ours: 0xA00000 under the pointer: the original keeps the text #000000 (SetFont) and swaps
-        // the plate to Select002 (MouseOver/hit, near white); ChoicePlates has no vertical layout
         const PITCH: i64 = 100;
         const FONT: i64 = 20;
         const MARGIN: i64 = 40;
-        let (plate, w, h) = self.assets.image("cg/sys/select/select001.png")?;
+        const PLATES: [&str; 3] = ["cg/sys/select/select001.png", "cg/sys/select/select002.png", "cg/sys/select/select003.png"];
+        let (plate, w, h) = self.assets.image(PLATES[0])?;
         let (w, h) = (w as i64, h as i64);
         let first = PITCH * (n - 2) + 50 + self.game.screen.0 / 2;
         let y = (self.game.screen.1 - h) / 2;
         let parts: Vec<_> = (0..n).map(|i| (plate.clone(), first - PITCH * i, y, 1000)).collect();
         let (image, wx, wy) = self.assets.composite(&parts)?;
+        let text_x = first + (w - FONT) / 2;
         let window = TextWindow {
             wait_icon_at: None,
             image,
             x: wx as i32,
             y: wy as i32,
-            text_x: (first - PITCH * (n - 1) + (w - FONT) / 2) as i32,
+            text_x: (text_x - PITCH * (n - 1)) as i32,
             text_y: (y + MARGIN) as i32,
             columns: ((h - 2 * MARGIN) / FONT) as u32,
             rows: n as u32,
@@ -254,7 +258,22 @@ impl<'a> Compiler<'a, '_> {
             vertical: true,
             name_plate: None,
         };
-        Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0x000000, plates: None })
+        let (image, _, _) = self.assets.strip(&PLATES)?;
+        let plates = ChoicePlates {
+            image,
+            x: first as i32,
+            y: y as i32,
+            step: PITCH as i32,
+            text_x: text_x as i32,
+            text_dy: MARGIN as i32,
+            font_size: FONT as u32,
+            colour: "#000000".into(),
+            fade_ms: 500,
+            shot: None,
+            vertical: true,
+            chosen_ms: 1000,
+        };
+        Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) })
     }
 
     /// Starts a fork; true if it's the outermost one (nested forks share

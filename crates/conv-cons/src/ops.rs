@@ -671,7 +671,7 @@ impl<'a> Emitter<'a> {
             if indent > 0 {
                 writeln!(out, "indent 0").unwrap();
             }
-            let clickable = &clickable[..clickable.len().min(LINK_SPRITE_COUNT)];
+            let clickable = &clickable[..clickable.len().min(LINK_UNDERLINE_SPRITES.len() / 2)];
             let window = window.as_ref();
             // Each word again as a sprite exactly over the text (the
             // button), and its underline, in the colours of its state.

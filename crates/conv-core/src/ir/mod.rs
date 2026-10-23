@@ -910,10 +910,13 @@ pub struct ChoiceStyle {
 /// a plate per option, `step` below the one before from (`x`, `y`), its
 /// text centred about `text_x`, `text_dy` below the plate's top, in
 /// `font_size` px `colour` (#RRGGBB) text. The plates and texts fade in
-/// and out over `fade_ms`.
+/// and out over `fade_ms`. `vertical` (装甲悪鬼村正's): each plate
+/// `step` left of the one before, its text in a column from `text_x`
+/// (the first plate's; the column's left), `text_dy` below the top.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChoicePlates {
-    /// Two cells: at rest, under the pointer.
+    /// Two cells: at rest, under the pointer; a third, the chosen plate,
+    /// with `chosen_ms`.
     pub image: String,
     pub x: i32,
     pub y: i32,
@@ -925,6 +928,9 @@ pub struct ChoicePlates {
     pub fade_ms: u32,
     /// The chosen plate is shot instead of fading out.
     pub shot: Option<ChoiceShot>,
+    pub vertical: bool,
+    /// The chosen plate shows the third cell this long before the fade.
+    pub chosen_ms: u32,
 }
 
 /// [`ChoicePlates`]' shot (続・殺戮のジャンゴ's `ChoiceA02`): `sound`
