@@ -319,7 +319,7 @@ impl<'a> Compiler<'a, '_> {
     /// `Wait`s ([`shake_keys`]).
     fn shake_loop(&mut self, name: &str, body: &'a [Stmt], made: &[(String, String)]) {
         // (ms, from, to) a segment, 0 px for a wait.
-        let mut target = None;
+        let (mut target, mut step) = (None, None);
         let mut parts = Vec::new();
         let calls: Vec<(&String, &Vec<Expr>)> = body.iter().filter_map(|s| if let StmtKind::Expr(Expr::Call { name, args }) = &s.kind { Some((name, args)) } else { None }).collect();
         for (i, &(call, args)) in calls.iter().enumerate() {
@@ -335,13 +335,15 @@ impl<'a> Compiler<'a, '_> {
                     if target.is_none() {
                         target = self.targets(&v[0], made).into_iter().next().or_else(|| Some(self.object_name(&v[0])));
                     }
-                    parts.push((int(1) as u32, (int(2), int(3)), (int(4), int(5))));
+                    // shortcut: one step for the loop, the first Shake's
+                    step.get_or_insert(super::shake::exe_step(v.get(6).map_or(0, Value::int)));
+                    parts.push((int(1) as u32, (int(2), int(3)), (int(4), int(5)), v.get(7).and_then(super::tempo)));
                 }
-                _ => parts.push((int(0) as u32, (0, 0), (0, 0))),
+                _ => parts.push((int(0) as u32, (0, 0), (0, 0), None)),
             }
         }
         let Some(target) = target else { return };
-        let keys = shake_keys(&parts).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None }).collect();
+        let keys = shake_keys(&parts, step.unwrap_or(16)).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None }).collect();
         self.set_loop(name, &target, keys, 0);
     }
 

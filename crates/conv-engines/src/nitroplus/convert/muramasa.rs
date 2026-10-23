@@ -48,7 +48,7 @@ const BOOT_LOGOS_EN: &str = r#"function BootLogos()
 	Delete("背景*");
 }"#;
 
-pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, loaded_textures: true, fade_tempo: Some(super::tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS), ..Game::PLAIN };
+pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, loaded_textures: true, fade_tempo: Some(super::tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS), ..Game::PLAIN };
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
 /// scripts): its port writes the vertical text boxes horizontally, 280

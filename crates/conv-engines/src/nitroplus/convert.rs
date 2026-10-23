@@ -215,14 +215,11 @@ pub struct Game {
     /// (a box with a face window, then the box without one) when the
     /// game's text has `<FW img=''>`.
     box_text: &'static [BoxText],
-    /// `Shake` jolts to and fro every 1000 ÷ (`n` × 0.06) ms, along its
-    /// tempo (続・殺戮のジャンゴ's and 装甲悪鬼村正's exes; [`ScreenEffect::Jolt`]).
-    shake_jolts: bool,
     /// How `Fade` and `DrawTransition` ease by their tempo
     /// ([`Op::TransitionEase`]): 装甲悪鬼村正's and 続・殺戮のジャンゴ's exes
     /// as [`tempo`]; `None`, straight.
     fade_tempo: Option<Tempo>,
-    /// With `shake_jolts`: Full Metal Daemon Muramasa's English port's
+    /// Full Metal Daemon Muramasa's English port's
     /// `Shake` (a Diesel `CEffectShake`), turning every (1000 ÷ `n`) × 20
     /// ms, the size straight (its tempo is the swings' own).
     diesel_shake: bool,
@@ -270,7 +267,6 @@ impl Game {
         story_end: &[],
         horizontal_box: None,
         box_text: &[],
-        shake_jolts: false,
         diesel_shake: false,
         diesel_transition: false,
         fade_tempo: None,

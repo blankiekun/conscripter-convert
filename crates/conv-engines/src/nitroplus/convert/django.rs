@@ -32,7 +32,6 @@ pub const DJANGO: Game = Game {
     choice_style,
     story_end: &["InitBGM", "TitleCongratulations"],
     menus: screens::menus,
-    shake_jolts: true,
     fade_tempo: Some(super::tempo),
     boot_logos: ("boot.nss", BOOT_LOGOS),
     title_opening: ("TitleSet", extras::CLEARED, "$Logo"), // src: boot.nss main (TitleLogo, then TitleSet)
