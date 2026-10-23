@@ -178,8 +178,9 @@ pub struct Game {
     /// chapters.
     chapter_objects: bool,
     /// Horizontal text starts this far below its box's top (the line's
-    /// ruby space above it): 続・殺戮のジャンゴ's first row of ＭＳ Ｐ
-    /// ゴシック is drawn from y 480 in `box00` at 472 (under wine). 0 for
+    /// ruby space above it): 続・殺戮のジャンゴ's baseline sits 8 + 15 px
+    /// below its box (ruby space and ＭＳ ゴシック's ascent, from the
+    /// exe), CONscripter's 16 below the text's top with ipag. 0 for
     /// 装甲悪鬼村正, whose text is vertical; 2 for its English port, whose
     /// lines start 2 px lower than CONscripter's from the same place
     /// ([`Game::box_text`] too; measured in the original).

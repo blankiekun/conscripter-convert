@@ -24,7 +24,10 @@ pub const DJANGO: Game = Game {
     relative_children: true,
     loaded_textures: true,
     chapter_objects: true,
-    text_drop: 7, // src: shot (wine, not kept) box00's first row drawn from y 480, its box at 472
+    // src: the exe's baseline 8 + 15 below the box (00461000: row top = trunc(lfHeight 18 x ruby 0.45),
+    // 0042efb0: glyph top = row top + tmAscent - gmptGlyphOrigin.y; ＭＳ ゴシック's 220/256 em ascent at
+    // lfHeight 18 gives tmAscent 15) less ipag.ttf's SDL_ttf ascent at 18 px (16, font height 18)
+    text_drop: 8 + 15 - 16,
     family: true,
     string_vars: true,
     flags: extras::flags,
