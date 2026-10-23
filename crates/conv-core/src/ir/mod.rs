@@ -37,9 +37,9 @@ pub enum TransitionStyle {
     /// eased by the progress to the power `curve`.
     Zoom { style: ZoomStyle, max_percent: u32, curve: u8 },
     /// The old picture melts down off the screen behind a wavy edge, each
-    /// column falling faster and faster; a falling column is stretched by
-    /// up to `stretch_percent` more.
-    Melt { stretch_percent: u32 },
+    /// column falling faster and faster, the more the higher `speed`
+    /// (Xuse's Trans_MeltDown byte 0-255).
+    Melt { speed: u8 },
     /// The pictures are two faces of a cube as large as the screen,
     /// turning a quarter turn, seen straight on: the new face comes in
     /// moving in direction `dx`, `dy` (one of them ±1), both squeezed.

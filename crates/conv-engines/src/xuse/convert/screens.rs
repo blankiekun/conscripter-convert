@@ -52,9 +52,10 @@ impl AssetBank {
         // The intro plays at launch and back from the story alike.
         let movie = self.title_intro()?;
         let openings = [true, false].map(|at_launch| TitleOpening { movie: movie.clone(), at_launch, ..Default::default() }).to_vec();
-        // src: exe 0x459320 (BGM slot 13, looped), 0x45abe0 (Start fades it out over 2000 ms).
+        // src: exe 0x459320 (BGM slot 13, looped), 0x45abe0 (Start fades it
+        // out over 2000 ms, and the screen with a 2000 ms CrossFade, 0x45ac34).
         let bgm = Some(self.bgm(14)?);
-        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, openings, bgm, start_bgm_fade_ms: 2000, ..Default::default() })
+        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, openings, bgm, start_bgm_fade_ms: 2000, start_fade_ms: 2000, ..Default::default() }) // src: exe 0x45abe0, 0x45ac34
     }
 
     /// The title's intro ([`titleintro`]) as a silent movie at 30 fps,
@@ -108,7 +109,7 @@ impl AssetBank {
     }
 
     /// The extras menu and the CG gallery (see [`gallery`]). Positions
-    /// measured on screenshots of the original.
+    /// from the exe (addresses beside each).
     /// `label(file, name)`: the converted label of a scene replay entry
     /// ([`LabelNames::find`]); entries without one are left out.
     pub fn extras_menu(&mut self, label: impl Fn(&str, &str) -> Option<String>) -> Result<ExtrasMenu, ConvertError> {
@@ -151,8 +152,8 @@ impl AssetBank {
         let locked = self.place("cg_locked", &locked, None, 0, 0)?.image;
         let mut tabs = Vec::new();
         // src: exe 0x4552c0 (tabs at x 624 from y 160, 33 px apart under
-        // 6 items), 0x44dc90 (the viewer's name at (601, 545)); the
-        // headings at (96, 97): shot (the user's, scaled).
+        // 6 items), 0x44dc90 (the viewer's name at the viewer's origin
+        // + 140), 0x455d38 (the heading at (96, 97)).
         for (i, &(tab, label, heading, name)) in gallery::TAB_PICTURES.iter().enumerate() {
             let label_img = get(&common, label)?;
             let button = self.place(&format!("cg_tab{i}"), &column_cells(&label_img, 4, &[0, 1]), None, 624, 160 + 33 * i as i32)?;
@@ -183,8 +184,9 @@ impl AssetBank {
             .map(|p| self.place(&format!("cg_page{}", p + 1), &column_cells(&get(&common, 24 + p)?, 4, &[0, 1]), None, 0, 0).map(|p| p.image))
             .collect::<Result<_, _>>()?;
         // src: exe 0x4fbba0 (exit), 0x4fb970 (grid and page buttons),
-        // 0x4585b0 (page label); header and page marker: shot (the
-        // user's, scaled).
+        // 0x4585b0 (page label at (31, 529), the marker 3 px above its
+        // button), 0x457720 (the header slides from x 631 to 621 at
+        // y 122 over 200 ms while it fades in; ours: shown at once).
         let gallery = CgGallery {
             header: self.place("cg_header", &get(&common, 16)?, None, 621, 122)?,
             exit: self.place("cg_exit", &column_cells(&get(&common, 15)?, 4, &[0, 1]), None, 624, 470)?,
@@ -204,14 +206,14 @@ impl AssetBank {
             marker_dx: 0,
             marker_dy: -3,
             viewer: CgViewer {
-                // guess: exe 461 overflows the screen; origin unclear.
-                // 0x44dc90 draws #11/#12 whole (no source rect) at the
-                // viewer's origin (461, 545) on the back buffer, clipped;
-                // at 451 the lines meet the buttons. Base at the window
-                // opacity (src: exe 0x51ed12, default 128 of 256).
+                // src: exe 0x44dc90 draws #11/#12 whole at the viewer's
+                // origin, 0x44e250 sets it to (461, 545) (it slides up
+                // from y 600, 0x44e180); the screen clips the overflow.
+                // Base at the window opacity (src: exe 0x51ed12, default
+                // 128 of 256).
                 panel: vec![
-                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 451, 545)?,
-                    self.place("cgv_lines", &get(&viewer, 12)?, None, 451, 545)?,
+                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 461, 545)?, // src: exe 0x44e250
+                    self.place("cgv_lines", &get(&viewer, 12)?, None, 461, 545)?, // src: exe 0x44e250
                 ],
                 name_x: 601,
                 name_y: 545,
@@ -375,8 +377,7 @@ impl AssetBank {
     /// (7, the same four states), current-page marker (1), row cursor (9,
     /// opaque, black where nothing is added: the game blends it
     /// additively), "New" icon (10). Buttons and pages from the exe
-    /// (SaveMode.cpp, 0x469850); the rest measured on a screenshot of the
-    /// original and on the frame's thumbnail boxes.
+    /// (SaveMode.cpp, 0x469850), rows, thumbnail and text from 0x46ac50.
     pub fn save_menu(&mut self) -> Result<SaveMenu, ConvertError> {
         let images = self.gaf_images("wnd.arc", "Save.004", "save menu")?;
         let get = |n: usize| {
@@ -420,7 +421,9 @@ impl AssetBank {
 
         // Row cursor: under the pointer it is drawn with alpha (brightness),
         // leaving the thumbnail clear; the selected row is added.
-        let thumbnail = Rect { x: 14, y: 10, w: 100, h: 75 };
+        // src: exe 0x46ac50 draws the thumbnail at (13, row + 5), rows at
+        // y 47 + 92 n, so (13, 8) from the cursor's top (y 44).
+        let thumbnail = Rect { x: 13, y: 8, w: 100, h: 75 };
         let cursor = get(9)?;
         let mut hover = cells(&cursor, &[0, 1]);
         let row_w = cursor.width();
@@ -462,12 +465,16 @@ impl AssetBank {
             row_hover,
             row_selected,
             thumbnail,
-            // guess: the exe puts "New" after the slot's text (0x46ac50);
-            // the text: shot (the user's, scaled).
+            // ours: the exe puts "New" at the slot text's end + (17, 9)
+            // minus the icon's hotspot (0x46ac50), known only at run time;
+            // a fixed spot here.
             new_icon: placed(self, "new", &get(10)?, 50, 67)?,
-            text_x: 124,
-            text_y: 11,
+            // src: exe 0x46ac50, the slot text object at (126, row + 12),
+            // 242x68; style 0x46b4d0: size 14, colours 0xffffff/0xfff0dc.
+            text_x: 126,
+            text_y: 15, // src: exe 0x46ac50
             font_size: 14,
+            // ours: the exe's line height is the font's (not read).
             line_height: 15,
             // src: exe 0x46ac50 (the preview at (389, 136)).
             preview: Rect { x: 389, y: 136, w: 400, h: 300 },
@@ -695,8 +702,11 @@ impl AssetBank {
             no,
             yes_label: "はい".into(),
             no_label: "いいえ".into(),
-            // guess: text_y (no shot of the original's dialog).
-            text_y: 16,
+            // src: exe 0x4a6b40: a one-line message at the dialog's top + 14
+            // + half its 16 px line (+0x224); two lines (quit, chapter:
+            // "\n" in the exe's strings) at + 14 and + 32. ours: one line,
+            // centred (the exe starts it at x + 20).
+            text_y: 22,
             // src: exe 0x4a6410 (16 px, weight 600, for the message and
             // the button words).
             font_size: 16,
@@ -781,8 +791,7 @@ impl AssetBank {
             Ok::<_, ConvertError>(Placed { image, x, y, w: w as i32, h: h as i32 })
         };
         // src: exe 0x496fe0 (scene bar at (416, 0), list at (778, 5)); the
-        // rest: shot (the user's, scaled), and #223's checks; row colours:
-        // guess.
+        // rest: shot (the user's, scaled), and #223's checks.
         let digit_strip = load(&blog, 15)?;
         let dw = digit_strip.width() / 10;
         let mut digits = Vec::new();
@@ -818,8 +827,10 @@ impl AssetBank {
             current_row: layered(self, &blog, 10, all, 4, Some((&cursor, 9, 5)), "scene_row_current", (row_x, row_y))?,
             row_pitch: 26,
             row_text: TextSpot { x: row_x + 19, y: row_y + 4, font_size: 14, columns: 17 },
-            row_color: "#A0A0A0".into(),
-            current_row_color: "#FFFFFF".into(),
+            // src: exe 0x496610 (BlogStackBar.cpp): a row's title white
+            // up to the current level, 0x808080 below it.
+            row_color: "#FFFFFF".into(),
+            deeper_row_color: "#808080".into(), // src: exe 0x496610
             chapter_history: Some(self.chapter_history()?),
         })
     }
@@ -827,10 +838,9 @@ impl AssetBank {
     /// The chapter history (`wnd.arc` → `ChapterHistory.004`: #0 base, #1
     /// frame, #2 and #3 the close button's base and lettering, four states
     /// of 21 px stacked, #4 the current chapter's bracket, #5 the row
-    /// highlight, additive, four states of 25 px stacked). Layout and
-    /// opacity measured on screenshots of the original under wine: rows 24
-    /// px apart from (16, 83), columns 258 px apart, 20 rows to a column
-    /// (`i % 20` in the exe, 0x4682a0).
+    /// highlight, additive, four states of 25 px stacked). Layout from the
+    /// exe (0x4682a0): rows 24 px apart, columns 258 px apart, 20 rows to
+    /// a column.
     pub(super) fn chapter_history(&mut self) -> Result<ChapterHistory, ConvertError> {
         let images = self.gaf_rgba("wnd.arc", "ChapterHistory.004", "chapter history")?;
         let get = |n: usize| images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "chapter history image", number: n });
@@ -861,8 +871,14 @@ impl AssetBank {
             // src: exe 0x468be0 (the base at the window opacity, 0x51ed12).
             base_opacity: (255 * WINDOW_OPACITY_PERCENT / 100) as u8,
             frame: self.place("chapters_frame", &get(1)?, None, 0, 0)?,
-            // src: shot (wine), for the rest of the layout.
-            close: self.place("chapters_close", &close, None, 715, 576)?,
+            // src: exe 0x4682a0: close button 72x21 at (715, 577); row i a
+            // 256x22 button at (17 + 258 (i / 20), 84 + 24 (i % 20)), its
+            // title at +(4, 4), 14 px. The 258x25 highlight sits 1 px up
+            // and left of the button (shot, wine): x, y and text_dx/dy here
+            // are the highlight's.
+            // ours: titles all white; the exe draws entries from one index
+            // (0x19c, runtime) on in 0xc8c8c8.
+            close: self.place("chapters_close", &close, None, 715, 577)?,
             hover: self.place("chapters_hover", &hover, None, 0, 0)?,
             current: self.place("chapters_current", &get(4)?, None, -16, 0)?,
             x: 16,

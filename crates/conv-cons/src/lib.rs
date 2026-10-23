@@ -243,12 +243,15 @@ const TITLE_START: &str = "conv_title_start";
 const TITLE_SHOWN: &str = "%2960";
 /// The title's sprites, without its music (back from the picture extras).
 const TITLE_SPRITES: &str = "conv_title_sprites";
-/// Colours of clickable words (measured on the original): not yet
-/// visited, visited, each also under the mouse pointer.
-const LINK_COLOR: &str = "#FEE092";
-const LINK_HOVER_COLOR: &str = "#FEC95E";
-const LINK_VISITED_COLOR: &str = "#DCB8FE";
-const LINK_VISITED_HOVER_COLOR: &str = "#CB95FE";
+/// Colours of clickable words: not yet visited, visited, each also under
+/// the mouse pointer.
+/// src: Saihate exe 0x492bb0 (COLORREFs by button state, the second when
+/// the target's flag is set: 0x93e1ff/0xffb9dd, under the pointer
+/// 0x5ecaff/0xff96cc; pressed 0x43b4ff/0xff7cc4, which ours doesn't show).
+const LINK_COLOR: &str = "#FFE193";
+const LINK_HOVER_COLOR: &str = "#FFCA5E";
+const LINK_VISITED_COLOR: &str = "#DDB9FF";
+const LINK_VISITED_HOVER_COLOR: &str = "#CC96FF";
 /// Underlines of link words (and their shadows), two sprites per word. The
 /// menus' slots: they are drawn again at every wait of the page, so a menu
 /// opened from the bar can't leave them wrong.
@@ -568,7 +571,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     boot::emit(&mut out, script, border);
     notice::emit(&mut out, script.width, script.height, &script.language);
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay, boot::keeps_bgm(script));
+        title_screen(&mut out, t, &effect(t.fade_ms), &effect(t.start_fade()), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay, boot::keeps_bgm(script));
     }
     let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
     if back_to_choice {
@@ -761,7 +764,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
 #[allow(clippy::too_many_arguments)]
 /// `replay_back`: a picture extras' replay may `reset` back to its list
 /// ([`picture_replay::BACK_TO_LIST`]).
-fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool, border: u32, replay_back: bool, boot_bgm: bool) {
+fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, start_fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool, border: u32, replay_back: bool, boot_bgm: bool) {
     if replay_back {
         writeln!(out, "{}", picture_replay::after_reset()).unwrap();
     }
@@ -906,7 +909,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     if t.bgm.is_some() && t.start_bgm_fade_ms > 0 {
         writeln!(out, "bgmfadeout {}:bgmstop:bgmfadeout 0", t.start_bgm_fade_ms).unwrap();
     }
-    writeln!(out, "bg {},{fade}", if t.start_white { "white" } else { "black" }).unwrap();
+    writeln!(out, "bg {},{start_fade}", if t.start_white { "white" } else { "black" }).unwrap();
     if t.start_wait_ms > 0 {
         writeln!(out, "wait {}", t.start_wait_ms).unwrap();
     }
@@ -1345,8 +1348,8 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
     }
 }
 
-/// cons_melt's seed for the melting edge: the plugin picked a new one
-/// each time, a map keeps one.
+/// MSVC rand()'s seed for the melting edge.
+// ours: fixed seed, the exe seeds rand from the clock (srand(_time64) 0x407150)
 const MELT_SEED: u32 = 1;
 
 /// The warp map that draws a transition style (with no mask picture):
@@ -1355,7 +1358,7 @@ const MELT_SEED: u32 = 1;
 fn warp_kind(style: TransitionStyle) -> Option<warp::Kind> {
     Some(match style {
         TransitionStyle::Flip { horizontal, grow } => warp::Kind::Flip { axis: u8::from(!horizontal), layer: u8::from(!grow) },
-        TransitionStyle::Melt { stretch_percent } => warp::Kind::Melt { stretch: stretch_percent, seed: MELT_SEED },
+        TransitionStyle::Melt { speed } => warp::Kind::Melt { speed, seed: MELT_SEED },
         TransitionStyle::Cube { dx, dy } => warp::Kind::Cube { dx, dy },
         TransitionStyle::Wave { direction, amplitude, waves } => warp::Kind::Wave { direction, amplitude, waves },
         TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy } if dx == 0 || dy == 0 => return None,
@@ -1411,7 +1414,7 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
             Op::BeginTransition { fade_ms, mask, style, .. } => transition_steps(*fade_ms, mask.as_deref(), *style),
             _ => Vec::new(),
         })
-        .chain(script.title_screen.iter().map(|t| (t.fade_ms, Effect::Fade)))
+        .chain(script.title_screen.iter().flat_map(|t| [(t.fade_ms, Effect::Fade), (t.start_fade(), Effect::Fade)]))
         .filter(|(ms, _)| *ms > 0)
         .collect();
     keys.sort_unstable();

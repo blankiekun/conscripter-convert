@@ -29,8 +29,9 @@ pub enum Kind {
     Flip { axis: u8, layer: u8 },
     /// `cons_cube.dll/dx,dy`
     Cube { dx: i8, dy: i8 },
-    /// `cons_melt.dll/stretch,seed` (the seed picks the melting edge)
-    Melt { stretch: u32, seed: u32 },
+    /// Xuse's Trans_MeltDown: `speed` the byte that sets the fall's
+    /// acceleration, `seed` MSVC rand()'s seed for the melting edge
+    Melt { speed: u8, seed: u32 },
     /// `cons_wave.dll/direction,amplitude,waves`
     Wave { direction: u8, amplitude: u32, waves: u32 },
 }
@@ -54,7 +55,7 @@ impl Kind {
             Kind::Zoom { mode, scale, curve } => format!("zoom_{mode}_{scale}_{curve}"),
             Kind::Flip { axis, layer } => format!("flip_{axis}_{layer}"),
             Kind::Cube { dx, dy } => format!("cube_{dx}_{dy}"),
-            Kind::Melt { stretch, seed } => format!("melt_{stretch}_{seed}"),
+            Kind::Melt { speed, seed } => format!("melt_{speed}_{seed}"),
             Kind::Wave { direction, amplitude, waves } => format!("wave_{direction}_{amplitude}_{waves}"),
         };
         format!("{name}.png")
@@ -72,7 +73,10 @@ impl Kind {
         }
     }
 
-    fn point(&self, p: f64, x: f64, y: f64, w: f64, h: f64, delay: &[f64]) -> Point {
+    /// A grid point of the cell at progress `p`; `column` the melt's shift
+    /// of each row 0..=h at this point's x.
+    #[allow(clippy::too_many_arguments)]
+    fn point(&self, p: f64, x: f64, y: f64, w: f64, h: f64, column: &[i32]) -> Point {
         let ident = (x, y);
         let pt = |old, new, mask, sharp, flags| Point { old, new, mask, sharp, flags };
         match *self {
@@ -142,13 +146,10 @@ impl Kind {
                 let pos = |v| if axis0 { (v, y) } else { (x, v) };
                 pt(pos(old), pos(new), dist, true, 0)
             }
-            Kind::Melt { stretch, .. } => {
-                let d = delay[(x as usize).min(delay.len() - 1)];
-                let f = if p > d { (p - d) / (1.0 - d) } else { 0.0 };
-                let fallen = h * f * f;
-                let scale = 1.0 + f64::from(stretch) / 100.0 * fallen / h;
-                // old shows from row floor(fallen) on, read from floor((y - fallen) / scale)
-                pt((x, (y - fallen) / scale - 0.5), ident, fallen - y - 0.5, true, 0)
+            Kind::Melt { .. } => {
+                // old row y - shift; the new picture where that is above the screen
+                let shift = f64::from(column[(y as usize).min(column.len() - 1)]);
+                pt((x, y - shift), ident, shift - y - 0.5, true, 0)
             }
             Kind::Wave { direction, amplitude, waves } => {
                 let vertical = direction & 1 == 1;
@@ -190,31 +191,87 @@ fn squeeze(a: f64, len: f64, from: f64, to: f64) -> (f64, f64) {
     ((a + 0.5 - from) * len / span - 0.5, (a + 0.5 - from).min(to - a - 0.5))
 }
 
-/// cons_melt's delay of each column (in f32, as the plugin computed it).
-fn melt_delay(w: u32, seed: u32) -> Vec<f64> {
-    let mut r = seed;
-    let mut pt = [0f32; 13];
-    for i in 0..11 {
-        r = r.wrapping_mul(1103515245).wrapping_add(12345);
-        pt[i + 1] = ((r >> 16) & 0x7fff) as f32 / 32768.0;
+/// Trans_MeltDown's acceleration of the byte `speed` on an `h` px screen,
+/// 16.16 px per row per row (src: exe 0x4451e0, truncating).
+fn melt_accel(speed: u8, h: u32) -> i32 {
+    let b = f64::from(speed) / 255.0;
+    (((b * b * 0.4499999899417162 + 0.029999999329447746) / f64::from(h) * 65536.0) as i32).max(3)
+}
+
+/// MSVC's rand() from `seed`.
+fn msvc_rand(seed: u32) -> impl FnMut() -> u32 {
+    let mut s = seed;
+    move || {
+        s = s.wrapping_mul(214013).wrapping_add(2531011);
+        (s >> 16) & 0x7fff
     }
-    pt[0] = pt[1];
-    pt[12] = pt[11];
+}
+
+/// The exe's key-frame spline between keys v1 and v2 at t (src: exe
+/// 0x407540: f32 in and out, the x87 at 53 bits between).
+#[allow(clippy::too_many_arguments)]
+fn melt_hermite(d_prev: f32, d_cur: f32, d_next: f32, v0: f32, v1: f32, v2: f32, v3: f32, t: f32) -> f32 {
+    let [d_prev, d_cur, d_next, v0, v1, v2, v3, t] = [d_prev, d_cur, d_next, v0, v1, v2, v3, t].map(f64::from);
+    let t2 = t * t;
+    let t3 = t2 * t;
+    let hh = (t2 * 3.0 - t3) - t3;
+    let out = d_cur / (d_next + d_cur) * ((v2 - v1) + (v3 - v2)) * (t3 - t2)
+        + (((t3 - t2) - t2) + t) * ((v1 - v0) + (v2 - v1)) * (d_cur / (d_prev + d_cur))
+        + hh * v2
+        + (1.0 - hh) * v1;
+    out as f32
+}
+
+/// The melting edge: each column's offset in -h..0 (src: exe 0x445310, a
+/// spline through 11 keys rand() & h at x = i * w / 10, scaled to h).
+fn melt_edge(w: u32, h: u32, seed: u32) -> Vec<i32> {
+    let mut rand = msvc_rand(seed);
+    let xs: Vec<u32> = (0..11).map(|i| i * w / 10).collect();
+    let keys: Vec<f32> = (0..11).map(|_| (rand() & h) as f32).collect();
+    // a key's length from the key before (the first key's 1)
+    let len = |i: usize| if i == 0 { 1.0 } else { (xs[i] - xs[i - 1]) as f32 };
     let v: Vec<f32> = (0..w)
         .map(|x| {
-            let u = x as f32 * 10.0 / w as f32;
-            let i = u as usize;
-            let t = u - i as f32;
-            let (q0, q1, q2, q3) = (pt[i], pt[i + 1], pt[i + 2], pt[i + 3]);
-            0.5 * (2.0 * q1 + (q2 - q0) * t + (2.0 * q0 - 5.0 * q1 + 4.0 * q2 - q3) * t * t + (3.0 * q1 - q0 - 3.0 * q2 + q3) * t * t * t)
+            let j = (0..10).rev().find(|&j| xs[j] <= x).unwrap_or(0);
+            let t = (((x - xs[j]) << 16) / (xs[j + 1] - xs[j])) as f32 / 65536.0;
+            let (m, n) = (j.saturating_sub(1), (j + 2).min(10));
+            melt_hermite(len(j), len(j + 1), len(n), keys[m], keys[j], keys[j + 1], keys[n], t)
         })
         .collect();
-    let lo = v.iter().copied().fold(f32::INFINITY, f32::min);
-    let hi = v.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    v.iter()
-        .map(|&v| {
-            let n = if hi > lo { (v - lo) / (hi - lo) } else { 0.0 };
-            f64::from(0.2 + 0.1 * (0f32).max((n - 0.4) / 0.6))
+    let lo = v.iter().copied().fold(0f32, f32::min);
+    let hi = v.iter().copied().fold(0f32, f32::max);
+    let range = hi - lo;
+    if range as i32 == 0 {
+        return vec![0; w as usize];
+    }
+    let scale = (f64::from(h) / f64::from(range)) as f32;
+    v.iter().map(|&v| ((f64::from(v) - f64::from(lo)) * f64::from(scale)) as f32 as i32 - h as i32).collect()
+}
+
+/// The shift of each row 0..=h of a column with edge offset `off` at
+/// progress `t16` (16.16): the old picture's row y shows its row y - shift
+/// (src: exe 0x4456b0 sets the columns falling, 0x4458e0 draws them).
+fn melt_column(off: i32, accel: i32, t16: u32, h: u32) -> Vec<i32> {
+    let h = i64::from(h);
+    let a = f64::from(accel) / 65536.0;
+    let fall = (2.0 * h as f64 / a).sqrt() as i64; // rows to fall h from rest
+    let k = i64::from(off) - h + (((fall + h) * i64::from(t16)) >> 16);
+    // rows above -k stand; from there the column falls, already k rows in
+    let (mut vel, mut pos) = if k < 1 {
+        (0i32, 0i32)
+    } else {
+        let k = k as f64;
+        ((k * a * 65536.0) as i32, (a * 0.5 * k * k * 65536.0) as i32)
+    };
+    (0..=h)
+        .map(|y| {
+            if y < -k {
+                return 0;
+            }
+            let shift = i32::from((pos >> 16) as i16);
+            vel = vel.wrapping_add(accel);
+            pos = pos.wrapping_add(vel);
+            shift
         })
         .collect()
 }
@@ -227,18 +284,23 @@ fn u16_of(v: f64) -> u16 {
 pub fn map(kind: Kind, w: u32, h: u32) -> image::RgbImage {
     let (gw, gh) = (w / GRID + 1, h / GRID + 1);
     let cells = kind.cells();
-    let delay = match kind {
-        Kind::Melt { seed, .. } => melt_delay(w, seed),
-        _ => Vec::new(),
+    let melt = match kind {
+        // ours: fixed seed, the exe seeds rand from the clock (srand(_time64) 0x407150)
+        Kind::Melt { speed, seed } => Some((melt_edge(w, h, seed), melt_accel(speed, h))),
+        _ => None,
     };
     let mut img = image::RgbImage::new(gw * cells, 4 * gh);
     for c in 0..cells {
         let p = f64::from(c) / f64::from(cells - 1);
-        for j in 0..gh {
-            for i in 0..gw {
-                let x = f64::from(i * w) / f64::from(gw - 1);
+        for i in 0..gw {
+            let x = f64::from(i * w) / f64::from(gw - 1);
+            let column = match &melt {
+                Some((edge, accel)) => melt_column(edge[(x as usize).min(edge.len() - 1)], *accel, (p * 65536.0).round() as u32, h),
+                None => Vec::new(),
+            };
+            for j in 0..gh {
                 let y = f64::from(j * h) / f64::from(gh - 1);
-                let pt = kind.point(p, x, y, f64::from(w), f64::from(h), &delay);
+                let pt = kind.point(p, x, y, f64::from(w), f64::from(h), &column);
                 // sharp: level 128 + 256 * distance; else the level itself
                 let mask = 32768.0 + if pt.sharp { pt.mask * 16.0 } else { (pt.mask - 128.0) * 16.0 };
                 let pos = |v: f64, at: f64| u16_of(32768.0 + (v - at) * 16.0);
@@ -299,5 +361,44 @@ mod tests {
         // halfway the mask is the level 255 * 0.5 (plain level L: 16 * (L - 128))
         let half = Kind::Zoom { mode: 0, scale: 200, curve: 1 }.cells() / 2;
         assert_eq!(value(&img, half, 0, 2, 0, 0, gw, gh), (16.0f64 * (127.5 - 128.0)).round_ties_even() as i32);
+    }
+    // Trans_MeltDown run in the exe (research/xuse/melt_exe.py):
+    // research/xuse/melt_exe.py: 0x4451e0 of 0, 128, 255 at h 600
+    const EXE_ACCEL: [u32; 3] = [3, 15, 52];
+    // 0x445310 at 800 x 600, seed 1: every 25th column
+    const EXE_EDGE: [i32; 32] = [-573, -577, -580, -581, -588, -600, -582, -493, -329, -164, -65, -12, -3, -51, -196, -381, -513, -560, -559, -518, -410, -235, -103, -127, -297, -467, -490, -358, -180, -67, -31, -28];
+    // 0x4458e0 on 16 x 12 (edge [-4, -11, -6, 0, -8, -11, -11, -6, 0, -8, -4, 0, -11, -12, -11, -8], accel 2621): source row + 1, 0 the new picture
+    const EXE_DRAW: [[[u8; 16]; 12]; 4] = [
+        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2], [3, 3, 3, 2, 3, 3, 3, 3, 2, 3, 3, 2, 3, 3, 3, 3], [4, 4, 4, 3, 4, 4, 4, 4, 3, 4, 4, 3, 4, 4, 4, 4], [5, 5, 5, 3, 5, 5, 5, 5, 3, 5, 5, 3, 5, 5, 5, 5], [5, 6, 6, 4, 6, 6, 6, 6, 4, 6, 5, 4, 6, 6, 6, 6], [6, 7, 7, 5, 7, 7, 7, 7, 5, 7, 6, 5, 7, 7, 7, 7], [7, 8, 7, 5, 8, 8, 8, 7, 5, 8, 7, 5, 8, 8, 8, 8], [7, 9, 8, 5, 9, 9, 9, 8, 5, 9, 7, 5, 9, 9, 9, 9], [8, 10, 9, 6, 9, 10, 10, 9, 6, 9, 8, 6, 10, 10, 10, 9], [8, 11, 9, 6, 10, 11, 11, 9, 6, 10, 8, 6, 11, 11, 11, 10], [9, 12, 10, 7, 11, 12, 12, 10, 7, 11, 9, 7, 12, 12, 12, 11]],
+        [[1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1], [2, 2, 2, 0, 2, 2, 2, 2, 0, 2, 2, 0, 2, 2, 2, 2], [2, 3, 3, 1, 3, 3, 3, 3, 1, 3, 2, 1, 3, 3, 3, 3], [3, 4, 3, 1, 4, 4, 4, 3, 1, 4, 3, 1, 4, 4, 4, 4], [3, 5, 4, 2, 5, 5, 5, 4, 2, 5, 3, 2, 5, 5, 5, 5], [4, 6, 5, 2, 5, 6, 6, 5, 2, 5, 4, 2, 6, 6, 6, 5], [5, 7, 5, 2, 6, 7, 7, 5, 2, 6, 5, 2, 7, 7, 7, 6], [5, 8, 6, 3, 7, 8, 8, 6, 3, 7, 5, 3, 8, 8, 8, 7], [5, 8, 6, 3, 7, 8, 8, 6, 3, 7, 5, 3, 8, 9, 8, 7], [6, 9, 7, 3, 8, 9, 9, 7, 3, 8, 6, 3, 9, 9, 9, 8], [6, 10, 7, 3, 8, 10, 10, 7, 3, 8, 6, 3, 10, 10, 10, 8], [7, 10, 8, 3, 9, 10, 10, 8, 3, 9, 7, 3, 10, 11, 10, 9]],
+        [[0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1], [0, 2, 0, 0, 1, 2, 2, 0, 0, 1, 0, 0, 2, 2, 2, 1], [0, 3, 1, 0, 2, 3, 3, 1, 0, 2, 0, 0, 3, 3, 3, 2], [1, 3, 2, 0, 2, 3, 3, 2, 0, 2, 1, 0, 3, 4, 3, 2], [1, 4, 2, 0, 3, 4, 4, 2, 0, 3, 1, 0, 4, 4, 4, 3], [1, 5, 2, 0, 4, 5, 5, 2, 0, 4, 1, 0, 5, 5, 5, 4], [2, 5, 3, 0, 4, 5, 5, 3, 0, 4, 2, 0, 5, 6, 5, 4], [2, 6, 3, 0, 4, 6, 6, 3, 0, 4, 2, 0, 6, 6, 6, 4], [2, 6, 4, 0, 5, 6, 6, 4, 0, 5, 2, 0, 6, 7, 6, 5], [2, 7, 4, 0, 5, 7, 7, 4, 0, 5, 2, 0, 7, 7, 7, 5], [2, 7, 4, 0, 6, 7, 7, 4, 0, 6, 2, 0, 7, 8, 7, 6], [3, 8, 4, 0, 6, 8, 8, 4, 0, 6, 3, 0, 8, 8, 8, 6]],
+        [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0], [0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0], [0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 2, 1, 0], [0, 2, 0, 0, 1, 2, 2, 0, 0, 1, 0, 0, 2, 2, 2, 1], [0, 3, 0, 0, 1, 3, 3, 0, 0, 1, 0, 0, 3, 3, 3, 1], [0, 3, 0, 0, 1, 3, 3, 0, 0, 1, 0, 0, 3, 4, 3, 1], [0, 3, 0, 0, 2, 3, 3, 0, 0, 2, 0, 0, 3, 4, 3, 2], [0, 4, 0, 0, 2, 4, 4, 0, 0, 2, 0, 0, 4, 4, 4, 2], [0, 4, 1, 0, 2, 4, 4, 1, 0, 2, 0, 0, 4, 5, 4, 2], [0, 5, 1, 0, 2, 5, 5, 1, 0, 2, 0, 0, 5, 5, 5, 2], [0, 5, 1, 0, 2, 5, 5, 1, 0, 2, 0, 0, 5, 6, 5, 2], [0, 5, 1, 0, 3, 5, 5, 1, 0, 3, 0, 0, 5, 6, 5, 3]],
+    ];
+
+    #[test]
+    fn melt_accel_matches_the_exe() {
+        assert_eq!([0, 128, 255].map(|b| melt_accel(b, 600)), EXE_ACCEL.map(|a| a as i32));
+    }
+
+    #[test]
+    fn melt_edge_matches_the_exe() {
+        let edge = melt_edge(800, 600, 1);
+        assert_eq!(edge.iter().step_by(25).copied().collect::<Vec<_>>(), EXE_EDGE);
+        assert_eq!(melt_edge(16, 12, 1), [-4, -11, -6, 0, -8, -11, -11, -6, 0, -8, -4, 0, -11, -12, -11, -8]);
+    }
+
+    #[test]
+    fn melt_draw_matches_the_exe() {
+        let (w, h) = (16, 12);
+        let accel = melt_accel(255, h);
+        assert_eq!(accel, 2621);
+        let edge = melt_edge(w, h, 1);
+        for (frame, t16) in [32768, 40960, 49152, 57344].into_iter().enumerate() {
+            let cols: Vec<Vec<i32>> = edge.iter().map(|&off| melt_column(off, accel, t16, h)).collect();
+            let drawn: Vec<Vec<u8>> = (0..h as i32)
+                .map(|y| cols.iter().map(|c| u8::try_from(y - c[y as usize]).ok().filter(|&r| i32::from(r) < h as i32).map_or(0, |r| r + 1)).collect())
+                .collect();
+            assert_eq!(drawn, EXE_DRAW[frame].map(|r| r.to_vec()).to_vec(), "t16 {t16}");
+        }
     }
 }

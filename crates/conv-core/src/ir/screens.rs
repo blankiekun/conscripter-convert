@@ -47,6 +47,8 @@ pub struct TitleScreen {
     /// Full-screen picture (logo included).
     pub background: String,
     pub fade_ms: u32,
+    /// Start's fade to black, when it differs from `fade_ms` (0 = `fade_ms`).
+    pub start_fade_ms: u32,
     pub buttons: Vec<TitleButton>,
     /// Button strips have a third cell, shown while the mouse button is
     /// held on the button.
@@ -92,6 +94,13 @@ pub struct TitleScreen {
     /// Buttons and pictures moving by themselves at rest (続・殺戮のジャンゴ's
     /// buttons jolting now and then, its tumbleweed rolling by).
     pub motions: Vec<TitleMotion>,
+}
+
+impl TitleScreen {
+    /// Start's fade to black.
+    pub fn start_fade(&self) -> u32 {
+        if self.start_fade_ms == 0 { self.fade_ms } else { self.start_fade_ms }
+    }
 }
 
 /// [`TitleScreen::openings`]: a silent movie of the title coming up, ending
@@ -367,8 +376,10 @@ pub struct TopBars {
     pub row_pitch: i32,
     /// The first row's title.
     pub row_text: TextSpot,
+    /// The title's colour on rows at or above the current level, and on
+    /// the deeper ones (left by going back).
     pub row_color: String,
-    pub current_row_color: String,
+    pub deeper_row_color: String,
     /// Opened by clicking the chapter bar; `None`: the bar isn't a button.
     pub chapter_history: Option<ChapterHistory>,
 }

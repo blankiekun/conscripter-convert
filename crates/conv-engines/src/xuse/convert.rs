@@ -312,7 +312,9 @@ const PRESET_FIELDS: u32 = 6;
 /// Pictures of static in the noise strip ([`AssetBank::noise`]); the
 /// original draws new static every interval, which a short loop stands in
 /// for.
-const NOISE_FRAMES: u32 = 4; // ours
+/// ours: the exe (noise_update, 0x419570) seeds new static with rand()
+/// every interval, so no count to read.
+const NOISE_FRAMES: u32 = 4; // ours: a short loop of static
 /// A timed wait (handler 0x475cd0, callback 0x475bf0): arg's low 16 bits
 /// are the ms; when its high half isn't 0 a click or skip mode ends it.
 const OP_WAIT: u16 = 0x66;
@@ -362,10 +364,9 @@ const SE_FIRST_BANK: usize = 256;
 /// every row of the box's gradient and 0.50 on the save menu's.
 /// src: exe 0x46d000 (setting 0x51ed12 defaults to 128 of 256).
 const WINDOW_OPACITY_PERCENT: u32 = 50;
-/// guess: the title fades in over this long where it has no intro (back
-/// from the load screen or the extras; the exe's extras cross-fade back
-/// over 1000 ms, 0x45a240, as the words fade in, [`super::titleintro`]),
-/// and Start fades out over it.
+/// The title fades in over this long where it has no intro (back from the
+/// load screen or the extras).
+/// src: exe 0x45a240 (title state 9: a 1000 ms CrossFade, 0x442c70).
 const TITLE_FADE_MS: u32 = 1000;
 /// A voice id's character is `id / VOICE_CHARACTER`.
 const VOICE_CHARACTER: u32 = 100_000; // src: the scripts' voice ids
@@ -838,7 +839,8 @@ impl AssetBank {
         // exe's font height, + 1 for its weight-600 (synthesised bold)
         // ones; ours by font size + 1, so an 18 px weight-400 font is 17.
         // Columns: the text width (window - left - right margins, +0x20)
-        // over that pitch. Rows: our measurement under wine.
+        // over that pitch. ours: rows (the exe has no row count: its text
+        // object holds 30 lines, 0x4a0e7f; these are our wine measurements).
         let (font_size, line_gap, columns, rows, offset) = match preset.style {
             1 => (24, 12, 24, 12, (15, 23)),
             2 | 7 => (24, 12, 24, 13, (37, 35)),
@@ -857,12 +859,13 @@ impl AssetBank {
         self.layered(&image, &images[0], &images[1])?;
         let (x, y) = (preset.x, preset.y);
         // Only styles 0 and 6 show the name plate (bit 0 of the record),
-        // at (-21, -33), the name at +(24, 11) in it (+0x28, +0x3c).
+        // at (-21, -32) (+0x28: two shorts, added at 0x4a138f), the name at
+        // +(24, 11) in it (+0x3c), 24 px weight 600 (+0x60, +0x62: read by
+        // the name's font callback 0x4a0b10, unscaled).
         let name_plate = if preset.style == 6 {
             let plate = format!("system/nameplate{}.png", preset.style);
             self.layered(&plate, &images[2], &images[3])?;
-            // guess: font size 20 (shot k1: the ADV box's).
-            Some(NamePlate { image: plate, x: x - 21, y: y - 33, text_x: x + 3, text_y: y - 22, font_size: 20 })
+            Some(NamePlate { image: plate, x: x - 21, y: y - 32, text_x: x + 3, text_y: y - 21, font_size: 24 }) // src: exe 0x4a138f, 0x4a0b10 (offsets above)
         } else {
             None
         };
@@ -913,8 +916,9 @@ impl AssetBank {
         self.layered(&plate, &images[2], &images[3])?;
         // src: the scripts' ADV preset (0x50: 53, 449) and exe 0x517678
         // style 0: text at +(28, 21), 24 px weight 600 (pitch 25: 650 px
-        // fit 26), line gap 12, plate at (-21, -33), name at +(24, 11);
-        // shot k1 (wine) has the frame and plate there to the pixel.
+        // fit 26), line gap 12, plate at (-21, -32) (+0x28, added at
+        // 0x4a138f), name at +(24, 11) in 24 px weight 600 (+0x60, read by
+        // the name's font callback 0x4a0b10); shot k1 (wine) has the frame there.
         Ok(TextWindow {
             wait_icon_at: None,
             image: window,
@@ -923,13 +927,13 @@ impl AssetBank {
             text_x: 81,
             text_y: 470,
             columns: 26,
-            // guess: rows (the 140 px box holds three of 36).
+            // ours: rows (no field in the exe, whose text object holds 30
+            // lines, 0x4a0e7f; the 140 px box holds three of 36).
             rows: 3,
             font_size: 24,
             line_gap: 12,
             vertical: false,
-            // guess: the name's font size (shot k1's glyphs fit 20).
-            name_plate: Some(NamePlate { image: plate, x: 32, y: 416, text_x: 56, text_y: 427, font_size: 20 }),
+            name_plate: Some(NamePlate { image: plate, x: 32, y: 417, text_x: 56, text_y: 428, font_size: 24 }), // src: exe 0x4a138f, 0x4a0b10 (offsets above)
         })
     }
 
@@ -1112,7 +1116,11 @@ impl AssetBank {
 const BGM: &str = "BGM track";
 const MOVIE: &str = "movie";
 const STAFF_ROLL: &str = "staff roll";
-const STAFF_ROLL_FPS: u32 = 30; // ours
+/// The staff roll moves by each frame's elapsed time (0x454a10); frames
+/// come every 33 ms at the default speed setting.
+/// src: exe 0x406f30 (frame periods 66/33/16/1 ms at 0x4fb4e8, setting
+/// 0x51ed11 defaults to 1 at 0x46d000).
+const STAFF_ROLL_FPS: u32 = 30;
 
 impl AssetBank {
     /// Movie `number` (`HD/mvNNNN.bin`, an MPEG-1 program stream) as H.264
@@ -1488,7 +1496,9 @@ const REPLACE_SLOT_BASE: u32 = 4;
 
 /// The interval of a still `screenripple` (it never changes; each step
 /// redraws the screen).
-const REPLACE_INTERVAL_MS: u32 = 1000; // ours
+/// ours: the exe redraws its filters every frame; a still one needs no
+/// faster step here.
+const REPLACE_INTERVAL_MS: u32 = 1000; // ours: see above
 
 /// Opcode 0x70: sets one slot of the screen filter. A Filter-Replace
 /// becomes a still `screenripple` in slot 4 + n; `replaces` holds the
@@ -3348,19 +3358,11 @@ fn transition_style(sub: u16) -> TransitionStyle {
         // off, the old picture collapsing into a line (one frame of it
         // filmed under wine); drawn as a vertical flip.
         TRANSITION_TV_POWER_SWITCH => TransitionStyle::Flip { horizontal: false, grow: false },
-        // Trans_MeltDown (setup 0x445e50, draw 0x4458e0; filmed 45 under
-        // wine): a Doom-style melt. The old picture's columns fall away
-        // behind a smooth random edge (a spline through 11 random points,
-        // 0x445310, clipped at 0: flat stretches between bumps); the
-        // filmed edge fits h * ((p - d) / (1 - d))^2 with d 0.2-0.3. The
-        // byte 45 0, 46 128, 47 255 (not a colour) sets the per-row
-        // acceleration (a/255)^2 * 0.45 + 0.03 (0x4451e0) that stretches
-        // the falling columns.
-        45..=47 => {
-            let a = [0.0f64, 128.0, 255.0][usize::from(sub - 45)] / 255.0;
-            // guess: the scale to our stretch (Status, "Accuracy").
-            TransitionStyle::Melt { stretch_percent: ((a * a * 0.45 + 0.03) * 500.0).round() as u32 }
-        }
+        // Trans_MeltDown (setup 0x445e50, draw 0x4458e0): a Doom-style
+        // melt, ported in conv-cons warp.rs. The byte (not a colour) sets
+        // the fall's acceleration (0x4451e0).
+        // src: exe 0x445e50 (45 0, 46 128, 47 255).
+        45..=47 => TransitionStyle::Melt { speed: [0, 128, 255][usize::from(sub - 45)] },
         27 => TransitionStyle::Mosaic,
         // Dot4x4: a dotted cross-fade; Dissolve passes through white (both
         // seen in the original under wine, 0004.cd #13 slowed to 8 s).
@@ -3632,8 +3634,8 @@ mod tests {
         assert_eq!(transition_style(29), TransitionStyle::Cube { dx: 1, dy: 0 });
         assert_eq!(transition_style(32), TransitionStyle::Flip { horizontal: true, grow: true });
         assert_eq!(transition_style(35), TransitionStyle::Flip { horizontal: false, grow: false });
-        assert_eq!(transition_style(45), TransitionStyle::Melt { stretch_percent: 15 });
-        assert_eq!(transition_style(47), TransitionStyle::Melt { stretch_percent: 240 });
+        assert_eq!(transition_style(45), TransitionStyle::Melt { speed: 0 });
+        assert_eq!(transition_style(47), TransitionStyle::Melt { speed: 255 });
         assert_eq!(transition_name(20), "Slide out");
     }
 

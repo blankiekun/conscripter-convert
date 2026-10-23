@@ -242,7 +242,8 @@ pub struct SpriteEntry {
     /// game, 1100-5000 over the frame overlays at 1000). Handler 0x434130
     /// passes it to the object it creates (0x4109a0) as the overlay's depth
     /// is (0x412fe0); it is no fade time: a bust-up fades over a fixed
-    /// 500 ms whatever its value (filmed: 50 and 1500 both take 0.5 s).
+    /// 500 ms whatever its value (src: exe op_8e 0x4347b0 starts a 500 ms
+    /// CrossFade at 0x4348a1; filmed: 50 and 1500 both take 0.5 s).
     pub depth: u16,
     pub x: u16,
     pub y: u16,
