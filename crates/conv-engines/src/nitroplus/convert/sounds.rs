@@ -265,3 +265,23 @@ impl<'a> Compiler<'a, '_> {
 pub(super) fn percent(volume: i64) -> u32 {
     (100.0 * (volume.clamp(0, 1000) as f64 / 1000.0).powf(1.661)).round() as u32
 }
+
+#[cfg(test)]
+mod tests {
+    use super::percent;
+
+    // (volume, DirectSound hundredths of a dB) from sound_set_volume 00475f50
+    // run in the exe: research/nitroplus/volume_exe.py <Muramasa.exe>
+    const EXE_VOLUMES: [(i64, i32); 16] = [
+        (1, -9966), (10, -6644), (50, -4322), (100, -3322), (200, -2321), (250, -2000), (300, -1737), (400, -1321),
+        (500, -1000), (600, -736), (700, -514), (750, -415), (800, -321), (900, -152), (950, -74), (1000, 0),
+    ];
+
+    #[test]
+    fn volumes_are_the_exes() {
+        for (volume, db) in EXE_VOLUMES {
+            let amplitude = (100.0 * 10f64.powf(db as f64 / 2000.0)).round() as u32;
+            assert_eq!(percent(volume), amplitude, "volume {volume}");
+        }
+    }
+}

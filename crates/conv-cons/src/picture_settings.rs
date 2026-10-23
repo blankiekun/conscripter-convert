@@ -217,8 +217,13 @@ fn values(out: &mut String, s: &PictureSettings) {
     for (i, l) in s.sliders.iter().enumerate() {
         let v = slider_var(s, i);
         let volume = |w: &mut dyn FnMut(String), cmd: &str| {
-            // 100 × (v/1000)^1.661 ≈ (p² / 50 + p) / 3 with p = v / 10.
-            w(format!("mov {TMP},(1000-{v})/10:mov {TMP},({TMP}*{TMP}/50+{TMP})/3:{cmd} {TMP}"));
+            // 100 × (p/100)^1.661, p the position 0-100: Nitroplus's volume setting
+            // (exe FUN_00476730: setting/1000, a factor on every sound_set_volume
+            // 00475f50 volume, sent as 3322·log10 hundredths of a dB) as a cubic;
+            // slider_volume in the tests is the same sum.
+            w(format!(
+                "mov {TMP},(1000-{v})/10:mov {TMP},({TMP}*(138300+{TMP}*(11017-24*{TMP}))+500000)/1000000:{cmd} {TMP}"
+            ));
         };
         match l.setting {
             SliderSetting::BgmVolume => volume(&mut w, "bgmvol"),
@@ -280,6 +285,21 @@ fn values(out: &mut String, s: &PictureSettings) {
 
 #[cfg(test)]
 mod tests {
+    /// The integer sum the volume sliders write, for position p (0-100).
+    fn slider_volume(p: i64) -> i64 {
+        (p * (138300 + p * (11017 - 24 * p)) + 500000) / 1000000
+    }
+
+    #[test]
+    fn slider_volume_follows_the_exe_curve() {
+        // the amplitude of 3322·log10(p/100) hundredths of a dB (exe sound_set_volume)
+        for p in 0..=100 {
+            let exe = (100.0 * 10f64.powf(3322.0 * (p as f64 / 100.0).log10() / 2000.0)).round() as i64;
+            let exe = if p == 0 { 0 } else { exe };
+            assert!((slider_volume(p) - exe).abs() <= 1, "p {p}: {} vs {exe}", slider_volume(p));
+        }
+    }
+
     #[test]
     fn text_speed_curve_follows_the_rate() {
         // The integer sum TextSpeedCurve writes, against 1 / (u/fast + (1-u)/slow).
