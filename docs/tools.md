@@ -261,7 +261,9 @@ Only for a bug seen in play, with the user's yes; code and oracle first
   Example: `research/nitroplus/en_tempo_exe.py`. Formats: x86-32 PE, Linux
   ELF, Vita eboot (no SCE relocations), Switch NSO; not Windows x86-64.
   No OS: write the state in first (`Exe.load_dump`); stub the clock
-  (`stub_import("WINMM.dll!timeGetTime", ...)`).
+  (`stub_import("WINMM.dll!timeGetTime", ...)`). Imported `memset`/`memcpy` are stubs too and do nothing
+  (only a `stub hit` line says so): stub them for real (`research/xuse/melt_exe.py`,
+  `research/typemoon/spline_exe.py`), or a call sees the previous call's data.
 - **Snapshot oracle** (what the original does over time): (1) a probe scene
   with a marker around each step (Nitroplus: `Delete("__dump_<label>")`;
   `research/nitroplus/sched_probe.nss`); (2) dumps at each marker:
