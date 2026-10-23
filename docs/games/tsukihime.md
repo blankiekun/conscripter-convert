@@ -32,6 +32,14 @@ Paused 2026-10-20.
 4. Backlog; several Config rows drawn without effect; the save list's
    route picture and chapter labels.
 5. The first launch's prologue (ours goes straight to the title).
+6. Guesses the exe doesn't give without runtime state (exe-values pass,
+   parked): gauss blur radius (in the compiled BNSH shader); text
+   window `text_y` (FUN_001a7790's +14 through its text object) and
+   `line_gap` (a font line measured at run time, 0x1391a0); the menu's
+   and Config's ground (part 0x52, named through runtime table
+   0x1A4DF90) and the save list's date place; Gallery's ground, row
+   cell anchor and fades (widget data at 0x54E410 not decoded); motion
+   mode 1 (natural cubic spline, FUN_001972c0/FUN_00197710) still eased.
 
 ## Scope
 

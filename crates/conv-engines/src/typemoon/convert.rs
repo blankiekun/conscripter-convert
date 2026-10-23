@@ -185,7 +185,7 @@ fn shader(n: u8) -> (u8, Option<SpriteFilter>) {
         20 | 23 | 24 | 30 | 34 | 35 | 37 => (BLEND_SCREEN, None),
         7 => (BLEND_NORMAL, filter(FILTER_GREYSCALE, 0)),
         8 => (BLEND_NORMAL, filter(FILTER_NEGATIVE, 0)),
-        // guess: gauss's radius, not read from its shader
+        // guess: gauss's radius; the exe's is in the compiled shader (BNSH), not its code
         11 => (BLEND_NORMAL, filter(FILTER_BLUR, 8)),
         _ => (BLEND_NORMAL, None),
     }
@@ -1007,7 +1007,7 @@ impl Lowering<'_, '_> {
                 l.alpha = to;
                 // src: exe 0x130c80 (easing 0, 1 and any it doesn't know: straight)
                 let curve = ease(number(arg(4)).unwrap_or(0));
-                l.fade = (ms > 16 && from != to).then_some((from, to, ms, curve)); // ours: under a frame is at once
+                l.fade = (ms > 16 && from != to).then_some((from, to, ms, curve)); // src: exe 0x1637a0 (ms × 60 / 1000 frames; 0, under 17 ms, is at once in 0x132820)
                 // Else from the `_FADS`, whose ops these are (marking them the `_STGS`'s puts the
                 // `_FADS`'s own frames before it in the trace diff).
                 self.fade_now(n as usize);

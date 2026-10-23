@@ -52,7 +52,8 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) 
     // system_scenebg (0x1F8) at (250.67, 0), underline (0x1FC) at
     // (0, 29.87), menu_window (0x1F6) at (18.67, 1); the route panel
     // (saveinfobg, 0x224-0x226) at (453.33, 39.41)
-    // guess: the game dimmed under it (the original's ground not traced)
+    // guess: the game dimmed under it; the exe draws part 0x52 full-screen
+    // (0x14b880), named through the runtime table 0x1A4DF90
     let dim = (!dry_run).then(|| RgbaImage::from_pixel(1280, 720, image::Rgba([0, 0, 0, 160])));
     let mut backdrop = vec![placed("dim", dim, (0, 0))?];
     backdrop.push(placed("inner", part(&save, "config_innerbg")?, stage(120.0, 0.0))?);
@@ -86,8 +87,9 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) 
         row_step: px(93.748 * 1080.0 / 448.0),
         row,
         row_hover,
-        // guess: the thumbnail's size (16:9 in the window's left part)
-        thumb: Rect { x: tx, y: ty, w: 192, h: 108 },
+        // src: exe 0x14f240 (FUN_001a62c0's 1280 / 640 × 100 × 0.827 = 165 by
+        // 720 / 448 × 53 × 1.092 = 93, scaled 1.15: 190 × 107)
+        thumb: Rect { x: tx, y: ty, w: 190, h: 107 },
         // guess: the date where the picture digits are, in the font
         date: text((lx, ty), 20, 20, 1),
         chapter: text((lx, ty + 28), 22, 18, 1),
@@ -109,8 +111,9 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) 
         let button = placed(&format!("tab{r}"), img, stage(26.667, 43.556 + 31.111 * r as f32))?;
         tabs.push(SystemTab { button, page });
     }
-    // guess: the fade (the bar's opacity DAT_00c359f4 steps not traced)
-    Ok(SystemMenu { backdrop, tabs, fade_ms: 200 })
+    // src: exe 0x14cba0 (DAT_00c359f4 + 1/18 a frame: 18 frames, 300 ms, opening);
+    // ours: the same for closing and tabs (0x14d8c0 closes in 12 or 30 frames)
+    Ok(SystemMenu { backdrop, tabs, fade_ms: 300 })
 }
 
 #[cfg(test)]
