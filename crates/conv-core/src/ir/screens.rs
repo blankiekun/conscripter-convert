@@ -376,8 +376,10 @@ pub struct TopBars {
     pub row_pitch: i32,
     /// The first row's title.
     pub row_text: TextSpot,
+    /// The title's colour on rows at or above the current level, and on
+    /// the deeper ones (left by going back).
     pub row_color: String,
-    pub current_row_color: String,
+    pub deeper_row_color: String,
     /// Opened by clicking the chapter bar; `None`: the bar isn't a button.
     pub chapter_history: Option<ChapterHistory>,
 }

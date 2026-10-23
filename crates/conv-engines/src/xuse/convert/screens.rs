@@ -788,8 +788,7 @@ impl AssetBank {
             Ok::<_, ConvertError>(Placed { image, x, y, w: w as i32, h: h as i32 })
         };
         // src: exe 0x496fe0 (scene bar at (416, 0), list at (778, 5)); the
-        // rest: shot (the user's, scaled), and #223's checks; row colours:
-        // guess.
+        // rest: shot (the user's, scaled), and #223's checks.
         let digit_strip = load(&blog, 15)?;
         let dw = digit_strip.width() / 10;
         let mut digits = Vec::new();
@@ -825,8 +824,10 @@ impl AssetBank {
             current_row: layered(self, &blog, 10, all, 4, Some((&cursor, 9, 5)), "scene_row_current", (row_x, row_y))?,
             row_pitch: 26,
             row_text: TextSpot { x: row_x + 19, y: row_y + 4, font_size: 14, columns: 17 },
-            row_color: "#A0A0A0".into(),
-            current_row_color: "#FFFFFF".into(),
+            // src: exe 0x496610 (BlogStackBar.cpp): a row's title white
+            // up to the current level, 0x808080 below it.
+            row_color: "#FFFFFF".into(),
+            deeper_row_color: "#808080".into(),
             chapter_history: Some(self.chapter_history()?),
         })
     }

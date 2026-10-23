@@ -44,16 +44,10 @@ pub(super) fn scene_bar_draw(w: &mut impl FnMut(String), top: &TopBars, chapter_
         let title = format!("${}", SCENE_TITLES + k);
         let colour = |c: &str| format!(",\"{c}\"");
         w(format!("if {SCENE_MAX_DEPTH} < {k} goto *conv_scene_rows_end"));
-        w(format!(
-            "if {SCENE_DEPTH} == {k} {}:{}",
-            lsp4(button, &top.current_row, &y.to_string()),
-            text(label, &top.row_text, text_y, &title, &colour(&top.current_row_color))
-        ));
-        w(format!(
-            "if {SCENE_DEPTH} != {k} {}:{}",
-            lsp4(button, &top.row, &y.to_string()),
-            text(label, &top.row_text, text_y, &title, &colour(&top.row_color))
-        ));
+        w(format!("if {SCENE_DEPTH} == {k} {}", lsp4(button, &top.current_row, &y.to_string())));
+        w(format!("if {SCENE_DEPTH} != {k} {}", lsp4(button, &top.row, &y.to_string())));
+        w(format!("if {SCENE_DEPTH} >= {k} {}", text(label, &top.row_text, text_y, &title, &colour(&top.row_color))));
+        w(format!("if {SCENE_DEPTH} < {k} {}", text(label, &top.row_text, text_y, &title, &colour(&top.deeper_row_color))));
         w(format!("if {SCENE_DEPTH} != {k} && {SCENE_FLOOR} <= {k} spbtn {button},{}", BTN_SCENE_ROW + k as i32));
         w(format!("if {SCENE_FLOOR} > {k} cell {button},3"));
     }

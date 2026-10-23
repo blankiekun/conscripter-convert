@@ -529,8 +529,8 @@ pub(crate) mod tests {
             current_row: Placed { image: "system/scene_row_current.png".into(), x: 531, y: 30, w: 269, h: 26 },
             row_pitch: 26,
             row_text: TextSpot { x: 550, y: 34, font_size: 14, columns: 17 },
-            row_color: "#A0A0A0".into(),
-            current_row_color: "#FFFFFF".into(),
+            row_color: "#FFFFFF".into(),
+            deeper_row_color: "#808080".into(),
             chapter_history: None,
         }
     }
@@ -552,7 +552,8 @@ pub(crate) mod tests {
             // The list pushes the level row down.
             "if %2903 == 0 goto *conv_scene_rows_end\nmov %191,%151*26\n",
             "if %151 < 2 goto *conv_scene_rows_end\n",
-            "if %150 == 2 lsp 25,\":a/4,0,3;system\\scene_row_current.png\",531,56:strsp 24,$162,550,60,17,1,14,14,0,0,0,1,\"#FFFFFF\"\n",
+            "if %150 == 2 lsp 25,\":a/4,0,3;system\\scene_row_current.png\",531,56\n",
+            "if %150 >= 2 strsp 24,$162,550,60,17,1,14,14,0,0,0,1,\"#FFFFFF\"\nif %150 < 2 strsp 24,$162,550,60,17,1,14,14,0,0,0,1,\"#808080\"\n",
             "if %150 != 2 && %190 <= 2 spbtn 25,1112\nif %190 > 2 cell 25,3\n",
             "if %9 >= 1101 && %9 <= 1116 goto *conv_scene_action\n",
             // Going to a level: save this one, carry the history over, load.
