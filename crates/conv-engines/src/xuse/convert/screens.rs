@@ -108,7 +108,7 @@ impl AssetBank {
     }
 
     /// The extras menu and the CG gallery (see [`gallery`]). Positions
-    /// measured on screenshots of the original.
+    /// from the exe (addresses beside each).
     /// `label(file, name)`: the converted label of a scene replay entry
     /// ([`LabelNames::find`]); entries without one are left out.
     pub fn extras_menu(&mut self, label: impl Fn(&str, &str) -> Option<String>) -> Result<ExtrasMenu, ConvertError> {
@@ -151,8 +151,8 @@ impl AssetBank {
         let locked = self.place("cg_locked", &locked, None, 0, 0)?.image;
         let mut tabs = Vec::new();
         // src: exe 0x4552c0 (tabs at x 624 from y 160, 33 px apart under
-        // 6 items), 0x44dc90 (the viewer's name at (601, 545)); the
-        // headings at (96, 97): shot (the user's, scaled).
+        // 6 items), 0x44dc90 (the viewer's name at the viewer's origin
+        // + 140), 0x455d38 (the heading at (96, 97)).
         for (i, &(tab, label, heading, name)) in gallery::TAB_PICTURES.iter().enumerate() {
             let label_img = get(&common, label)?;
             let button = self.place(&format!("cg_tab{i}"), &column_cells(&label_img, 4, &[0, 1]), None, 624, 160 + 33 * i as i32)?;
@@ -183,8 +183,9 @@ impl AssetBank {
             .map(|p| self.place(&format!("cg_page{}", p + 1), &column_cells(&get(&common, 24 + p)?, 4, &[0, 1]), None, 0, 0).map(|p| p.image))
             .collect::<Result<_, _>>()?;
         // src: exe 0x4fbba0 (exit), 0x4fb970 (grid and page buttons),
-        // 0x4585b0 (page label); header and page marker: shot (the
-        // user's, scaled).
+        // 0x4585b0 (page label at (31, 529), the marker 3 px above its
+        // button), 0x457720 (the header slides from x 631 to 621 at
+        // y 122 over 200 ms while it fades in; ours: shown at once).
         let gallery = CgGallery {
             header: self.place("cg_header", &get(&common, 16)?, None, 621, 122)?,
             exit: self.place("cg_exit", &column_cells(&get(&common, 15)?, 4, &[0, 1]), None, 624, 470)?,
@@ -204,14 +205,14 @@ impl AssetBank {
             marker_dx: 0,
             marker_dy: -3,
             viewer: CgViewer {
-                // guess: exe 461 overflows the screen; origin unclear.
-                // 0x44dc90 draws #11/#12 whole (no source rect) at the
-                // viewer's origin (461, 545) on the back buffer, clipped;
-                // at 451 the lines meet the buttons. Base at the window
-                // opacity (src: exe 0x51ed12, default 128 of 256).
+                // src: exe 0x44dc90 draws #11/#12 whole at the viewer's
+                // origin, 0x44e250 sets it to (461, 545) (it slides up
+                // from y 600, 0x44e180); the screen clips the overflow.
+                // Base at the window opacity (src: exe 0x51ed12, default
+                // 128 of 256).
                 panel: vec![
-                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 451, 545)?,
-                    self.place("cgv_lines", &get(&viewer, 12)?, None, 451, 545)?,
+                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 461, 545)?,
+                    self.place("cgv_lines", &get(&viewer, 12)?, None, 461, 545)?,
                 ],
                 name_x: 601,
                 name_y: 545,
