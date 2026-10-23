@@ -55,7 +55,7 @@ impl AssetBank {
         // src: exe 0x459320 (BGM slot 13, looped), 0x45abe0 (Start fades it
         // out over 2000 ms, and the screen with a 2000 ms CrossFade, 0x45ac34).
         let bgm = Some(self.bgm(14)?);
-        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, openings, bgm, start_bgm_fade_ms: 2000, start_fade_ms: 2000, ..Default::default() })
+        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, openings, bgm, start_bgm_fade_ms: 2000, start_fade_ms: 2000, ..Default::default() }) // src: exe 0x45abe0, 0x45ac34
     }
 
     /// The title's intro ([`titleintro`]) as a silent movie at 30 fps,
@@ -212,8 +212,8 @@ impl AssetBank {
                 // Base at the window opacity (src: exe 0x51ed12, default
                 // 128 of 256).
                 panel: vec![
-                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 461, 545)?,
-                    self.place("cgv_lines", &get(&viewer, 12)?, None, 461, 545)?,
+                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 461, 545)?, // src: exe 0x44e250
+                    self.place("cgv_lines", &get(&viewer, 12)?, None, 461, 545)?, // src: exe 0x44e250
                 ],
                 name_x: 601,
                 name_y: 545,
@@ -472,7 +472,7 @@ impl AssetBank {
             // src: exe 0x46ac50, the slot text object at (126, row + 12),
             // 242x68; style 0x46b4d0: size 14, colours 0xffffff/0xfff0dc.
             text_x: 126,
-            text_y: 15,
+            text_y: 15, // src: exe 0x46ac50
             font_size: 14,
             // ours: the exe's line height is the font's (not read).
             line_height: 15,
@@ -830,7 +830,7 @@ impl AssetBank {
             // src: exe 0x496610 (BlogStackBar.cpp): a row's title white
             // up to the current level, 0x808080 below it.
             row_color: "#FFFFFF".into(),
-            deeper_row_color: "#808080".into(),
+            deeper_row_color: "#808080".into(), // src: exe 0x496610
             chapter_history: Some(self.chapter_history()?),
         })
     }

@@ -314,7 +314,7 @@ const PRESET_FIELDS: u32 = 6;
 /// for.
 /// ours: the exe (noise_update, 0x419570) seeds new static with rand()
 /// every interval, so no count to read.
-const NOISE_FRAMES: u32 = 4;
+const NOISE_FRAMES: u32 = 4; // ours: a short loop of static
 /// A timed wait (handler 0x475cd0, callback 0x475bf0): arg's low 16 bits
 /// are the ms; when its high half isn't 0 a click or skip mode ends it.
 const OP_WAIT: u16 = 0x66;
@@ -865,7 +865,7 @@ impl AssetBank {
         let name_plate = if preset.style == 6 {
             let plate = format!("system/nameplate{}.png", preset.style);
             self.layered(&plate, &images[2], &images[3])?;
-            Some(NamePlate { image: plate, x: x - 21, y: y - 32, text_x: x + 3, text_y: y - 21, font_size: 24 })
+            Some(NamePlate { image: plate, x: x - 21, y: y - 32, text_x: x + 3, text_y: y - 21, font_size: 24 }) // src: exe 0x4a138f, 0x4a0b10 (offsets above)
         } else {
             None
         };
@@ -933,7 +933,7 @@ impl AssetBank {
             font_size: 24,
             line_gap: 12,
             vertical: false,
-            name_plate: Some(NamePlate { image: plate, x: 32, y: 417, text_x: 56, text_y: 428, font_size: 24 }),
+            name_plate: Some(NamePlate { image: plate, x: 32, y: 417, text_x: 56, text_y: 428, font_size: 24 }), // src: exe 0x4a138f, 0x4a0b10 (offsets above)
         })
     }
 
@@ -1498,7 +1498,7 @@ const REPLACE_SLOT_BASE: u32 = 4;
 /// redraws the screen).
 /// ours: the exe redraws its filters every frame; a still one needs no
 /// faster step here.
-const REPLACE_INTERVAL_MS: u32 = 1000;
+const REPLACE_INTERVAL_MS: u32 = 1000; // ours: see above
 
 /// Opcode 0x70: sets one slot of the screen filter. A Filter-Replace
 /// becomes a still `screenripple` in slot 4 + n; `replaces` holds the
