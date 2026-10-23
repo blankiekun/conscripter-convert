@@ -1,18 +1,20 @@
 //! dja026's song (`ShowWords`): each `CreateText("songtxtNN", …,
 //! "<I>荒.野.開.く…</I>")` line types out from its `Request(…, Enter)`.
 //! The exe's text layout (`layout_create_text`) makes each `.` a 100 ms
-//! pause before the next letter (game speed NORMAL). Under wine (text
-//! speed 500) a letter comes every 125 ms, the full-width space included
-//! (the first two lines: 9 and 10 steps in 1,170 and 1,213 ms), the
-//! first one about as long after `Enter`. Ours keeps that time whatever
-//! the text speed setting (the original's 25 ms beside the dot may follow
-//! it: unchecked).
+//! pause before the next letter, on top of the letter's own interval:
+//! the base 30 ms ($SYSTEM_text_interval) × the text speed 500 ÷ 1000.
+//! Under wine a letter came every 125 ms (the first two lines: 9 and 10
+//! steps in 1,170 and 1,213 ms): the 115 rounded up to the original's
+//! 16 ms frames. Ours keeps that time whatever the text speed setting.
 
 use super::super::text_object::{Style, draw};
 use super::super::{Compiler, Kind, StripObject, Value};
 
-/// The time a letter takes, measured under wine (100 of it the dot).
-const LETTER_MS: u32 = 125; // src: shot d26 (wine)
+/// The time a letter takes at game speed NORMAL: the dot's 100 ms and
+/// the interval 30 × 500 ÷ 1000.
+// src: Django.exe layout_create_text 004608f0 ('.' adds 100), 004605b0 ($SYSTEM_text_interval 30),
+// 00461e40 (interval × text speed ÷ 1000), reset_system_defaults 0045cb30 (text speed 500)
+const LETTER_MS: u32 = 100 + 30 * 500 / 1000;
 
 /// Where a line's letters wait for its `Enter`.
 fn key(name: &str) -> String {

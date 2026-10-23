@@ -112,9 +112,10 @@ fn title_motion(a: &mut dyn Assets, t: &mut TitleScreen, image: &str, keys: &[co
 /// and OFF (440) pairs; GAME-SPEED's four presets at y 188; EXIT
 /// (650,518). Pictures: `-001` at rest, `-002` under the pointer, `-003`
 /// chosen. Values as `config_default` and `setgrade` set them: text speed
-/// level k is `k × 100` (level 1 none), its slowest 50 ms a character
-/// (ours: the engine's unit isn't known); auto mode waits `20 × k` ms a
-/// character (default 5); volumes `k × 100` of 1000 (defaults from
+/// level k is `k × 100` (level 1 none), a character taking the exe's
+/// base 30 ms × that ÷ 1000; auto mode waits `20 × k` ms a character
+/// (the exe adds characters × #SYSTEM_auto_wait_per_character, no page
+/// base; default 5); volumes `k × 100` of 1000 (defaults from
 /// system.ini: 7, 9, 10); GAME-SPEED is the engine's play speed 3
 /// (NORMAL, default), 5 (QUICK-A), 12 (QUICK-B), 1 (LOWSPEC), each the
 /// percent of 装甲悪鬼村正's exe table (assumed the same engine). Left
@@ -182,7 +183,8 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         // 1000 is DEFAULT's). src: Django.exe 00461e40 (a character's ms = the base × text_speed ÷ 1000),
         // 004605b0 (the base 30 ms: the scripts set no $SYSTEM_text_interval)
         stepped(SliderSetting::TextSpeed { ms: 30 }, bullets(a, 212, &text_speed)?, text_speed(5), true),
-        // src: setgrade's 20 ms × level, config_default's 100 (level 5); volumes: system.ini 700, 900, 1000
+        // src: setgrade's 20 ms × level, config_default's 100 (level 5); Django.exe 00461e40 (0x46217e,
+        // 0x462268: auto wait += characters × #SYSTEM_auto_wait_per_character); volumes: system.ini 700, 900, 1000
         stepped(SliderSetting::AutoWait { ms: 200 }, bullets(a, 308, &per_char)?, per_char(5), true),
         stepped(SliderSetting::BgmVolume, bullets(a, 422, &volume)?, volume(7), true),
         stepped(SliderSetting::SeVolume, bullets(a, 470, &volume)?, volume(9), true),
