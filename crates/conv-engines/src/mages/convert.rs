@@ -401,11 +401,11 @@ pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
         x,
         y,
         text_x: 111, // exe 0x8112cdfc
-        text_y: 408,
+        text_y: 408, // exe 0x8112cdfc
         columns: 30,
         rows: 4, // the scripts' longest message
         font_size: 22, // exe 0x8104a120
-        line_gap: 12,
+        line_gap: 12, // exe 0x81009c04
         vertical: false,
         name_plate: None,
     }

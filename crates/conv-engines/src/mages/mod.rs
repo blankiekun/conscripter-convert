@@ -8,6 +8,7 @@ pub mod convert;
 pub mod cpk;
 pub mod extras;
 pub mod menus;
+pub mod quake;
 pub mod screens;
 pub mod tasks;
 pub mod usm;
