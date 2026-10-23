@@ -50,7 +50,8 @@ pub const SCREEN_W: i64 = 1024;
 /// wait for them (a text page, a blocking action): the original goes on
 /// while they run, up to minutes (a background scrolling through a
 /// battle).
-// ours
+// ours: a cap so an unwaited fade does not stall our blocking engine command
+// (the exe runs it in the background)
 const UNWAITED_MS: u32 = 1000;
 pub const SCREEN_H: i64 = 576;
 /// 装甲悪鬼村正's story driver ([`Game::boot`]); the helper library is what
@@ -398,7 +399,8 @@ pub struct MovieInfo {
 }
 
 /// Frames a second of a movie drawn as cells ([`Assets::movie_frames`]).
-// ours
+// ours: cells are a size/smoothness trade-off for our strips (the exe
+// plays the movie file)
 pub const MOVIE_FPS: u32 = 15;
 
 /// The result of compiling one scene.

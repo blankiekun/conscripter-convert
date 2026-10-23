@@ -21,7 +21,8 @@ const PRIORITY: i64 = 20005;
 const SIZE: f32 = 20.0;
 const PITCH: i32 = 21;
 /// A cell of the subtitle's strip: its changes land on these steps.
-// ours: FRAME_MS, UNKNOWN_MS, PAD
+// ours: FRAME_MS, UNKNOWN_MS, PAD: our strip of drawn cells has no exe
+// counterpart (the original draws them live)
 const FRAME_MS: u32 = 250;
 /// Shown this long when the voice's length is unknown.
 const UNKNOWN_MS: u32 = 3000;

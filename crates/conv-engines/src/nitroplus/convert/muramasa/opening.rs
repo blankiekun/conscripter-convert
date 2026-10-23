@@ -11,7 +11,8 @@ use image::{RgbImage, RgbaImage};
 
 use super::super::{Assets, SCREEN_H, SCREEN_W};
 
-// ours
+// ours: the frame rate of our pre-rendered opening cells (the exe draws
+// it live)
 const FPS: u32 = 30;
 
 /// Where the title's pictures are and where they go: the Japanese
