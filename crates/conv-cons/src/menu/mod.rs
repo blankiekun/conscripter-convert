@@ -464,7 +464,7 @@ pub(crate) mod tests {
             "*conv_bar_log\nsystemcall lookback\nreturn\n",
             "*conv_bar_save\ngosub *conv_bar_clear\nmov %101,1\ngosub *conv_save\nreturn\n",
             "*conv_bar_hide\nvsp 34,0:",
-            ":vsp %conv_link7,0:vsp 6,0:",
+            ":vsp %conv_link11,0:vsp 6,0:",
             ":vsp 21,0\nsystemcall windowerase\nvsp 34,1:",
             ":vsp 21,1\nreturn\n",
         ] {

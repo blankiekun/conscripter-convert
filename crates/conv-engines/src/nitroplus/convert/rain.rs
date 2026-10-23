@@ -18,7 +18,8 @@ const TICK_MS: u32 = 42;
 /// The exe divides by its frame period.
 // src: exe init_frame_tables 0048c5d0 (ms per frame 005dcb0c[4] = 16, index 005dcaf0 = 4)
 const FRAME_MS: i64 = 16;
-// ours: CELLS, WARM_UP
+// ours: CELLS, WARM_UP: our looped strip of pre-drawn rain (the exe
+// draws its rain live)
 /// Frames in the strip: a second of rain, looped.
 const CELLS: u32 = 24;
 /// Frames run before the strip's first, so the drops aren't all at the top.

@@ -197,7 +197,7 @@ impl<'a> Compiler<'a, '_> {
         let v: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
         let int = |i: usize| v.get(i).map_or(0, |a| a.int().abs() as i32);
         let ms = int(1) as u32;
-        let keys = shake_keys(&[(ms, (int(2), int(3)), (int(4), int(5)))]);
+        let keys = shake_keys(&[(ms, (int(2), int(3)), (int(4), int(5)), v.get(7).and_then(super::tempo))], super::shake::exe_step(v.get(6).map_or(0, Value::int)));
         for t in v.first().map(|a| self.matching(a)).unwrap_or_default() {
             let Some(o) = self.objects.get(&t) else { continue };
             let p = passes.entry(t).or_insert_with(|| Pass::starting([o.x as f64, o.y as f64, o.zoom.0 as f64, o.zoom.1 as f64, -o.turn.2 as f64, o.opacity as f64]));

@@ -133,8 +133,9 @@ const NAME_SPRITES_DEFINE: &str = "defvar conv_name_text\ndefvar conv_name_plate
 /// drawn over the text window and the others under it.
 const HUMANZ: u32 = 58;
 /// Clickable link words (and choice plates): `spnew` handles in the `ui`
-/// layer, `%conv_link0` on top ([`LINKS_DEFINE`]; were sprites 51-58).
-const LINK_SPRITE_COUNT: usize = 8;
+/// layer, `%conv_link0` on top ([`LINKS_DEFINE`]; were sprites 51-58);
+/// twelve: a plate and a text for each of 装甲悪鬼村正's six options.
+const LINK_SPRITE_COUNT: usize = 12;
 fn link_sprite(n: usize) -> String {
     format!("%conv_link{n}")
 }

@@ -476,17 +476,19 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
 /// The click-wait flame (System.ini `icon_line`, `icon_page`: the 32
 /// pictures of 改行改頁アイコン), looped, at each window's
 /// `$SYSTEM_position_{x,y}_text_icon`. Pictures 1-19 are the flame
-/// burning, 20-32 it withering to a wisp of smoke. Watched in the original
-/// (wine under Xvfb redraws the waiting screen only about once a second,
-/// so it couldn't be filmed): the flame burns about a second, withers
-/// about as long, and lights again after a pause (here half a second).
+/// burning, 20-32 it withering to a wisp of smoke. Each picture is shown
+/// for eight render passes, all alike, the loop restarting at once.
 fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     let parts: Vec<String> = (1..=32).map(|n| format!("cg/sys/icon/改行改頁アイコン/{n:03}.png")).collect();
     let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
-    // guess: watched, not filmed (clickwait-icon-60.mkv redraws about once a second)
-    let mut frame_ms = vec![53; 19];
-    frame_ms.extend([77; 13]);
-    frame_ms[31] += 500;
+    // src: Muramasa.exe FUN_00461470 (called once per pass by FUN_0044b850, the render thread at 0x44b3e0):
+    // a 16.16 counter at state+0x10 grows by state+0x14, 0x2000 (set in FUN_00442400), the picture is its
+    // high word, back to 0 at the count: 8 passes a picture, no pause
+    const PASSES: u32 = 0x10000 / 0x2000;
+    // src: frame period table 005dcb0c [1,2,4,8,16,20,25,33] filled by FUN_0048c5d0, index [005dcaf0]=4 -> 16 ms;
+    // render loop 0044b3e0 waits FUN_00480750(3,-1,16)
+    const PASS_MS: u32 = 16;
+    let frame_ms = vec![PASSES * PASS_MS; 32]; // 32 pictures, exe PASS_MS above
     Some(WaitIcon { image, frame_ms, w: w / 32, h })
 }
 
@@ -503,13 +505,18 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// `バックログ` in `function_textbox.nut`): rows 570 px wide; the
 /// field from y 10, 480 high, `backlogRowSpace` 10: 34 px apart (the
 /// font's height 24 + 10), 14 rows, the first drawn from y 22 (where the
-/// original's are, measured under wine).
+/// original's are, measured under wine); the speaker 38 px left of the
+/// field, x 112.
 fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
-    // src: sys_backlog.nss (buttons, scrollbar, SetFont 20, Fade 300), system.ini word_in_row 26; rows: shot backlog-1 (within 2 px)
+    // src: sys_backlog.nss (buttons, scrollbar, SetFont 20, Fade 300), system.ini word_in_row 26
+    // src: Muramasa.exe FUN_00404080 lays the rows out from $SYSTEM_backlog_row_max 16, _voice_icon_x 102,
+    // _position_x 140, _position_y 49, _row_interval 30, _character_width 20 (sys_backlog.nss sets them;
+    // the exe's defaults when unset: 17, 82, 120, 100, 24, 19)
     // src: sys_backlog.nut 退出 906,443; function_textbox.nut backlogFieldRect, backlogRowSpace; rows: shot en/orig-backlog
-    // guess: the speaker icon's x 102 in the English port (no voiced row filmed)
-    let ((close_x, close_y), text_x, columns) = if en { ((906, 443), 150, 28) } else { ((927, 438), 140, 26) };
+    // src: sys_backlog.nut main: voice_offset x -38 from rect (backlogFieldRect, x 150), y 0; BackLogUpdateView
+    // moves the speaker to rect.x + voice_offset.x
+    let ((close_x, close_y), text_x, columns, voice_x) = if en { ((906, 443), 150, 28, 150 - 38) } else { ((927, 438), 140, 26, 102) }; // script positions (sys_backlog.nut), see src lines above
     let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
         let parts: Vec<String> = names.iter().map(|n| format!("{dir}/{n}.png")).collect();
         let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
@@ -523,7 +530,7 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         close: button(a, dir, "退出", close_x, close_y, false)?,
         knob: strip(a, &["001-スクロール", "002-スクロール"], 860, 461)?,
         knob_y: (50, 461),
-        voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], 102, 0)?,
+        voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], voice_x, 0)?, // script voice (sys_backlog.nut) icon, see src lines above
         text_x,
         text_y: if en { 22 } else { 49 },
         row_step: if en { 34 } else { 30 },
@@ -591,6 +598,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         column_step: -190,
         rows: 5,
         columns: 4,
+        // src: sys_save.nss #SYSTEM_save_thumbnail_width 160, _height 90; Fade("システム背景SL",300)
         thumb_w: 160,
         thumb_h: 90,
         hover: picture(a, "選択中サムネールワク", 0, 0)?,
@@ -719,7 +727,9 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         column_step: 195,
         rows: 3,
         columns: 5,
-        thumb_w: 158,
+        // src: sys_val_product.nut SAVE_THUMBNAIL_WIDTH 160, _HEIGHT 90 (SaveThumbnail's
+        // SaveImage size; the script draws it unscaled at PreSaveThumX 42 + 195 per column)
+        thumb_w: 160,
         thumb_h: 90,
         hover: picture(a, "MouseOverBoard", 0, 0)?,
         hover_offset: (-3, -3),
@@ -730,14 +740,15 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         delete: none(a),
         delete_on: none(a),
         close: button(a, ["EXITボタン_bt_exit_off", "EXITボタン_bt_exit_over", "EXITボタン_bt_exit_off", "EXITボタン_bt_exit_on"], 0, 0)?,
-        // guess: thumbnails 158×90 (Slots-Grid's cells), page fade 300
         // The port has no larger picture, date or chapter.
-        preview: Rect { x: -2000, y: -2000, w: 158, h: 90 },
+        // src: SAVE_THUMBNAIL_WIDTH/HEIGHT 160×90 (sys_val_product.nut)
+        preview: Rect { x: -2000, y: -2000, w: 160, h: 90 }, // SAVE_THUMBNAIL 160x90 (sys_val_product.nut); -2000: off screen, ours
         date: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
         play_time: text(25, 550, 18, 1, 24, 0, "#ffffff"),
         chapter: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
         line: text(339, 511, 15, 5, 22, 3, "#000000"),
         saved,
+        // src: sys_saveload.nut, the page switch: Fade(SCREEN, 300) over a snapshot of the old page
         fade_ms: 300,
         across: true,
         tabs,

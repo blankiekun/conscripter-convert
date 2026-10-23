@@ -240,7 +240,7 @@ NSS's and come from it):
 |---|---|
 | `Print`, `SetChoice`, `SceneInit`, … (`function_n2`, `function_textbox`, `function_select`) | the NSS's `<PRE>` blocks and `select`s, with the English |
 | `ShowVOICESEText`/`ClearVOICESEText` (32/18, 10 scenes) | a subtitle strip (`muramasa/subtitles.rs`) |
-| `<WAITVOICE=n>` 95, `<WAIT=n>` 16, `<RED*>`/`<YELLOW>` 28, `<SMALL>` 8, `<I>`, `<center>` | `!vn`, `!dn`, `#RRGGBB`, `!z` (size a guess), `!i1`…`!i0`, `!c` |
+| `<WAITVOICE=n>` 95, `<WAIT=n>` 16, `<RED*>`/`<YELLOW>` 28, `<SMALL>` 8, `<I>`, `<center>` | `!vn`, `!dn`, `#RRGGBB`, `!z` (50 %: the ruby font, exe 004a82e7), `!i1`…`!i0`, `!c` |
 | `<FW>` 25 (`SwitchFw`) | a new page in the box without a face until the next code |
 | `CreateTexture…`/`Move` on a telop | the port's place and picture; priority, time, tempo and wait the NSS's |
 | `SetTextEXC_Large/Huge/Big/Middle`, `TypeBegin…_Large/…` (16, 8 scenes) | **not converted** (the NSS's box) |

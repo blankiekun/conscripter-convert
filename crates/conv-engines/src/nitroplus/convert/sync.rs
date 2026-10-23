@@ -187,12 +187,10 @@ impl Compiler<'_, '_> {
                     // A camera's zoom: the picture's centre moved away from
                     // the screen's, the picture scaled as much.
                     let k = self.camera_zoom(n, o.priority)?;
-                    if k != 1000 {
-                        let (cx, cy) = (x + o.w / 2, y + o.h / 2);
-                        let (sx, sy) = (self.game.screen.0 / 2, self.game.screen.1 / 2);
-                        x = sx + (cx - sx) * k / 1000 - o.w / 2;
-                        y = sy + (cy - sy) * k / 1000 - o.h / 2;
-                        zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
+                    if k != 1.0 { // 1.0 = no camera zoom, exe FUN_00489570
+                        let (cx, cy) = super::drawing::through_camera((x + o.w / 2, y + o.h / 2), k, self.game.screen);
+                        (x, y) = (cx - o.w / 2, cy - o.h / 2);
+                        zoom = ((zoom.0 as f64 * k) as i64, (zoom.1 as f64 * k) as i64);
                     }
                     // Turned about x or y: squashed (convert/turn.rs).
                     let sq = self.squash(n, None);

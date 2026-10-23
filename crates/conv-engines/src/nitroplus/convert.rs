@@ -50,7 +50,8 @@ pub const SCREEN_W: i64 = 1024;
 /// wait for them (a text page, a blocking action): the original goes on
 /// while they run, up to minutes (a background scrolling through a
 /// battle).
-// ours
+// ours: a cap so an unwaited fade does not stall our blocking engine command
+// (the exe runs it in the background)
 const UNWAITED_MS: u32 = 1000;
 pub const SCREEN_H: i64 = 576;
 /// 装甲悪鬼村正's story driver ([`Game::boot`]); the helper library is what
@@ -215,14 +216,11 @@ pub struct Game {
     /// (a box with a face window, then the box without one) when the
     /// game's text has `<FW img=''>`.
     box_text: &'static [BoxText],
-    /// `Shake` jolts to and fro every 1000 ÷ (`n` × 0.06) ms, along its
-    /// tempo (続・殺戮のジャンゴ's and 装甲悪鬼村正's exes; [`ScreenEffect::Jolt`]).
-    shake_jolts: bool,
     /// How `Fade` and `DrawTransition` ease by their tempo
     /// ([`Op::TransitionEase`]): 装甲悪鬼村正's and 続・殺戮のジャンゴ's exes
     /// as [`tempo`]; `None`, straight.
     fade_tempo: Option<Tempo>,
-    /// With `shake_jolts`: Full Metal Daemon Muramasa's English port's
+    /// Full Metal Daemon Muramasa's English port's
     /// `Shake` (a Diesel `CEffectShake`), turning every (1000 ÷ `n`) × 20
     /// ms, the size straight (its tempo is the swings' own).
     diesel_shake: bool,
@@ -270,7 +268,6 @@ impl Game {
         story_end: &[],
         horizontal_box: None,
         box_text: &[],
-        shake_jolts: false,
         diesel_shake: false,
         diesel_transition: false,
         fade_tempo: None,
@@ -402,7 +399,8 @@ pub struct MovieInfo {
 }
 
 /// Frames a second of a movie drawn as cells ([`Assets::movie_frames`]).
-// ours
+// ours: cells are a size/smoothness trade-off for our strips (the exe
+// plays the movie file)
 pub const MOVIE_FPS: u32 = 15;
 
 /// The result of compiling one scene.
@@ -479,7 +477,7 @@ enum Kind<'a> {
     /// `z / (1000 - p)` times about the screen's centre; one of priority
     /// 1000 or more isn't drawn. Measured under wine (続・殺戮のジャンゴ,
     /// boxes at four priorities and six camera settings); 装甲悪鬼村正's
-    /// are drawn the same (not checked there).
+    /// exe projects the same ([`drawing::through_camera`]'s test).
     Camera,
     /// A colour added onto the screen, flashing while the script goes on
     /// (its own code, as 続・殺戮のジャンゴ's `GunFire`).
@@ -766,7 +764,7 @@ type Ramp = (u32, u32, Option<(u8, u32)>);
 type Tempo = fn(&Value) -> Option<(u8, u32)>;
 
 /// An NSS tempo as [`Op::MoveEase`]'s (ease, exponent), the exe's
-/// curves (`apply_tempo`, `research/nitroplus/builtins.md`): `Axl1`-`3`
+/// curves (apply_tempo 00449f40, run by research/nitroplus/tempo_exe.py; test `tempos_are_the_exes`): `Axl1`-`3`
 /// t^2-t^4, `Dxl1`-`3` 1-(1-t)^2-^4, the sine ones as eases 4-7; any
 /// other (`null` too) straight: `None`.
 fn tempo(v: &Value) -> Option<(u8, u32)> {

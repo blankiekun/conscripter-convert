@@ -231,7 +231,8 @@ impl<'a> NpaAssets<'a> {
 
 /// Pixels that must differ (by over 32 in a channel) for an English CG to
 /// be another picture than the Japanese, not a re-encode of it.
-// guess: a mosaic covers thousands of pixels; the re-encoded UI pictures of 3 scenes differ in under 800
+// ours: the converter's test, no exe counterpart (the two editions are separate games); a mosaic
+// covers thousands of pixels, the re-encoded UI pictures of 3 scenes differ in under 800
 const CENSORED_PIXELS: usize = 2000;
 
 impl NpaAssets<'_> {

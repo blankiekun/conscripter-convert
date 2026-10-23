@@ -32,7 +32,6 @@ pub const DJANGO: Game = Game {
     choice_style,
     story_end: &["InitBGM", "TitleCongratulations"],
     menus: screens::menus,
-    shake_jolts: true,
     fade_tempo: Some(super::tempo),
     boot_logos: ("boot.nss", BOOT_LOGOS),
     title_opening: ("TitleSet", extras::CLEARED, "$Logo"), // src: boot.nss main (TitleLogo, then TitleSet)
@@ -136,7 +135,7 @@ fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
     let hole = c.assets.image("cg/sys/select/dankon.png").map(|i| i.0);
     let sound = c.assets.sound("sound/se/SE_戦闘_銃器_発砲_マカロニ1");
     let shot = hole.zip(sound).map(|(hole, sound)| ChoiceShot { hole, hole_dx: -47, hole_dy: -41, sound });
-    let plates = ChoicePlates { image, x: X as i32, y: Y as i32, step: h as i32, text_x: TEXT_X, text_dy: TEXT_DY, font_size: FONT as u32, colour: "#FFFFFF".into(), fade_ms: 300, shot };
+    let plates = ChoicePlates { image, x: X as i32, y: Y as i32, step: h as i32, text_x: TEXT_X, text_dy: TEXT_DY, font_size: FONT as u32, colour: "#FFFFFF".into(), fade_ms: 300, shot, vertical: false, chosen_ms: 0 }; // SetChoice02 Fade 300, SetFont #FFFFFF (script), plate geometry as above
     // src: SetChoice02's Fade 300 and SetFont #FFFFFF; on_color ours (the original's hover is the select002 plate)
     Some(ChoiceStyle { window, on_color: 0xFFD070, off_color: 0xFFFFFF, plates: Some(plates) })
 }

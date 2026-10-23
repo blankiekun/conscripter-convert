@@ -45,7 +45,7 @@ fn window() -> TextWindow {
 #[test]
 fn a_choice_of_plates_is_picture_buttons_with_centred_text() {
     let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
-    let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None };
+    let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None, vertical: false, chosen_ms: 0 };
     let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
     let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
     let text = emit(&script(vec![Op::Choice { options, style, disabled: vec![] }]));
@@ -61,6 +61,22 @@ fn a_choice_of_plates_is_picture_buttons_with_centred_text() {
 }
 
 #[test]
+fn vertical_plates_step_left_with_column_text_and_a_chosen_cell() {
+    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 20, line_gap: 0, vertical: true, name_plate: None };
+    let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 562, y: 68, step: 100, text_x: 577, text_dy: 40, font_size: 20, colour: "#000000".into(), fade_ms: 500, shot: None, vertical: true, chosen_ms: 1000 };
+    let options = vec![("はい".to_string(), "a".to_string()), ("いいえ".to_string(), "b".to_string())];
+    let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
+    let text = emit(&script(vec![Op::Choice { options, style, disabled: vec![] }]));
+    for part in [
+        "lsp %conv_link1,\":a/3,0,3;system\\plate.png\",562,68\nvstrsp %conv_link0,\"はい\",577,108,1,3,20,20,",
+        "lsp %conv_link3,\":a/3,0,3;system\\plate.png\",462,68\nvstrsp %conv_link2,\"いいえ\",477,108,1,4,",
+        "if %9 == 2 cell %conv_link3,2\nprint 1:delay 1000\ncsp %conv_link0",
+    ] {
+        assert!(text.contains(part), "missing {part:?} in\n{text}");
+    }
+}
+
+#[test]
 fn a_runtime_choice_sets_its_option_texts_from_a_variable() {
     let var = Var { global: false, index: 5 };
     let rt = conv_core::ir::RuntimeText { var, texts: vec![(1, "頼む".into()), (2, "Leave".into())] };
@@ -71,7 +87,7 @@ fn a_runtime_choice_sets_its_option_texts_from_a_variable() {
     }
     // On plates: the text and its centred x, set together.
     let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
-    let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None };
+    let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None, vertical: false, chosen_ms: 0 };
     let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
     let text = emit(&script(vec![Op::RuntimeChoice { options, texts: vec![None, Some(rt)], style }]));
     for part in ["if %15 == 2 mov $conv_choice_text1,\"Leave\":mov %conv_choice_x1,361", "strsp %conv_link2,$conv_choice_text1,%conv_choice_x1,330,6,"] {
@@ -85,7 +101,7 @@ fn a_runtime_choice_sets_its_option_texts_from_a_variable() {
 fn a_shot_plate_gets_its_hole_and_tips_over_about_its_bottom() {
     let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
     let shot = Some(conv_core::ir::ChoiceShot { hole: "system/hole.png".into(), hole_dx: -47, hole_dy: -41, sound: "se/shot.ogg".into() });
-    let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot };
+    let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot, vertical: false, chosen_ms: 0 };
     let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
     let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
     let text = emit(&script(vec![Op::Choice { options, style, disabled: vec![] }]));
@@ -1014,6 +1030,10 @@ defvar conv_link4
 defvar conv_link5
 defvar conv_link6
 defvar conv_link7
+defvar conv_link8
+defvar conv_link9
+defvar conv_link10
+defvar conv_link11
 spnew %conv_link0,ui
 spnew %conv_link1,ui
 spnew %conv_link2,ui
@@ -1022,6 +1042,10 @@ spnew %conv_link4,ui
 spnew %conv_link5,ui
 spnew %conv_link6,ui
 spnew %conv_link7,ui
+spnew %conv_link8,ui
+spnew %conv_link9,ui
+spnew %conv_link10,ui
+spnew %conv_link11,ui
 defarr conv_cg_seen,576,global
 for %0 = 0 to 575
 mov %1,2200+%0

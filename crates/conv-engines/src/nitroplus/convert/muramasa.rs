@@ -48,7 +48,7 @@ const BOOT_LOGOS_EN: &str = r#"function BootLogos()
 	Delete("背景*");
 }"#;
 
-pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, loaded_textures: true, fade_tempo: Some(super::tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS), ..Game::PLAIN };
+pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, loaded_textures: true, fade_tempo: Some(super::tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS), ..Game::PLAIN };
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
 /// scripts): its port writes the vertical text boxes horizontally, 280
@@ -56,7 +56,8 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// (`function_textbox.nut`; a 25 px pitch in the original), down to the
 /// click icon at 500: 12 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
-// src: function_textbox.nut text0 (280 wide, font 20, rowSpace 1); text_drop 2: shot en/orig-page1
+// src: function_textbox.nut text0 (280 wide, font 20, rowSpace 1)
+// ours: text_drop 2, the gap between the two renderers' glyph placement (shot en/orig-page1), no exe constant
 pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, diesel_shake: true, diesel_transition: true, fade_tempo: Some(diesel_tempo), boot_logos: ("0_boot.nss", BOOT_LOGOS_EN), ..MURAMASA };
 
 /// The port's tempo of a `Fade` or `Transition` (its `DrawTransition`), as
@@ -76,12 +77,10 @@ fn diesel_tempo(v: &Value) -> Option<(u8, u32)> {
 
 /// The port's choices (`SetChoice` in `function_select.nut`, its
 /// `LANG_NAME == "en"` branch): 440×50 plates (`cg/sys/select/en/
-/// select001.png`, `select002.png` under the pointer) centred on the
+/// select001.png`, `select002.png` under the pointer, `select003.png`
+/// chosen, for a second) centred on the
 /// screen, 100 px apart, the group centred vertically; each option
 /// centred on the screen 13 px below its plate's top, in black.
-/// shortcut: conv-cons has sprites for 4 picture-button options; the 8
-/// selects of 5 or 6 are the plates in the window, their texts at the
-/// plates' left and red under the pointer, until it has more.
 fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
     // src: function_select.nut SetChoice (100 apart, text y + 13); FONT_LIST 選択肢 size 20
     const PITCH: i64 = 100;
@@ -108,13 +107,10 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         vertical: false,
         name_plate: None,
     };
-    if n > 4 {
-        // ours: red under the pointer (the port changes the plate instead)
-        return Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0, plates: None });
-    }
-    let (image, _, _) = c.assets.strip(&[FREE, "cg/sys/select/en/select002.png"])?;
-    // src: function_select.nut (Fade "choice*/txt", "choice*/free" over 500 ms, in and out)
-    let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 500, shot: None };
+    let (image, _, _) = c.assets.strip(&[FREE, "cg/sys/select/en/select002.png", "cg/sys/select/en/select003.png"])?;
+    // src: function_select.nut (/free /over /down: select001-003; Fade "choice*/txt", "choice*/free"
+    // over 500 ms, in and out; the chosen one down for Wait 1000 first)
+    let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 500, shot: None, vertical: false, chosen_ms: 1000 }; // function_select.nut: Fade 500 over, black text, 13 px text dy (script)
     Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) })
 }
 

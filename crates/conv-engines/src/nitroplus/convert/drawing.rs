@@ -187,14 +187,13 @@ impl<'a> Compiler<'a, '_> {
         }
     }
 
-    /// How much (per mille) the cameras `name` is seen through magnify an
-    /// object of `priority` ([`Kind::Camera`]); `None`: at or before the
-    /// camera, not drawn.
+    /// How much the cameras `name` is seen through magnify an object of
+    /// `priority` ([`Kind::Camera`]); `None`: at or before the camera, not
+    /// drawn.
     // src: shot (続・殺戮のジャンゴ under wine: boxes at four priorities, six camera settings; docs/games/django.md)
-    // src: exe 00489a52 (装甲悪鬼村正, FUN_00489570: a camera's picture at depth 1000 − priority,
-    // seen at the camera's z: x = 512 + (x − 512)·z/(1000 − priority), y alike about 288)
-    pub(super) fn camera_zoom(&self, name: &str, priority: i64) -> Option<i64> {
-        let mut zoom = 1000;
+    // src: exe 00489a52 (装甲悪鬼村正, FUN_00489570: a camera's picture at depth 1000 − priority, seen at the camera's z)
+    pub(super) fn camera_zoom(&self, name: &str, priority: i64) -> Option<f64> {
+        let mut zoom = 1.0; // identity zoom, exe FUN_00489570 starts from 1
         let mut end = 0;
         while let Some(i) = name[end..].find('/') {
             end += i;
@@ -202,7 +201,7 @@ impl<'a> Compiler<'a, '_> {
                 if priority >= 1000 {
                     return None;
                 }
-                zoom = zoom * p.zoom.0 / (1000 - priority);
+                zoom = zoom * p.zoom.0 as f64 / (1000 - priority) as f64; // exe 00489a52: depth 1000 minus priority
             }
             end += 1;
         }
@@ -237,6 +236,30 @@ impl<'a> Compiler<'a, '_> {
         if self.window_visible && !visible {
             self.ops.push(Op::HideTextWindow);
             self.window_visible = false;
+        }
+    }
+}
+
+/// Where a point at `(x, y)` (the camera's place taken off) is drawn
+/// through a camera magnifying `zoom` times ([`Compiler::camera_zoom`]):
+/// moved away from the screen's centre, cut toward 0 as the exe's `_ftol`.
+// src: exe 004899e1 (装甲悪鬼村正, FUN_00489570's camera branch: x·z/d − (z/d − 1)·512, −y·z/d − (z/d − 1)·288 with y up)
+pub(super) fn through_camera((x, y): (i64, i64), zoom: f64, (w, h): (i64, i64)) -> (i64, i64) {
+    let (sx, sy) = ((w / 2) as f64, (h / 2) as f64);
+    ((sx + (x as f64 - sx) * zoom) as i64, (sy + (y as f64 - sy) * zoom) as i64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::through_camera;
+
+    #[test]
+    fn a_camera_projects_as_the_exe() {
+        // research/nitroplus/camera_exe.py <Muramasa.exe>: FUN_00489570 with a camera,
+        // one vertex: (x, y, camera x, y, z, depth priority, screen x, y).
+        const EXE_CAMERA: [[i64; 8]; 8] = [[0, 0, 0, 0, 1000, 0, 0, 0], [100, 50, 0, 0, 500, 0, 306, 169], [100, 50, 0, 0, 1000, 500, -312, -188], [700, 400, 30, -20, 1200, 200, 749, 486], [-300, 900, 100, 100, 800, -500, 25, 561], [512, 288, 0, 0, 3000, 900, 512, 288], [1, 2, 0, 0, 999, 1, 1, 2], [250, 100, -40, 60, 700, 300, 290, 40]];
+        for [x, y, cx, cy, z, p, sx, sy] in EXE_CAMERA {
+            assert_eq!(through_camera((x - cx, y - cy), z as f64 / (1000 - p) as f64, (1024, 576)), (sx, sy), "{x},{y} cam {cx},{cy},{z} p {p}");
         }
     }
 }

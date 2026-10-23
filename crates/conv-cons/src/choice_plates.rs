@@ -30,27 +30,34 @@ pub(crate) fn emit(out: &mut String, strings: &mut crate::strtab::Strings, optio
     let mut text_at = Vec::new();
     // Full-width characters take the font's size, the others half.
     let width = |text: &str| -> i32 { text.chars().map(|c| if (c as u32) < 0x80 || ('｡'..='ﾟ').contains(&c) { p.font_size as i32 / 2 } else { p.font_size as i32 }).sum() };
+    assert!(!(p.vertical && p.shot.is_some()), "a shot on vertical plates");
+    // The plate's place, and the text's left (by its width) and top.
+    let plate_at = |i: usize| if p.vertical { (p.x - p.step * i as i32, p.y) } else { (p.x, p.y + p.step * i as i32) };
+    let text_left = |i: usize, text: &str| if p.vertical { p.text_x - p.step * i as i32 } else { p.text_x - width(text) / 2 };
+    let cells = if p.chosen_ms > 0 { 3 } else { 2 };
+    let strsp = if p.vertical { "vstrsp" } else { "strsp" };
     for (i, (text, _)) in options.iter().enumerate() {
-        let y = p.y + p.step * i as i32;
+        let (px, y) = plate_at(i);
         let text = escape(text);
         let (text, x, columns) = match texts.get(i).and_then(Option::as_ref) {
             Some(rt) => {
                 let (s, x) = crate::runtime_option(i);
-                writeln!(out, "{}", strings.lines(PLATE, &format!("mov {s},\"{text}\":mov {x},{}", p.text_x - width(&text) / 2))).unwrap();
+                writeln!(out, "{}", strings.lines(PLATE, &format!("mov {s},\"{text}\":mov {x},{}", text_left(i, &text)))).unwrap();
                 let mut columns = text.chars().count();
                 for (value, t) in &rt.texts {
                     let t = escape(t);
                     columns = columns.max(t.chars().count());
-                    let line = format!("if {} == {value} mov {s},\"{t}\":mov {x},{}", var_name(rt.var, border), p.text_x - width(&t) / 2);
+                    let line = format!("if {} == {value} mov {s},\"{t}\":mov {x},{}", var_name(rt.var, border), text_left(i, &t));
                     writeln!(out, "{}", strings.lines(PLATE, &line)).unwrap();
                 }
                 (s, x, columns + 1)
             }
-            None => (format!("\"{text}\""), (p.text_x - width(&text) / 2).to_string(), text.chars().count() + 1),
+            None => (format!("\"{text}\""), text_left(i, &text).to_string(), text.chars().count() + 1),
         };
         text_at.push((x.clone(), y + p.text_dy));
-        writeln!(out, "lsp {},\":a/2,0,3;{}\",{},{y}", plate_slot(i), path(&p.image), p.x).unwrap();
-        let line = format!("strsp {},{text},{x},{},{columns},1,{size},{size},0,0,0,1,\"{c}\",\"{c}\"", text_slot(i), y + p.text_dy, size = p.font_size, c = p.colour);
+        writeln!(out, "lsp {},\":a/{cells},0,3;{}\",{px},{y}", plate_slot(i), path(&p.image)).unwrap();
+        let (cols, rows) = if p.vertical { (1, columns) } else { (columns, 1) };
+        let line = format!("{strsp} {},{text},{x},{},{cols},{rows},{size},{size},0,0,0,1,\"{c}\",\"{c}\"", text_slot(i), y + p.text_dy, size = p.font_size, c = p.colour);
         // placed by its width: the whole line is the language's
         let line = if texts.get(i).is_some_and(Option::is_some) { line } else { strings.lines(PLATE, &line) };
         writeln!(out, "{line}").unwrap();
@@ -75,6 +82,12 @@ pub(crate) fn emit(out: &mut String, strings: &mut crate::strtab::Strings, optio
     writeln!(out, "*{l}_c").unwrap();
     let clear = |i: usize| format!("csp {}:csp {}", text_slot(i), plate_slot(i));
     let Some(shot) = &p.shot else {
+        if p.chosen_ms > 0 {
+            for i in 0..options.len() {
+                writeln!(out, "if {BUTTON_VAR} == {} cell {},2", i + 1, plate_slot(i)).unwrap();
+            }
+            writeln!(out, "print 1:delay {}", p.chosen_ms).unwrap();
+        }
         let all: Vec<String> = (0..options.len()).map(clear).collect();
         writeln!(out, "{}:{fade}", all.join(":")).unwrap();
         for (i, (_, target)) in options.iter().enumerate() {
