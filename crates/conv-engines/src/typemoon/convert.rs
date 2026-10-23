@@ -1346,7 +1346,8 @@ impl Lowering<'_, '_> {
     /// own from where the parent's keys place it.
     // Each key is reached along the easing (0x04) of the last key before it that sets one (`FUN_00197710`).
     // A field a key passes through (-32766) is eased once across it: `Motion::through_resolved` cuts those keys' ways.
-    // shortcut: curve (0x06 = 1), priority (0x3C), expression (0x32, 0x34) and
+    // Mode 1's cubic (0x06 = 1) comes cut into straight steps by `through_resolved` too.
+    // shortcut: priority (0x3C), expression (0x32, 0x34) and
     // the other fields are not followed. Mode 2 holds: a key 1 ms early. A loop (`FUN_001999a0`) runs until stopped.
     fn run_motion(&mut self, slot: usize, m: usize) {
         let Some(i) = self.slot_layer[slot] else { return };
