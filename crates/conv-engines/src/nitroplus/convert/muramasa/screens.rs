@@ -506,7 +506,10 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// original's are, measured under wine).
 fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
-    // src: sys_backlog.nss (buttons, scrollbar, SetFont 20, Fade 300), system.ini word_in_row 26; rows: shot backlog-1 (within 2 px)
+    // src: sys_backlog.nss (buttons, scrollbar, SetFont 20, Fade 300), system.ini word_in_row 26
+    // src: Muramasa.exe FUN_00404080 lays the rows out from $SYSTEM_backlog_row_max 16, _voice_icon_x 102,
+    // _position_x 140, _position_y 49, _row_interval 30, _character_width 20 (sys_backlog.nss sets them;
+    // the exe's defaults when unset: 17, 82, 120, 100, 24, 19)
     // src: sys_backlog.nut 退出 906,443; function_textbox.nut backlogFieldRect, backlogRowSpace; rows: shot en/orig-backlog
     // guess: the speaker icon's x 102 in the English port (no voiced row filmed)
     let ((close_x, close_y), text_x, columns) = if en { ((906, 443), 150, 28) } else { ((927, 438), 140, 26) };
