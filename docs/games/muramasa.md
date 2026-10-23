@@ -68,6 +68,10 @@ at a time. English: `build <english game> --japanese <game>`.
 
 - `--webp [--webp-quality 80]` for the web (`--chain 2`: 66.5 MB PNG,
   13.3 MB at 80).
+  The web build needs `--loose` too: it fetches each file whole, so a
+  1.9 GB `arc.nsa` never finishes loading. JP+EN (`build <english game>
+  --japanese <game> --webp --loose`): 10 min, 6.0 GB peak (a 4.5 GiB
+  cap stops it after the text tables).
 - The prologue `ma00_000.nss` also unlocks 魔王編. `--file X.nss` alone:
   one scene; full build with `--chain 6`: a few files' assets, seconds.
 - Movies: `ムービー/`, `movie/` or `movies/` in or beside `<game>`, or
