@@ -24,7 +24,10 @@ use super::convert::{SCREEN_H, SCREEN_W};
 
 /// Where SystemData's screens show the Vita's button hints (◎決定 …) and
 /// the page box (/10).
-// src: save_bg.png, bklog.png (measured: HINTS, HINTS_CORNER, PAGE_BOX)
+// src: save_bg.png, bklog.png (measured: HINTS, HINTS_CORNER, PAGE_BOX):
+// drawn inside the backgrounds, no eboot rect (routes tried: the sprite
+// records of 0x81072ad0, 0x810729cc, 0x810722b4, 0x8103bbb4, which draw
+// save_bg, load_bg, sl_data's cells and bklog whole)
 pub(crate) const HINTS: (u32, u32, u32, u32) = (636, 486, 310, 38);
 /// Around them, to the screen's right edge.
 const HINTS_CORNER: (u32, u32, u32, u32) = (626, 470, 334, 70);
@@ -147,7 +150,10 @@ fn button(assets: &mut ArchiveAssets, labels: &Labels, name: &str, text: &str, s
 /// Q-Save, Q-Load, Return, Save, Load, Log, Config in 60×24 cells from
 /// x = 0, in rows from y = 746: white, glowing blue (selected), navy (for
 /// light backgrounds), faded.
-// src: ss_bg1.png (measured: 7 columns of 60, rows 24 apart)
+// src: ss_bg1.png (measured: 7 columns of 60, rows 24 apart); no eboot rect
+// found (routes tried: skipdialog_layout 0x8103e7d6's records, which use
+// 60×22 cells at (425, 746) and (425, 768); 746 as int and float constant
+// across the decompile)
 const ATLAS_LABELS: (u32, u32, u32, u32) = (0, 746, 60, 24);
 
 /// Label `column` of the atlas as a button (normal, glowing, faded),
@@ -216,7 +222,8 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
     let save_bg = assets.system_image("save_bg.png")?;
     let load_bg = assets.system_image("load_bg.png")?;
     let slots = assets.system_image("sl_data.png")?;
-    // src: save_bg.png, load_bg.png header (measured)
+    // src: save_bg.png, load_bg.png header (measured): drawn inside the
+    // backgrounds, no eboot rect (0x81072ad0, 0x810729cc draw them whole)
     let header = (24, 22, 106, 50);
     let mut base = save_bg.clone();
     // Without the header, the controller hints and the page box.
@@ -227,7 +234,9 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
     let log = assets.system_image("bklog.png")?;
     cover(&mut base, &log, PAGE_BOX);
 
-    // src: sl_data.png plate (measured); the rest of the screen's layout is ours
+    // src: exe 0x810722b4 (the plate's cell is (0, 0, 426, 138), its
+    // centres x 274 + 420·column, y 156 + 129·row); we crop the cell's
+    // opaque part (measured); the rest of the screen's layout is ours
     let plate = imageops::crop_imm(&slots, 3, 2, 416, 131).to_image();
     let (row_x, row_y, pitch) = (40i32, 96i32, 140i32);
     let mut frame = RgbaImage::new(SCREEN_W as u32, SCREEN_H as u32);
@@ -290,7 +299,8 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
     let config = assets.system_image("bg_config_01.png")?;
     let load = assets.system_image("load_bg.png")?;
     let log = assets.system_image("bklog.png")?;
-    // src: bg_config_01.png header (measured); the rest of this screen is ours
+    // src: bg_config_01.png header (measured): drawn inside it, no eboot
+    // rect (0x81072f60 draws it whole); the rest of this screen is ours
     let header_rect = (24, 22, 140, 50);
     let mut base = load;
     patch(&mut base, header_rect);

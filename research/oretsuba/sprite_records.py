@@ -17,7 +17,10 @@ import struct
 import sys
 
 FIELDS = {4: "id", 8: "pic", 0x18: "x", 0x1c: "y", 0x20: "w", 0x24: "h", 0x28: "u", 0x2c: "v", 0x30: "uw", 0x34: "vh"}
-ASSIGN = re.compile(r"^\s*(local|uStack|auStack)_([0-9a-f]+)(?:\[(\d+)\])?\s*=\s*(.+);\s*$")
+ASSIGN = re.compile(r"^\s*(local|uStack|auStack)_([0-9a-f]+)(?:\[(0x[0-9a-f]+|\d+)\])?\s*=\s*(.+);\s*$")
+# A record filled through a pointer into a local array (music_room_init
+# 0x8106592a: piVar7 = local_e8 + 8, then local_e8[0xe] = x, ...).
+POINTER = re.compile(r"^\s*(\w+)\s*=\s*(?:\([^)]*\))?\s*(?:local|auStack)_([0-9a-f]+)\s*\+\s*(0x[0-9a-f]+|\d+);")
 CALL = re.compile(r"FUN_8108a780\((.*)\)")
 
 
@@ -33,20 +36,28 @@ def val(s):
 
 
 def scan(path):
-    env, out = {}, []
+    env, out, ptr = {}, [], {}
     for line in open(path, encoding="utf-8", errors="replace"):
+        m = POINTER.match(line)
+        if m:
+            ptr[m.group(1)] = int(m.group(2), 16) - 4 * int(m.group(3), 0)
+            continue
         m = ASSIGN.match(line)
         if m:
-            off = int(m.group(2), 16) - 4 * int(m.group(3) or 0)
+            off = int(m.group(2), 16) - 4 * int(m.group(3) or "0", 0)
             env[off] = m.group(4)
             continue
         m = CALL.search(line)
         if m:
             r = re.search(r"&(?:local|uStack|auStack)_([0-9a-f]+)", m.group(1))
-            if not r:
+            args = [a.strip() for a in m.group(1).split(",")]
+            if r:
+                base = int(r.group(1), 16)
+            elif len(args) > 3 and args[3] in ptr:
+                base = ptr[args[3]]
+            else:
                 out.append({"call": m.group(1)})
                 continue
-            base = int(r.group(1), 16)
             out.append({name: val(env.get(base - off, "?")) for off, name in FIELDS.items()})
     return out
 

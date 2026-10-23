@@ -19,12 +19,18 @@ use conv_core::ir::{PagedSettings, Placed, RowControl, Setting, SettingValue, Se
 use super::assets::ArchiveAssets;
 use super::menus::{Labels, difference, patch, place, side_by_side};
 
-// src: bg_config_01.png, bg_config_02.png (measured: ROWS to PAGE_TITLE)
-/// The rows' middles on page 1 (page 2's are the first six).
-const ROWS: [u32; 8] = [147, 185, 222, 258, 297, 334, 370, 409];
+// src: exe 0x81072f60 (ROWS: page 1's sprite centres; page 2's, 0x81072bc6,
+// are 146, 183, 221, 258, 296, 333); LABEL_X to PAGE_TITLE measured, drawn
+// inside bg_config_01.png/bg_config_02.png, no eboot rect (routes tried:
+// the sprite records of 0x81072f60, 0x81072bc6 and config_draw_options
+// 0x8107145c, which draws only labels, option cells and the knob)
+/// The rows' middles on page 1 (page 2's are the first six, within 1).
+const ROWS: [u32; 8] = [146, 184, 221, 258, 295, 332, 369, 408];
 /// A row's label starts here on page 1 (page 2's are further left).
 const LABEL_X: i32 = 140;
-/// The level bars: the fill line from x 508 to 776.
+/// The level bars: the fill line from x 508 to 776. The eboot's knob
+/// centre runs 514 + level × 258 / 100 (0x8107145c); ours rides the fill's
+/// end, so the knob reaches the line's ends.
 const FILL: (u32, u32) = (508, 776);
 /// The ◀ and ▶ beside a bar.
 const MINUS_X: (u32, u32) = (484, 16);
@@ -52,9 +58,13 @@ const fn opt(x: u32, y: u32, lx: u32, ly: u32, w: u32, h: u32) -> Opt {
     Opt { at: (x, y), lit: (lx, ly, w, h) }
 }
 
-// src: bg_config_01.png (measured: the words and their lit cells; the exe
-// 0x8107145c draws 90 or 180 wide cells from x 289 around them, whose glow
-// reaches 1-3 pixels past these)
+// src: bg_config_01.png (measured: the words and their lit versions). Each
+// lies in the eboot's cell (0x8107145c: 90×30 at u 289 + 90·k, v 545 +
+// 30·row, left x 530/668, message speed 470/572/659/751) at the same
+// offset on the page and in the atlas; the cells' glow reaches 1-3 pixels
+// past these. Row 5 differs: 0x8107145c puts its cells at x 465, 575, 722
+// (180 wide), 841, 36-79 px right of the page's words; ours follows the
+// page.
 /// Page 1's options by row: シーンスキップ機能, 音声スキップ, スキップモード,
 /// 選択後のスキップ, (選んだ選択肢の色), (自動クイックセーブ), メッセージ速度.
 const PAGE1: [&[Opt]; 7] = [
@@ -71,8 +81,8 @@ const PAGE2: [&[Opt]; 2] = [
     &[opt(553, 283, 313, 547, 49, 26), opt(690, 283, 385, 547, 57, 26)],
     &[opt(539, 320, 291, 577, 75, 26), opt(678, 320, 368, 577, 77, 26)],
 ];
-// src: bg_config_01.png snowflake (measured)
-const KNOB1: (u32, u32, u32, u32) = (290, 764, 25, 22);
+// src: exe 0x81072f60 (sprite 91: the snowflake's cell)
+const KNOB1: (u32, u32, u32, u32) = (289, 761, 28, 28);
 
 fn crop(img: &RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) -> RgbaImage {
     imageops::crop_imm(img, x, y, w, h).to_image()
