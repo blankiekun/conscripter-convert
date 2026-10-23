@@ -38,9 +38,9 @@ const LOGO_Y: i64 = 171;
 /// 0x4fb808 (40 bytes a word); each a column of four 32-px cells.
 pub const WORDS: [(i64, i64, u32, usize); 4] = [(626, 221, 0, 6), (626, 250, 200, 2), (626, 300, 400, 7), (626, 369, 600, 3)];
 const WORD_FADE_MS: u32 = 500;
-/// `rand() & 0xff` is the ripple's direction (256 steps a turn); ours is
-/// one fixed draw.
-// shortcut: one direction for every intro (the exe picks one of 256 at random each time); render a pool of movies if it matters.
+/// `rand() & 0xff` is the ripple's direction (256 steps a turn).
+// ours: one fixed draw; the exe seeds rand() with the time (srand(_time64),
+// 0x407150), so each launch differs; render a pool of movies if it matters.
 pub const DIRECTION: i64 = 41;
 
 /// Draws the intro `t` ms in, from `Title.004`'s pictures, into `frame`.

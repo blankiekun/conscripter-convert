@@ -312,7 +312,9 @@ const PRESET_FIELDS: u32 = 6;
 /// Pictures of static in the noise strip ([`AssetBank::noise`]); the
 /// original draws new static every interval, which a short loop stands in
 /// for.
-const NOISE_FRAMES: u32 = 4; // ours
+/// ours: the exe (noise_update, 0x419570) seeds new static with rand()
+/// every interval, so no count to read.
+const NOISE_FRAMES: u32 = 4;
 /// A timed wait (handler 0x475cd0, callback 0x475bf0): arg's low 16 bits
 /// are the ms; when its high half isn't 0 a click or skip mode ends it.
 const OP_WAIT: u16 = 0x66;
@@ -362,10 +364,9 @@ const SE_FIRST_BANK: usize = 256;
 /// every row of the box's gradient and 0.50 on the save menu's.
 /// src: exe 0x46d000 (setting 0x51ed12 defaults to 128 of 256).
 const WINDOW_OPACITY_PERCENT: u32 = 50;
-/// guess: the title fades in over this long where it has no intro (back
-/// from the load screen or the extras; the exe's extras cross-fade back
-/// over 1000 ms, 0x45a240, as the words fade in, [`super::titleintro`]),
-/// and Start fades out over it.
+/// The title fades in over this long where it has no intro (back from the
+/// load screen or the extras).
+/// src: exe 0x45a240 (title state 9: a 1000 ms CrossFade, 0x442c70).
 const TITLE_FADE_MS: u32 = 1000;
 /// A voice id's character is `id / VOICE_CHARACTER`.
 const VOICE_CHARACTER: u32 = 100_000; // src: the scripts' voice ids
@@ -1112,7 +1113,11 @@ impl AssetBank {
 const BGM: &str = "BGM track";
 const MOVIE: &str = "movie";
 const STAFF_ROLL: &str = "staff roll";
-const STAFF_ROLL_FPS: u32 = 30; // ours
+/// The staff roll moves by each frame's elapsed time (0x454a10); frames
+/// come every 33 ms at the default speed setting.
+/// src: exe 0x406f30 (frame periods 66/33/16/1 ms at 0x4fb4e8, setting
+/// 0x51ed11 defaults to 1 at 0x46d000).
+const STAFF_ROLL_FPS: u32 = 30;
 
 impl AssetBank {
     /// Movie `number` (`HD/mvNNNN.bin`, an MPEG-1 program stream) as H.264
@@ -1488,7 +1493,9 @@ const REPLACE_SLOT_BASE: u32 = 4;
 
 /// The interval of a still `screenripple` (it never changes; each step
 /// redraws the screen).
-const REPLACE_INTERVAL_MS: u32 = 1000; // ours
+/// ours: the exe redraws its filters every frame; a still one needs no
+/// faster step here.
+const REPLACE_INTERVAL_MS: u32 = 1000;
 
 /// Opcode 0x70: sets one slot of the screen filter. A Filter-Replace
 /// becomes a still `screenripple` in slot 4 + n; `replaces` holds the
