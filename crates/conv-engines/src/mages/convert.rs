@@ -89,10 +89,10 @@ fn chara_key(c: &Block, number: i64) -> String {
 /// for two vblanks (0x81050620 passes 2 to the display-queue entry
 /// 0x81000898; its callback 0x810009b4 waits with
 /// sceDisplayWaitSetFrameBufMulti(2)): 30 updates a second.
-const UPDATE_MS: u32 = 33;
+const UPDATE_MS: u32 = 33; // src: exe 0x81050620, 0x810009b4
 
 /// The screen-effect slot of a looped quake's passes after the first.
-const QUAKE_TAIL_SLOT: u32 = 4;
+const QUAKE_TAIL_SLOT: u32 = 4; // ours: a slot no other effect uses
 
 /// The updates a looped quake's offsets repeat after: the swing's period
 /// (`time`) and the path's (its counter steps 6 tenths of a segment an
@@ -105,8 +105,9 @@ fn quake_period(q: &Quake) -> usize {
         }
         a
     };
+    // src: exe 0x81008a3c (the path), 0x81032e2a (the swing over `time`)
     let path = if q.param[0] != 0.0 || q.param[1] != 0.0 { 50 } else { 1 };
-    let swing = if q.param[4] > 0.0 || q.param[5] > 0.0 { q.time.max(1) as usize } else { 1 };
+    let swing = if q.param[4] > 0.0 || q.param[5] > 0.0 { q.time.max(1) as usize } else { 1 }; // exe 0x81008a3c
     path * swing / gcd(path, swing)
 }
 
@@ -1353,7 +1354,13 @@ impl Lowering<'_> {
                 // `:Time 0` without a loop stops the shake (0x810089a4).
                 let frames = t.int("Time").unwrap_or(60);
                 let looped = t.int("Loop").map_or(frames < 0, |l| l == 1);
-                let time = (frames * 30 / 60).abs() as i32;
+                let time = (frames * 30 / 60).abs() as i32; // src: exe 0x81032e2a
+                // The sizes in script pixels: `:Param` 0-3 are 1280×720 ones
+                // (read before a stop returns, which has no use for them).
+                // src: exe 0x8112a26c (`:Param` 0 by default)
+                let p = |i: usize| t.at("Param", i).and_then(Val::float).unwrap_or(0.0) as f32;
+                let (kx, ky) = (0.75, 544.0 / 720.0); // ours: 1280×720 to the screen
+                let param = [p(0) * kx, p(1) * ky, p(2) * kx, p(3) * ky, p(4), p(5)]; // exe 0x81008a3c: sizes 0-3, half-waves 4, 5
                 // A new quake replaces the running one (0x810089a4 restarts
                 // the record).
                 self.stop_quake_tail();
@@ -1362,10 +1369,7 @@ impl Lowering<'_> {
                     return;
                 }
                 let fade = if !looped && t.int("Fade") == Some(1) { time } else { 0 };
-                // The sizes in script pixels: `:Param` 0-3 are 1280×720 ones.
-                let p = |i: usize| t.at("Param", i).and_then(Val::float).unwrap_or(0.0) as f32;
-                let (kx, ky) = (0.75, 544.0 / 720.0);
-                let quake = Quake { time, fade, looped, param: [p(0) * kx, p(1) * ky, p(2) * kx, p(3) * ky, p(4), p(5)] };
+                let quake = Quake { time, fade, looped, param };
                 if looped {
                     // One period loops; the scenes' loops repeat after 50 or
                     // 150 updates. The first pass differs when the swing's
@@ -1993,7 +1997,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, quake_tail: false, opening: false, messages: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, quake_tail: false, opening: false, messages: 0 }; // ours: scale 100 %
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
