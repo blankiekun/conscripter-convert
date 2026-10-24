@@ -53,6 +53,9 @@ Paused 2026-10-20.
    amplitude unit is in fragment GXP 0x8115f63c (literals read, no
    screen-size factor). Route left: decode it with gxp2glsl (rebuild
    its Vita3K checkout).
+9. Voice ducking (`conv-cons/src/ops.rs`, Oretsuba only): 50 in
+   200 ms while voiced, 100 in 400 ms after, uncited. Route left: the
+   eboot's BgmFullForVoice reader in the decompile.
 
 ## Scope
 
