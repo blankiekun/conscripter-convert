@@ -31,17 +31,19 @@ const WINDOW: (i64, i64, u32, u32) = (296, 10, 194, 52);
 /// The places' x in the window: hundreds, tens, ones.
 const PLACES: [i64; 3] = [50, 82, 114];
 const DIGIT_H: i64 = 52;
-/// A frame of the counter's strips.
-const FRAME_MS: u32 = 33; // ours
+/// A frame of the counter's strips: a render pass of the original, which
+/// moves its objects once a pass. src: render thread 00435df0/00469580, a
+/// pass 0x531a5c[4] = 16 ms (init_speed_tables 00469a20; screens.rs wait icon)
+const FRAME_MS: u32 = 16;
 /// The fade-in's and fade-out's: x 80-720, y 0-168, drawn at half size.
 const FLY: (i64, i64, u32, u32) = (80, 0, 640, 168); // ours
-const FLY_FRAME_MS: u32 = 50; // ours
+const FLY_FRAME_MS: u32 = FRAME_MS;
 /// The count at which the digits fade out, over [`GONE_MS`].
 const GONE_AT: i64 = 380;
 const GONE_MS: u32 = 2000;
 const COUNTER: &str = "カウンタ窓";
 /// Bumped when the drawing changes: strips already written are kept.
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// NSS tempos: `Axl`n eases in, `Dxl`n out (`research/nitroplus/builtins.md`).
 fn axl(n: i32, p: f64) -> f64 {

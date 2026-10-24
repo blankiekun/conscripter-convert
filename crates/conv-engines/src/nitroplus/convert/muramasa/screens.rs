@@ -541,6 +541,7 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         fade_ms: 300,
         outline: None,
         row_width: en.then_some(570),
+        gap: 0, // _character_width 20, the font's size (src lines above)
     })
 }
 

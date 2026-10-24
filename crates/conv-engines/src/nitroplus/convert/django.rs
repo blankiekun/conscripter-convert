@@ -24,7 +24,10 @@ pub const DJANGO: Game = Game {
     relative_children: true,
     loaded_textures: true,
     chapter_objects: true,
-    text_drop: 7, // src: shot (wine, not kept) box00's first row drawn from y 480, its box at 472
+    // src: the exe's baseline 8 + 15 below the box (00461000: row top = trunc(lfHeight 18 x ruby 0.45),
+    // 0042efb0: glyph top = row top + tmAscent - gmptGlyphOrigin.y; ＭＳ ゴシック's 220/256 em ascent at
+    // lfHeight 18 gives tmAscent 15: MS Gothic metrics (msgothic.ttc), 220/256 x 18 = 15.5) less ipag.ttf's SDL_ttf ascent at 18 px (16, font height 18)
+    text_drop: 8 + 15 - 16, // src: exe 00461000, 0042efb0
     family: true,
     string_vars: true,
     flags: extras::flags,
@@ -97,10 +100,10 @@ const STORY: &str = "dja000_開始スクリプト.nss";
 
 /// `SetChoice02` (function_select.nss): 530×68 plates (`select001.png`,
 /// `select002.png` under the pointer) one under the other from (138, 244),
-/// the options in white 22 px text centred about x 386 (not the plate's
-/// centre, 403), their tops 21 px below the plate's (measured under
-/// wine, in ＭＳ ゴシック; `TEXT_X`, `TEXT_DY` put ipag's glyphs
-/// there); they fade in over 300 ms. The window is the same plates for a
+/// the options in white 22 px text centred about x 387 (not the plate's
+/// centre, 403: the box is text + 32 wide and the glyphs sit 16 right in
+/// it), the baseline 47 px below the plate's top (read from the exe;
+/// `TEXT_X`, `TEXT_DY` put ipag's glyphs there); they fade in over 300 ms. The window is the same plates for a
 /// game without [`ChoicePlates`].
 fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
     // src: function_select.nss SetChoice02 (plates at 138,244 and 138,312; SetFont 22)
@@ -109,9 +112,11 @@ fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
     const FONT: i64 = 22;
     // ours: the fallback window's text inset
     const INSET: i64 = 40;
-    // src: shot (wine, not kept; doc "How the compiler is set", Choices) with ipag
-    const TEXT_X: i32 = 388;
-    const TEXT_DY: i32 = 18;
+    // src: exe 004403a0 (INHERIT centres the box in the 530x68 plate), 00462900 (box = text + 32 wide,
+    // 9 + 22 + 32 high, 9 = trunc(22 x 0.45)), 004608f0 (+16 per letter); baseline = plate + 47 with
+    // MS Gothic's tmAscent 19 (MS Gothic metrics (msgothic.ttc): winAscent 220/256 em x 22 = 18.9); ipag ascent 20 at 22 px gives 27
+    const TEXT_X: i32 = 387;
+    const TEXT_DY: i32 = 27;
     let (plate, w, h) = c.assets.image("cg/sys/select/select001.png")?;
     let (w, h) = (w as i64, h as i64);
     let parts: Vec<_> = (0..n).map(|i| (plate.clone(), X, Y + h * i, 1000)).collect();

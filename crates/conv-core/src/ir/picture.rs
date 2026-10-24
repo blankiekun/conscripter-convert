@@ -176,6 +176,9 @@ pub struct LineLog {
     /// Rows this many pixels wide instead of `columns` cells (proportional
     /// text in a field of its own width).
     pub row_width: Option<u32>,
+    /// Pixels added between a row's characters (-1: a 20 px font set 19 px
+    /// a character).
+    pub gap: i32,
 }
 
 /// An animated click-wait icon ([`Script::wait_icon`]): pictures of `w`×`h`

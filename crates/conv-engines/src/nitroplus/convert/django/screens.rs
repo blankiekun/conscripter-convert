@@ -112,9 +112,10 @@ fn title_motion(a: &mut dyn Assets, t: &mut TitleScreen, image: &str, keys: &[co
 /// and OFF (440) pairs; GAME-SPEED's four presets at y 188; EXIT
 /// (650,518). Pictures: `-001` at rest, `-002` under the pointer, `-003`
 /// chosen. Values as `config_default` and `setgrade` set them: text speed
-/// level k is `k × 100` (level 1 none), its slowest 50 ms a character
-/// (ours: the engine's unit isn't known); auto mode waits `20 × k` ms a
-/// character (default 5); volumes `k × 100` of 1000 (defaults from
+/// level k is `k × 100` (level 1 none), a character taking the exe's
+/// base 30 ms × that ÷ 1000; auto mode waits `20 × k` ms a character
+/// (the exe adds characters × #SYSTEM_auto_wait_per_character, no page
+/// base; default 5); volumes `k × 100` of 1000 (defaults from
 /// system.ini: 7, 9, 10); GAME-SPEED is the engine's play speed 3
 /// (NORMAL, default), 5 (QUICK-A), 12 (QUICK-B), 1 (LOWSPEC), each the
 /// percent of 装甲悪鬼村正's exe table (assumed the same engine). Left
@@ -182,7 +183,8 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         // 1000 is DEFAULT's). src: Django.exe 00461e40 (a character's ms = the base × text_speed ÷ 1000),
         // 004605b0 (the base 30 ms: the scripts set no $SYSTEM_text_interval)
         stepped(SliderSetting::TextSpeed { ms: 30 }, bullets(a, 212, &text_speed)?, text_speed(5), true),
-        // src: setgrade's 20 ms × level, config_default's 100 (level 5); volumes: system.ini 700, 900, 1000
+        // src: setgrade's 20 ms × level, config_default's 100 (level 5); Django.exe 00461e40 (0x46217e,
+        // 0x462268: auto wait += characters × #SYSTEM_auto_wait_per_character); volumes: system.ini 700, 900, 1000
         stepped(SliderSetting::AutoWait { ms: 200 }, bullets(a, 308, &per_char)?, per_char(5), true),
         stepped(SliderSetting::BgmVolume, bullets(a, 422, &volume)?, volume(7), true),
         stepped(SliderSetting::SeVolume, bullets(a, 470, &volume)?, volume(9), true),
@@ -287,22 +289,24 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<(VoiceWindow, Vec<V
 
 /// The click-wait icon (system.ini `icon_page`: `Bullet-%03d.png#20`; the
 /// archive has 18 pictures of 18×18), looped after the text. The line icon
-/// (`Tumbleweed`, `icon_line`) isn't used: CONscripter has one icon. The
-/// frame time isn't in the files: 50 ms, ours.
+/// (`Tumbleweed`, `icon_line`) isn't used: CONscripter has one icon. A
+/// picture lasts 8 passes of the render thread, 16 ms each at NORMAL:
+/// 128 ms. Left out: the exe fades the icon in (alpha from 0, +16 at each
+/// picture), CONscripter's icon has no fade.
 fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     let parts: Vec<String> = (1..=18).map(|n| format!("cg/sys/icon/page/bullet-{n:03}.png")).collect();
     let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
-    // guess: no frame time in the files (装甲悪鬼村正's flame, watched: about 53 ms)
-    Some(WaitIcon { image, frame_ms: vec![50; 18], w: w / 18, h })
+    // src: Django.exe 0x42f30a (step 0x2000 of a 16.16 counter: 1/8 picture a pass), 004477f0 (the step,
+    // alpha +16), its caller 00435df0 and 00469580 (a pass waits 0x531a5c[4] = 16 ms ÷ the play speed 1.0)
+    Some(WaitIcon { image, frame_ms: vec![8 * 16; 18], w: w / 18, h })
 }
 
 /// The text log (`sys_backlog.nss`): the parchment scroll
 /// (`バックログ背景.jpg`); one row back (708,228) and on (724,284), EXIT
 /// (690,530), the knob on the rail at x 646 from y 90 to 490
 /// (`CreateScrollbar`). Black 20 px text with an #AAAA88 outline
-/// (`SetFont`, ＭＳ ゴシック) from (120,99), rows 24 px apart, 24
-/// characters wide (measured under wine; the rows fill the parchment down
-/// to 507). The voice icon (`スピーカー`) left of a voiced row is ours.
+/// (`SetFont`, ＭＳ ゴシック) from (120,100), 17 rows 24 px apart, 25
+/// characters wide; the voice icon (`スピーカー`) at x 82 on a voiced row.
 /// Left out: the page buttons (698,138 and 724,362) and the rolls turning as it
 /// scrolls.
 fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
@@ -318,25 +322,28 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
     };
     let (background, w, h) = a.image(&format!("{DIR}/バックログ背景.jpg"))?;
     // src: sys_backlog.nss (buttons, CreateScrollbar 646 from 90 to 490, SetFont 20 #000000/#AAAA88, Fade 300);
-    // text place, rows and columns: shot (wine, not kept); the knob's travel (its top 90-460): guess
+    // src: Django.exe 00403af0 (17 rows, row top 100), 00403400 (text from x 0x78 = 120, rows 0x18 = 24 apart),
+    // 00403230 (a row breaks after 25 characters, 24 when the 25th is a bad_end), 00402020 (voice icons at x 0x52
+    // = 82, the row's y), 00430af0 (the knob's top left on CreateScrollbar's line: 646, from 490 to 90)
     Some(LineLog {
         background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
         up: button(a, "バックログrew002", 708, 228)?,
         down: button(a, "バックログff003", 724, 284)?,
         close: strip(a, &["backlog-exit-001", "backlog-exit-002", "backlog-exit-001", "backlog-exit-003"], 690, 530)?,
-        knob: strip(a, &["スクロール001", "スクロール002"], 635, 90)?,
-        knob_y: (90, 460),
-        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 60, 0)?, // ours: x 60
+        knob: strip(a, &["スクロール001", "スクロール002"], 646, 90)?, // src: exe 00430af0
+        knob_y: (90, 490), // src: exe 00430af0
+        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 82, 0)?, // src: exe 00402020
         text_x: 120,
-        text_y: 99,
+        text_y: 100, // src: exe 00403af0
         row_step: 24,
         rows: 17,
-        columns: 24,
+        columns: 25, // src: exe 00403230
         font_size: 20,
         colour: "#000000".into(),
         fade_ms: 300,
         outline: Some("#AAAA88".into()),
         row_width: None,
+        gap: -1, // src: exe 00403400 (the pen moves 0x13 = 19 px a character, the font is 20)
     })
 }
 
