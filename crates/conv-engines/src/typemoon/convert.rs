@@ -185,6 +185,10 @@ fn shader(n: i32) -> (u8, Option<SpriteFilter>) {
         19 | 21 | 22 | 29 | 36 | 38 => (BLEND_MULTIPLY, None),
         26 | 28 => (BLEND_SUBTRACT, None),
         20 | 23 | 24 | 30 | 34 | 35 | 37 => (BLEND_SCREEN, None),
+        31 | 32 => (BLEND_MULTIPLY, None), // ours: no engine overlay/hardlight; nearest mode
+        33 => (BLEND_SCREEN, None), // ours: no engine softlight; nearest mode
+        39 | 40 => (BLEND_SUBTRACT, None), // ours: no engine difference; nearest mode
+        41 => (BLEND_ADD, None), // ours: no engine exclusion; nearest mode
         7 => (BLEND_NORMAL, filter(FILTER_GREYSCALE, 0)),
         8 => (BLEND_NORMAL, filter(FILTER_NEGATIVE, 0)),
         _ => (BLEND_NORMAL, None),
