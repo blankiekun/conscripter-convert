@@ -46,7 +46,7 @@ Paused 2026-10-20.
    click, nothing is clipped. The original's behaviour on those pages
    is unread (it seems to draw past 720 px; page clear and wrap not
    read); not pursued.
-7. Engine-read words the converter ignores (`research/typemoon/engine_vars.py`
+8. Engine-read words the converter ignores (`research/typemoon/engine_vars.py`
    over the 1.0.2 decompile, F at 0x146B442, G at 0x146C892; 110 words
    read at a constant index, 32 also written by the 549 scripts; only
    F027 is lowered; `research/typemoon/engine_vars.tsv`), by writes:
@@ -72,7 +72,7 @@ Paused 2026-10-20.
    No gap: F822 (= 1 from `START_SCRIPT`, never reset: novel layout),
    F1109 (only set 0), F823 and F847–F869 (page line counters, reset per
    page; our pages hold them).
-8. Layer field writers (`research/typemoon/field_writers.py` over the
+9. Layer field writers (`research/typemoon/field_writers.py` over the
    layer block `PTR_DAT_00be0250`, 0x19B8 bytes, one array per field:
    387 writes in 49 functions; `command_of.py` names the command):
    - `_STCH`/`_SCH2` (`FUN_00160840`) without arg 18 reset the `_STZ4`
