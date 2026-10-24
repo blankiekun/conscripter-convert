@@ -161,7 +161,8 @@ pub fn key(name: &str) -> String {
 /// The script with the names of the pictures in `names` (see
 /// [`convert_tree`]) changed from `.png` to `.webp`. Every picture name
 /// the emitter writes ends a string literal, and starts it or follows the
-/// `;` of a sprite's options (`bg "cg\a.png"`, `lsp 1,":a;cg\b.png",…`);
+/// `;` of a sprite's options (`bg "cg\a.png"`, `lsp 1,":a;cg\b.png",…`),
+/// or is a particle layer's `img=` key (`"s|img=cg\c.png,cw=1,…"`);
 /// names of pictures that weren't converted stay as they are.
 pub fn retarget_names(script: &str, names: &HashSet<String>) -> String {
     retarget_by(script, |name| names.contains(name))
@@ -177,8 +178,15 @@ pub fn retarget_dirs(script: &str, dirs: &[&str]) -> String {
 fn retarget_by(script: &str, converted: impl Fn(&str) -> bool) -> String {
     let mut out = String::with_capacity(script.len());
     let mut done = 0;
-    for (at, _) in script.match_indices(".png\"") {
-        let start = script[..at].rfind(['"', ';']).map_or(0, |i| i + 1);
+    for (at, _) in script.match_indices(".png") {
+        let start = match script[at + 4..].chars().next() {
+            Some('"') => script[..at].rfind(['"', ';']).map_or(0, |i| i + 1),
+            Some(',') => match script[..at].rfind(['"', ',', '|']) {
+                Some(i) if script[i + 1..].starts_with("img=") => i + 5,
+                _ => continue,
+            },
+            _ => continue,
+        };
         if converted(&key(&script[start..at + 4])) {
             out.push_str(&script[done..at]);
             out.push_str(".webp");
@@ -307,10 +315,10 @@ mod tests {
         assert!(root.join("system/strip/wide.png").exists());
         assert!(root.join("sound/a.ogg").exists());
 
-        let script = "lsp 1,\":a/32,100,0;cg\\sys\\アイコン\\001.png\",0,0\nbg \"cg\\top.png\",1\nlsp 2,\":a;system\\strip\\wide.png\",0,0\nlsp 3,\":a;cg\\gone.png\",0,0\nmov $1,\"cg\\Top.png\"\n";
+        let script = "lsp 1,\":a/32,100,0;cg\\sys\\アイコン\\001.png\",0,0\nbg \"cg\\top.png\",1\nlsp 2,\":a;system\\strip\\wide.png\",0,0\nlsp 3,\":a;cg\\gone.png\",0,0\nmov $1,\"cg\\Top.png\"\nmov $2,\"s|img=cg\\Top.png,cw=1\"\n";
         assert_eq!(
             retarget_names(script, &tree.names),
-            "lsp 1,\":a/32,100,0;cg\\sys\\アイコン\\001.webp\",0,0\nbg \"cg\\top.webp\",1\nlsp 2,\":a;system\\strip\\wide.png\",0,0\nlsp 3,\":a;cg\\gone.png\",0,0\nmov $1,\"cg\\Top.webp\"\n"
+            "lsp 1,\":a/32,100,0;cg\\sys\\アイコン\\001.webp\",0,0\nbg \"cg\\top.webp\",1\nlsp 2,\":a;system\\strip\\wide.png\",0,0\nlsp 3,\":a;cg\\gone.png\",0,0\nmov $1,\"cg\\Top.webp\"\nmov $2,\"s|img=cg\\Top.webp,cw=1\"\n"
         );
         fs::remove_dir_all(&root).unwrap();
     }
