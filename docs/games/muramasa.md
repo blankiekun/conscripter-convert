@@ -41,17 +41,8 @@ Known bugs:
   `--english`.
 - One engine segfault on `end` after a `dwave` voice, Ctrl held.
 - `layer\uncensored\` unchecked on a censored CG.
-- A load drew vertical text horizontally (`tateyoko` not saved):
-  fixed in engine PR blankiekun/CONscripter#199; point the submodule
-  at it once merged. Headless runs without `--real-time` show no window
-  after `windowfade 256,150,0,0` (the virtual clock never ends the
-  fade): compare such pages with `--real-time` runs.
-- Script skip and auto locks (`$SYSTEM_skip_lock`, `$SYSTEM_text_auto_lock`)
-  use `modelock` from engine PR blankiekun/CONscripter#200; point the
-  submodule at it once merged. `#SYSTEM_play_speed` 3 (the rolls) runs at
-  100 % whatever the game speed. `$SYSTEM_text_interval` 128 and
-  `$SYSTEM_text_waitkey` false are left out: the scripts set them only
-  around the 6 staff rolls, which are pictures with no text page.
+- Left out: `$SYSTEM_text_interval` 128 and `$SYSTEM_text_waitkey` false: the
+  scripts set them only around the 6 staff rolls, pictures with no text page.
 - A list lens (mc01_020vs) does not restore on a load (whole screen
   differs; a still lens does).
 - Web runs (1800 s real time, auto-play, random choices; `cons_trace_check` "missing"
@@ -62,7 +53,24 @@ Known bugs:
   `TypeBegin…IO`/`…CIO` page the window is closed (`windowfade 0,150`) as there; the
   vertical boxes (`TextWindow*.png`) are black, so unseen over black.
 
-Next: (1) the known bugs above (`muramasa/playable`); (2) release.
+Static checks (`docs/new-game.md` steps 6-7; 20 fields, 62 `set_system_variable` cases, 6
+every-frame passes); the script locks and roll speed are done, what is left:
+
+- Present: the 1024x576 A8R8G8B8 frame is drawn to the desktop-sized back buffer as a quad with
+  no -0.5 texel offset, LINEAR, CLAMP (0048af60, quad 0048c6e0): a 0.5/r px shift and blur, up
+  to ~128 levels at r=1 on hard edges (flat areas 0); then `Present` 48b308 stretches it to the
+  window (driver filter); ours: one linear scale, identity at 1024x576.
+- Unconfirmed: no write found to `+0xa0` (tempo) in 00446010 or `+0x100` (alias) in 004475b0,
+  where builtin.rs cites them (pointer forms; needs Ghidra xrefs). `CreateStencil` clears `+0x9d4`
+  in 00409fa0, not 00443800; `CreateChoice` clears it too (00442a70, 00442bb0; only in 0_boot and
+  prutestselect, which we replace). JPEG (libjpeg 6b) decode options not read.
+- Fine: no gamma ramp, no pixel shaders, software composition into the locked texture, no
+  blending at present; `+0x9d4` (8 writers), `+0x11f4` (4), speed index 005dcaf0 (1).
+- PNG gamma: libpng reads `gAMA` (0049b9d0, 004a4730) but no 2.2 screen gamma is in the decomp;
+  the 353 PNGs in a `cg` sample all carry 0.45454 (identity); the rest of the PNGs unchecked.
+
+
+Next: (1) the known bugs above; (2) release.
 
 ## Scope
 
