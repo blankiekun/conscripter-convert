@@ -27,8 +27,29 @@ Paused 2026-10-20.
    (7); Window `:Time` with `:Visible 1` (2).
 3. Not converted: save-data check at boot; OP00 replayed from the title
    (probably an idle timeout).
-4. Unchecked against the original: text window place, character
-   heights, eye catch speed, skip dialog font sizes.
+4. Unchecked against the original: character heights, eye catch
+   speed.
+5. Off the eboot (goal phase 4, PR #651): settings row 5 cells sit
+   36-79 px right of bg_config_01's words (0x8107145c); the knob's
+   centre is 514 + level*258/100 while CONscripter's slider has one
+   travel (ours rides the fill line 508..776); the speaker's name is
+   drawn apart at (176, 373) in NameFontScale 0.8125 (0x8112ce0c),
+   ours stays in the message; letter advance 23 (conv-cons adds 1 px
+   for every game) vs the eboot's 22.
+6. EffectQuake: `mages::quake` reproduces the eboot's offsets (checked
+   under exe_call), but 0.txt still uses screenshake's sine: the
+   eboot's 10-point path needs an engine mode taking a path, or keyed
+   screen motion.
+7. Particles (EffectStart 51/52/54): count from the eboot; motion ours.
+   The eboot's is a rand()-driven 200-particle step every frame (snow
+   0x81047dfa, light balls 0x81043c8a, confetti 0x81043464) that never
+   loops; our 16-frame strip can't hold it. Routes tried: ctors, :Param
+   readers, update and draw read. Needs a longer strip or an engine
+   particle mode (ask first).
+8. Wave transition (InOut_Act 1): :Param defaults from the eboot; the
+   amplitude unit is in fragment GXP 0x8115f63c (literals read, no
+   screen-size factor). Route left: decode it with gxp2glsl (rebuild
+   its Vita3K checkout).
 
 ## Scope
 

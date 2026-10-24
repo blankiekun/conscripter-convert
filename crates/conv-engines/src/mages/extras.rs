@@ -3,10 +3,11 @@
 //! original's is in the encrypted eboot):
 //!
 //! - `gm_bg.png` (960×1699): the album background in the top 544 rows,
-//!   then eight heroine cards (94×378, x = 1 + 96·i) locked (y 548),
-//!   normal (y 933) and highlighted (y 1318), in CGMODE's page order.
-//! - `gm_bg1.png`: a "NO IMAGE" plate (4, 546, 184, 110) and a thumbnail
-//!   frame (196, 546, 186, 110).
+//!   then eight heroine cards (96×384 cells at x 96·i) in rows at y 545,
+//!   929 and 1313 (the eboot's endings_menu_init 0x81066564 draws 545,
+//!   or 1313 when chosen), in CGMODE's page order.
+//! - `gm_bg1.png`: a thumbnail cell (0, 545, 192, 114), a "NO IMAGE"
+//!   plate, and the cursor frame (192, 545, 192, 114) (0x8106725e).
 //! - The menu is the Vita's GALLERY list (0x81083c0c): `title_bg.png`'s
 //!   ALBUM, MOVIE, MUSIC (atlas rows 5-7) over the title, in its first
 //!   three button rows; ours adds CONFIG (row 4) and 戻る below them.
@@ -50,7 +51,9 @@ const TITLE_H: u32 = 30;
 const TITLES_LEFT: usize = 35;
 /// Ours: the list panel stretched over the screen under the player bar,
 /// three columns of 23 titles at 3/5 size in it. PANEL: mu_bg.png's list
-/// panel (measured).
+/// panel, measured: drawn inside mu_bg.png, no eboot rect (routes tried:
+/// the sprite records of music_room_init 0x8106592a, music_room_draw
+/// 0x810655a4).
 const PANEL: (u32, u32, u32, u32) = (78, 238, 804, 238);
 const PANEL_TO: (u32, u32, u32, u32) = (24, 96, 912, 408);
 const MUSIC_ROWS: usize = 23;
@@ -64,7 +67,9 @@ const MUSIC_DY: i32 = 17;
 /// volume knob (a snowflake, 30×30 at 264, 545) centred at x 605 +
 /// volume × 203 / 100, y 74. ◀ ▶ and the bar between them are the
 /// background's.
-// src: exe 0x8106592a, 0x810655a4 (PLAYER_CELLS to KNOB_Y); LOWER, RAISE, BAR: mu_bg.png (measured)
+// src: exe 0x8106592a, 0x810655a4 (PLAYER_CELLS to KNOB_Y); LOWER, RAISE,
+// BAR: measured, drawn inside mu_bg.png, no eboot rect (routes tried: the
+// same two functions' sprite records)
 const PLAYER_CELLS: [(u32, i32); 3] = [(295, 453), (319, 490), (343, 524)];
 const PLAYER_Y: i32 = 77;
 const KNOB: (u32, u32, u32) = (264, 545, 30);
@@ -112,7 +117,8 @@ pub fn extras(assets: &mut ArchiveAssets, labels: &Labels, game: &Game) -> Optio
     let title = assets.system_image("title_bg.png")?;
     let mut background = imageops::crop_imm(&album, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image();
     // ALBUM's header apart; the Vita's button hints covered.
-    // src: gm_bg.png header (measured)
+    // src: gm_bg.png header (measured): drawn inside gm_bg.png, no eboot
+    // rect (0x81066564 draws it whole)
     let header_rect = (24, 22, 120, 50);
     let plain = {
         let mut b = background.clone();
@@ -163,13 +169,15 @@ fn music(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MusicRoom> {
     // own hints further right); MUSIC and the player bar stay.
     let album = assets.system_image("gm_bg.png")?;
     let mut room = imageops::crop_imm(&atlas, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image();
-    // src: mu_bg.png, gm_bg.png hints (measured)
+    // src: mu_bg.png, gm_bg.png hints (measured): drawn inside the
+    // backgrounds, no eboot rect (0x8106592a, 0x81066564 draw them whole)
     for (x, y, w, h, to_x) in [(610, 480, 170, 60, 610), (580, 480, 190, 60, 770)] {
         imageops::replace(&mut room, &imageops::crop_imm(&album, x, y, w, h).to_image(), to_x, y as i64);
     }
     let panel = stretched(&imageops::crop_imm(&atlas, PANEL.0, PANEL.1, PANEL.2, PANEL.3).to_image(), PANEL_TO.2, PANEL_TO.3);
     imageops::overlay(&mut room, &panel, PANEL_TO.0 as i64, PANEL_TO.1 as i64);
-    // src: mu_bg.png header (measured)
+    // src: mu_bg.png header (measured): drawn inside mu_bg.png, no eboot
+    // rect (0x8106592a draws it whole)
     let header = imageops::crop_imm(&room, 24, 24, 130, 48).to_image();
     let mut songs = Vec::new();
     for (i, &track) in TRACKS.iter().enumerate() {
@@ -231,14 +239,15 @@ fn player(assets: &mut ArchiveAssets, atlas: &RgbaImage, room: &RgbaImage) -> Mu
 
 /// The movie room in the order the eboot's room plays them (OP00-OP03.usm
 /// for cursor 0-3; [`super::usm::MOVIES`] numbers), with the thumbnail's
-/// place in `mv_bg.png` and the slot it goes in. OP00, the Vita's opening,
-/// isn't played by any scene: it is always open (ours).
-// src: exe 0x81163348 (order); mv_bg.png thumbnails (measured); slots ours
-const MOVIES: [(u32, u32, u32, i32, i32); 4] = [(0, 10, 722, 45, 110), (1, 298, 722, 345, 110), (2, 586, 722, 645, 110), (11, 298, 553, 45, 306)];
-/// The highlight frame around a thumbnail, and the thumbnail's place in it.
-// src: mv_bg.png (measured)
-const MOVIE_FRAME: (u32, u32, u32, u32) = (4, 546, 282, 166);
-const FRAME_INSET: (i32, i32) = (6, 7);
+/// 288×168 cell in `mv_bg.png` (u, v) and its top left on the screen.
+/// OP00, the Vita's opening, isn't played by any scene: it is always open
+/// (ours).
+// src: exe 0x81163348 (order); 0x81080dd0 (cells 288·i, 714, the fourth
+// 288, 545; eboot places x 36, 336, 636, 36, y 101, 101, 101, 297)
+const MOVIES: [(u32, u32, u32, i32, i32); 4] = [(0, 0, 714, 36, 101), (1, 288, 714, 336, 101), (2, 576, 714, 636, 101), (11, 288, 545, 36, 297)];
+/// The highlight frame the eboot moves over the cursor's thumbnail.
+// src: exe 0x81080dd0 (sprite 5)
+const MOVIE_FRAME: (u32, u32, u32, u32) = (0, 545, 288, 168);
 
 fn movies(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MovieRoom> {
     let atlas = assets.system_image("mv_bg.png")?;
@@ -246,15 +255,12 @@ fn movies(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MovieRoom> {
     super::menus::cover_hints(&mut room);
     let frame = imageops::crop_imm(&atlas, MOVIE_FRAME.0, MOVIE_FRAME.1, MOVIE_FRAME.2, MOVIE_FRAME.3).to_image();
     let mut movies = Vec::new();
-    for (i, &(n, tx, ty, x, y)) in MOVIES.iter().enumerate() {
-        // src: mv_bg.png (measured)
-        let thumb = imageops::crop_imm(&atlas, tx, ty, 270, 152).to_image();
-        let mut normal = RgbaImage::new(frame.width(), frame.height());
-        imageops::replace(&mut normal, &thumb, FRAME_INSET.0 as i64, FRAME_INSET.1 as i64);
+    for (i, &(n, u, v, x, y)) in MOVIES.iter().enumerate() {
+        let normal = imageops::crop_imm(&atlas, u, v, MOVIE_FRAME.2, MOVIE_FRAME.3).to_image();
         let mut hover = normal.clone();
         imageops::overlay(&mut hover, &frame, 0, 0);
         let file = assets.movie(n)?;
-        let button = place(assets, &format!("movie{i}"), &cells(&[normal, hover]), x - FRAME_INSET.0, y - FRAME_INSET.1);
+        let button = place(assets, &format!("movie{i}"), &cells(&[normal, hover]), x, y);
         movies.push(RoomMovie { button, file, open: n == 0 });
     }
     let exit_img = labels.button("戻る", 20.0);
@@ -300,21 +306,25 @@ fn trim(img: &RgbaImage) -> RgbaImage {
 }
 
 fn gallery(assets: &mut ArchiveAssets, labels: &Labels, game: &Game, album: &RgbaImage, parts: &RgbaImage, header: RgbaImage) -> Option<CgGallery> {
-    // src: gm_bg1.png plates, gm_bg.png cards (measured); the rest of the
-    // album's layout is ours
-    let no_image = imageops::resize(&imageops::crop_imm(parts, 4, 546, 184, 110).to_image(), THUMB_W, THUMB_H, imageops::FilterType::Triangle);
-    let frame = imageops::resize(&imageops::crop_imm(parts, 196, 546, 186, 110).to_image(), THUMB_W, THUMB_H, imageops::FilterType::Triangle);
+    // src: exe 0x8106725e (gm_bg1.png cells), 0x81066564 (gm_bg.png
+    // cards; row 929 is the one between its 545 and 1313); the rest of
+    // the album's layout is ours
+    let no_image = imageops::resize(&imageops::crop_imm(parts, 0, 545, 192, 114).to_image(), THUMB_W, THUMB_H, imageops::FilterType::Triangle);
+    // the frame: the eboot's gm_bg1.png cell next to it (0x8106725e)
+    let frame = imageops::resize(&imageops::crop_imm(parts, 192, 545, 192, 114).to_image(), THUMB_W, THUMB_H, imageops::FilterType::Triangle);
     let locked = assets.put_system_png("album_locked", &no_image);
     let card = |row: u32, i: u32| {
-        let c = imageops::crop_imm(album, 1 + 96 * i, row, 94, 378).to_image();
-        imageops::resize(&c, 47, 189, imageops::FilterType::Triangle)
+        // a card of gm_bg.png (exe 0x81066564)
+        let c = imageops::crop_imm(album, 96 * i, row, 96, 384).to_image();
+        // ours: half size
+        imageops::resize(&c, 48, 192, imageops::FilterType::Triangle)
     };
     let mut tabs = Vec::new();
     for (i, entries) in game.gallery.iter().enumerate().take(HEROINES.len()) {
         let name = HEROINES[i];
         let (x, y) = (24 + 50 * (i as i32 % 4), 90 + 200 * (i as i32 / 4));
-        let button = place(assets, &format!("album_tab{i}"), &card(933, i as u32), x, y);
-        let selected = assets.put_system_png(&format!("album_tab{i}_on"), &card(1318, i as u32));
+        let button = place(assets, &format!("album_tab{i}"), &card(929, i as u32), x, y);
+        let selected = assets.put_system_png(&format!("album_tab{i}_on"), &card(1313, i as u32));
         let title_img = labels.draw(name, 22.0, [255, 255, 255], [90, 130, 255], 255);
         let title = place(assets, &format!("album_title{i}"), &title_img, 430, 44);
         let viewer_img = labels.draw(name, 18.0, [255, 255, 255], [90, 130, 255], 255);

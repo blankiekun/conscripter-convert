@@ -414,8 +414,10 @@ impl Assets for ArchiveAssets<'_> {
 
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
         let (file, cell, falls) = match kind {
-            // src: ETC.cpk sheets (32×32 cells, measured); the motion below is
-            // ours (guess: the eboot's particle code is not read)
+            // src: ETC.cpk sheets (32×32 cells, measured). ours: the motion
+            // below loops in PARTICLE_FRAMES; the eboot's is rand()-driven
+            // each frame and never loops (snow: update 0x81047dfa, draw
+            // 0x8104839c; docs/games/oretsuba.md Status).
             Particles::LightBalls => ("lightball.png", (32, 32), false),
             Particles::Snow => ("snow.png", (32, 32), true),
             Particles::Confetti => ("paper.png", (32, 32), true),
@@ -588,8 +590,8 @@ impl Assets for ArchiveAssets<'_> {
                 pictures.push(cut(self, format!("face{id}"), &[(id % 25 * 37, 671 + id / 25 * 37)], (37, 37), (858 - 38 * k as i64, 60))?);
             }
         }
-        // src: exe 0x8103ebf2 (origin, 27 apart); guess: the font size 21
-        let lines: Vec<RgbaImage> = text.lines().map(|l| labels.draw(l, 21.0, [255, 255, 255], [0, 0, 0], 255)).collect();
+        // src: exe 0x8103ebf2 (origin, 27 apart, scale 1.0), 0x8104a120 (font cell 22.0)
+        let lines: Vec<RgbaImage> = text.lines().map(|l| labels.draw(l, 22.0, [255, 255, 255], [0, 0, 0], 255)).collect();
         if let Some(h) = lines.iter().map(|l| l.height()).max() {
             // draw() leaves 4 pixels around the letters.
             let mut img = RgbaImage::new(lines.iter().map(|l| l.width()).max()?, 27 * (lines.len() as u32 - 1) + h);

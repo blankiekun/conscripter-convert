@@ -382,29 +382,30 @@ fn tag_label(scene: &str, tag: &str) -> String {
     format!("{}_{tag}", scene_label(scene))
 }
 
-/// The text window: `meswin.png` across the bottom of the screen, above
-/// the button bar. Its panel is x 77-883, y 28-152, with round ends; the
-/// text fills x 120-840, y 40-144: four lines of 30, enough for the
-/// longest message (109 characters with the name).
+/// The text window: `meswin.png` across the bottom of the screen, as the
+/// eboot's window type 0 (adv.txt's `MainWindow0 :Type 0`) draws it:
+/// SystemData 42's top-left 960×182 centred at (480, 450); the message
+/// from (111, 408) in the 22-pixel font, lines 22 + 12 apart. Four lines
+/// of 30, enough for the longest message (109 characters with the name).
 pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
-    let (image, w, h) = assets.window().unwrap_or_default();
-    let (w, h) = (w as i32, h as i32);
-    // ours: centred, above the button bar. src: meswin.png (measured):
-    // text_x, text_y; the scripts: rows, columns (the longest message).
-    // guess: font_size, line_gap. The eboot's message layout is not read.
-    let x = (SCREEN_W - w) / 2;
-    let y = SCREEN_H - h - 16;
+    let (image, _, _) = assets.window().unwrap_or_default();
+    // src: exe 0x81050980 (window type 0: picture 0x2a, centre (480, 450),
+    // 960×182), 0x8112cdfc (message at the window offset + (0x6f, 0x198)),
+    // 0x8104a120 (font cell 22.0), 0x81009c04 (line gap scale × 24 × 0.5).
+    // The scripts: rows, columns (the longest message).
+    let (centre_x, centre_y, w, h) = (480, 450, 960, 182);
+    let (x, y) = (centre_x - w / 2, centre_y - h / 2);
     TextWindow {
         wait_icon_at: None,
         image,
         x,
         y,
-        text_x: x + 120,
-        text_y: y + 40,
+        text_x: 111, // exe 0x8112cdfc
+        text_y: 408, // exe 0x8112cdfc
         columns: 30,
-        rows: 4,
-        font_size: 23,
-        line_gap: 4,
+        rows: 4, // the scripts' longest message
+        font_size: 22, // exe 0x8104a120
+        line_gap: 12, // exe 0x81009c04
         vertical: false,
         name_plate: None,
     }
@@ -1188,7 +1189,14 @@ impl Lowering<'_> {
                             y: sy(k.y.round() as i64),
                             zoom: (k.scale * 100.0).round().max(0.0) as u32,
                             zoom_y: (k.scale * 100.0).round().max(0.0) as u32,
-                            // Radians, clockwise on the screen (our guess).
+                            // Radians, clockwise on the screen: the eboot's
+                            // sprite draw (0x8103d53c) passes the angle to the
+                            // libm import 0x811313b4 with r0 = 0 then 1 (sin,
+                            // cos; 0x8103dce4, 0x8103dcf4), builds the rows
+                            // [c s; -s c] and multiplies them before the
+                            // place and the y-down projection (0x8112a630,
+                            // out = B*A, row vectors): x' = xc - ys,
+                            // y' = xs + yc in screen pixels.
                             angle: (-k.roll.to_degrees()).round() as i32,
                             opacity: (k.alpha.clamp(0.0, 255.0) * 256.0 / 255.0).round() as u32,
                             ease: None,
@@ -1571,8 +1579,13 @@ impl Lowering<'_> {
                             52 => Particles::LightBalls,
                             _ => Particles::Confetti,
                         };
-                        // ours: the fallback count 60 (eboot: a missing :Param is 0, cfg_number 8108c8a8; no script omits it); guess: frames of 125 ms
-                        let count = t.int_at("Param", 0).unwrap_or(60).max(1) as u32;
+                        // The count is :Param 0 (missing: 0, cfg_number 8108c8a8);
+                        // the effects' :Param readers turn 0, a negative count or
+                        // one over the pool into the pool: 200 (snow 0x81047ccc,
+                        // light balls 0x81043902), 100 (confetti 0x81042f66).
+                        // ours: frames of 125 ms (the eboot steps every frame).
+                        let cap = if n == 54 { 100 } else { 200 };
+                        let count = t.int_at("Param", 0).filter(|&c| c > 0 && c <= cap).unwrap_or(cap) as u32;
                         let animation = if start {
                             self.assets.particles(kind, count).map(|image| Animation {
                                 image,
@@ -1765,8 +1778,7 @@ impl Lowering<'_> {
         let ease = v.get(2).and_then(Val::float).unwrap_or(0.0) as u8;
         if (1..=3).contains(&ease) {
             let power = v.get(3).and_then(Val::float).filter(|p| *p > 0.0).unwrap_or(1.0);
-            let exponent = ((power * 2.0).round() as u32).max(1);
-            self.out.ops.push(Op::MoveEase { ease, exponent });
+            self.out.ops.push(Op::MoveEase { ease, exponent: eboot_exponent(power) });
             return true;
         }
         false
@@ -1902,7 +1914,9 @@ fn colour(t: &Block) -> u32 {
 ///   new behind, about the vertical axis (`:Param` 0 below 2) or the
 ///   horizontal one (a turn of the new screen growing from a line here);
 /// - 1: a fade with the rows waving sideways (`:Param` 1 the size, 2 the
-///   waves; their scale is a guess: the shader's constants are uniforms);
+///   waves). The shader's uniform `value` is (progress, `:Param` 0, 1 or
+///   1.5 when 0, 2 or 2.0 when 0) (0x8104ce66, 0x8104d25e); the scale is
+///   in fragment GXP 0x8115f63c, not decoded: ours (guess);
 /// - 6: a fade blurred sideways, the most halfway, by `:Param` 1 pixels
 ///   of 1280 either side, `:Param` 0 = 1 only the new screen;
 /// - 4: not looked at (2 uses).
@@ -1915,7 +1929,7 @@ fn act_style(t: &Block) -> TransitionStyle {
         Some(2) => TransitionStyle::Mosaic,
         Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
         Some(1) => {
-            let param = |i: usize| -> f64 { t.at("Param", i).and_then(Val::float).unwrap_or(0.0) };
+            let param = |i: usize| -> f64 { t.at("Param", i).and_then(Val::float).filter(|&v| v != 0.0).unwrap_or([0.0, 1.5, 2.0][i]) }; // defaults: 0x8104ce66
             TransitionStyle::Wave { direction: direction as u8, amplitude: (param(1) * 100.0).round() as u32, waves: (param(2) * 10.0).round() as u32 }
         }
         Some(6) => TransitionStyle::Blur {
@@ -2111,9 +2125,56 @@ fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>)
     }
 }
 
+/// The eboot's ease_value (0x8103cc18; sprite_move_ease 0x810867c2 passes
+/// `:Position`'s type and power): type 1 goes as pow(t², p), 2 as
+/// 1 - pow((1-t)², p), 3 as pow(4t², p)/2, then 1 - pow(4(1-t)², p)/2;
+/// [`Op::MoveEase`]'s curves 1-3 with exponent 2p. Every power the
+/// scenes use (0.5, 1, 1.5, 2, 3) makes 2p whole; another rounds.
+// src: exe 0x8103cc18 (ease_value; checked by EBOOT_EASE, research/oretsuba/ease_exe.py)
+fn eboot_exponent(power: f64) -> u32 {
+    ((power * 2.0).round() as u32).max(1) // eboot: pow(t², p) = t^(2p)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ease_value (0x8103cc18) run under exe_call: (type, power, the share
+    /// at t = 0, 0.1, ..., 1), from research/oretsuba/ease_exe.py.
+    #[rustfmt::skip]
+    const EBOOT_EASE: &[(u8, f64, [f64; 11])] = &[
+    (0, 0.5, [0.0, 0.10000000149011612, 0.20000000298023224, 0.30000001192092896, 0.4000000059604645, 0.5, 0.6000000238418579, 0.699999988079071, 0.800000011920929, 0.8999999761581421, 1.0]),
+    (0, 1.0, [0.0, 0.10000000149011612, 0.20000000298023224, 0.30000001192092896, 0.4000000059604645, 0.5, 0.6000000238418579, 0.699999988079071, 0.800000011920929, 0.8999999761581421, 1.0]),
+    (0, 1.5, [0.0, 0.10000000149011612, 0.20000000298023224, 0.30000001192092896, 0.4000000059604645, 0.5, 0.6000000238418579, 0.699999988079071, 0.800000011920929, 0.8999999761581421, 1.0]),
+    (0, 2.0, [0.0, 0.10000000149011612, 0.20000000298023224, 0.30000001192092896, 0.4000000059604645, 0.5, 0.6000000238418579, 0.699999988079071, 0.800000011920929, 0.8999999761581421, 1.0]),
+    (0, 3.0, [0.0, 0.10000000149011612, 0.20000000298023224, 0.30000001192092896, 0.4000000059604645, 0.5, 0.6000000238418579, 0.699999988079071, 0.800000011920929, 0.8999999761581421, 1.0]),
+    (1, 0.5, [0.0, 0.10000000149011612, 0.20000000298023224, 0.30000001192092896, 0.4000000059604645, 0.5, 0.6000000238418579, 0.7000000476837158, 0.800000011920929, 0.9000000357627869, 1.0]),
+    (1, 1.0, [0.0, 0.009999999776482582, 0.03999999910593033, 0.09000001102685928, 0.1599999964237213, 0.2500000298023224, 0.36000004410743713, 0.49000003933906555, 0.6399999856948853, 0.8100000619888306, 1.0000001192092896]),
+    (1, 1.5, [0.0, 0.0009999999310821295, 0.007999999448657036, 0.027000004425644875, 0.06399999558925629, 0.1250000298023224, 0.216000035405159, 0.34300005435943604, 0.5119999647140503, 0.7290000915527344, 1.000000238418579]),
+    (1, 2.0, [0.0, 9.999999747378752e-05, 0.0015999999595806003, 0.008100002072751522, 0.025599999353289604, 0.0625000149011612, 0.12960003316402435, 0.24010004103183746, 0.40959998965263367, 0.6561000943183899, 1.000000238418579]),
+    (1, 3.0, [0.0, 9.99999883788405e-07, 6.399999256245792e-05, 0.0007290002540685236, 0.004095999523997307, 0.015625005587935448, 0.04665601626038551, 0.11764902621507645, 0.26214396953582764, 0.5314410924911499, 1.0000003576278687]),
+    (2, 0.5, [0.0, 0.10000002384185791, 0.19999998807907104, 0.30000001192092896, 0.3999999761581421, 0.5, 0.6000000238418579, 0.6999999284744263, 0.7999999523162842, 0.9000000357627869, 1.0]),
+    (2, 1.0, [0.0, 0.19000005722045898, 0.35999995470046997, 0.5099999904632568, 0.6399999856948853, 0.75, 0.8400000333786011, 0.9099999666213989, 0.9599999785423279, 0.9900000095367432, 1.0]),
+    (2, 1.5, [0.0, 0.27100008726119995, 0.48799991607666016, 0.656999945640564, 0.7839999794960022, 0.875, 0.9359999895095825, 0.9729999899864197, 0.9919999837875366, 0.9990000128746033, 1.0]),
+    (2, 2.0, [0.0, 0.34390008449554443, 0.590399980545044, 0.7598999738693237, 0.8704000115394592, 0.9375, 0.974399983882904, 0.9918999671936035, 0.9983999729156494, 0.9998999834060669, 1.0]),
+    (2, 3.0, [0.0, 0.4685590863227844, 0.7378559112548828, 0.8823509812355042, 0.9533439874649048, 0.984375, 0.9959040284156799, 0.9992709755897522, 0.9999359846115112, 0.9999989867210388, 1.0]),
+    (3, 0.5, [0.0, 0.10000000149011612, 0.20000000298023224, 0.30000001192092896, 0.4000000059604645, 0.5, 0.6000000238418579, 0.699999988079071, 0.800000011920929, 0.8999999761581421, 1.0]),
+    (3, 1.0, [0.0, 0.020000001415610313, 0.08000000566244125, 0.18000000715255737, 0.320000022649765, 0.5, 0.6800000667572021, 0.8199999928474426, 0.9200000166893005, 0.9800000190734863, 1.0]),
+    (3, 1.5, [0.0, 0.0040000006556510925, 0.03200000524520874, 0.1080000028014183, 0.2560000419616699, 0.5, 0.7440000772476196, 0.8920000195503235, 0.9679999947547913, 0.9959999918937683, 1.0]),
+    (3, 2.0, [0.0, 0.000800000096205622, 0.012800001539289951, 0.06480000168085098, 0.20480002462863922, 0.5, 0.7952000498771667, 0.9351999759674072, 0.9872000217437744, 0.9991999864578247, 1.0]),
+    (3, 3.0, [0.0, 3.200000719516538e-05, 0.0020480004604905844, 0.02332800254225731, 0.1310720294713974, 0.5, 0.868928074836731, 0.9766719937324524, 0.9979519844055176, 0.9999679923057556, 1.0]),
+    ];
+
+    #[test]
+    fn eboot_ease_matches_ease_value() {
+        for &(ease, power, shares) in EBOOT_EASE {
+            for (k, &want) in shares.iter().enumerate() {
+                let t = k as f64 / 10.0;
+                let got = if ease == 0 { t } else { conv_core::ease::eased(ease, eboot_exponent(power), t) };
+                assert!((got - want).abs() < 1e-6, "type {ease} power {power} t {t}: {got} vs {want}");
+            }
+        }
+    }
 
     /// Only the skip dialog's picture: everything else is missing.
     struct DialogOnly;
