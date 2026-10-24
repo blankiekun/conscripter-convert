@@ -19,9 +19,9 @@ pub enum Kind {
 impl Kind {
     pub fn of(effect: i64) -> Option<Kind> {
         match effect {
-            51 => Some(Kind::Snow),
-            52 => Some(Kind::LightBalls),
-            54 => Some(Kind::Confetti),
+            51 => Some(Kind::Snow), // eboot EffectStart ids
+            52 => Some(Kind::LightBalls), // eboot
+            54 => Some(Kind::Confetti), // eboot
             _ => None,
         }
     }
@@ -39,7 +39,7 @@ impl Kind {
 /// Classes per speed-table entry. ours: the eboot computes each speed from
 /// the particle's class; the layer looks it up in a table (class buckets of
 /// 0.05, the speed at the bucket's middle).
-const BUCKET: f64 = 0.05;
+const BUCKET: f64 = 0.05; // ours
 
 /// The speed table over classes [0, `span`).
 fn table(span: f64, v: impl Fn(f64) -> f64) -> String {
@@ -56,7 +56,7 @@ fn num(v: f64) -> String {
 /// The layer's keys (without `img`) for `kind` with the task's `:Param`
 /// values (`param(i)`; a missing one is 0, cfg_number 0x8108c8a8).
 pub fn keys(kind: Kind, param: impl Fn(usize) -> Option<f64>) -> String {
-    let p = |i| param(i).unwrap_or(0.0);
+    let p = |i| param(i).unwrap_or(0.0); // cfg_number 0x8108c8a8
     // The count: 0, a negative one or one over the pool is the pool (snow
     // start 0x81047ccc, light balls 0x81043902, confetti 0x81042f66).
     let pool = if kind == Kind::Confetti { 100 } else { 200 };
@@ -77,16 +77,17 @@ pub fn keys(kind: Kind, param: impl Fn(usize) -> Option<f64>) -> String {
         // [0, 1280) reborn, else alpha -20 a step, reborn at ≤ 25. White,
         // drawn +31 px.
         Kind::Snow => {
+            // eboot 0x81047dfa, as above
             let vy = table(5.0, |c| {
-                let mut v = 5.0 / (4.5 - c);
-                if v > 5.0 {
-                    v /= 5.0;
+                let mut v = 5.0 / (4.5 - c); // eboot
+                if v > 5.0 { // eboot
+                    v /= 5.0; // eboot
                 }
-                if v > 4.0 {
-                    v *= 0.55;
+                if v > 4.0 { // eboot
+                    v *= 0.55; // eboot
                 }
-                if v > 3.0 {
-                    v *= 0.75;
+                if v > 3.0 { // eboot
+                    v *= 0.75; // eboot
                 }
                 v
             });
@@ -98,8 +99,8 @@ pub fn keys(kind: Kind, param: impl Fn(usize) -> Option<f64>) -> String {
         // waves (±0.032 an update, particle i takes wave i mod 20). 600
         // steps at the start only when :Param 1 ≠ 0 (0x81043902).
         Kind::LightBalls => {
-            let vy = table(4.0, |c| -1.25 / (4.5 - c));
-            let warm = if p(1) != 0.0 { ",warm=600" } else { "" };
+            let vy = table(4.0, |c| -1.25 / (4.5 - c)); // eboot 0x81043c8a
+            let warm = if p(1) != 0.0 { ",warm=600" } else { "" }; // eboot 0x81043902
             format!("{common},ox=32,oy=32,cls=3:1:0.7,vy={vy},x=0:1280,y=1440:0,walk=x,wv=-1.6:1.6,wa=0.2:0.2:1,end=80:-20:-1,fade=20:25,tint=ffff00,twinkle=20:0.032{warm}")
         }
         // Start 0x81042f66, steps 0x8112ad40. Class 3U + [U > 0.7]; y
@@ -112,15 +113,12 @@ pub fn keys(kind: Kind, param: impl Fn(usize) -> Option<f64>) -> String {
         // at x ≥ 1312, x < -64 or y ≥ 720. Red, yellow, blue or green. 1200
         // steps at the start only when :Param 3 ≠ 0.
         Kind::Confetti => {
-            let fall = match p(1) {
-                f if f == 0.0 => 10.0,
-                f => f,
-            };
-            let warm = if p(3) != 0.0 { ",warm=1200" } else { "" };
+            let fall = if p(1) == 0.0 { 10.0 } else { p(1) }; // eboot 0x81042f66
+            let warm = if p(3) != 0.0 { ",warm=1200" } else { "" }; // eboot 0x81042f66
             // ours: a side birth is at x -64 or 1344 (half each, 0x8112b11c's
             // respawn), also the first time, where the eboot puts it at -32.
             format!(
-                "{common},ox=32,oy=32,cls=3:1:0.7,vy={},x=0:1280,y=-32:0,side=0.5:-64:1344:0:720,walk=y,wv=-0.2:0.6,wa=0.1:0.025:0.4,box=-64:-100000:1312:720,drift=0.6:0.2:0.05:{},flip=3:50:0.008:1.2,tint=ff0000:ffff00:0000ff:00ff00{warm}",
+                "{common},ox=32,oy=32,cls=3:1:0.7,vy={},x=0:1280,y=-32:0,side=0.5:-64:1344:0:720,walk=y,wv=-0.2:0.6,wa=0.1:0.025:0.4,box=-64:-100000:1312:720,drift=0.6:0.2:0.05:{},flip=3:50:0.008:1.2,tint=ff0000:ffff00:0000ff:00ff00{warm}", // eboot 0x81042f66; ours: side x
                 num(fall),
                 num(p(2))
             )

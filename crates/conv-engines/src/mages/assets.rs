@@ -412,7 +412,7 @@ impl Assets for ArchiveAssets<'_> {
     fn particle_sheet(&mut self, kind: Kind) -> Option<String> {
         // src: ETC.cpk, 32-px cells (measured), written as they are.
         let path = format!("system/{}", kind.sheet());
-        let key = (5, kind as u32);
+        let key = (5, kind as u32); // ours: the image cache's key
         if !self.images.contains_key(&key) {
             let img = image::load_from_memory(self.etc.by_name(kind.sheet())?).ok()?.to_rgba8();
             self.out.write_png(&path, &img);
