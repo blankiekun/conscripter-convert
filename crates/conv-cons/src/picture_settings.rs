@@ -206,10 +206,15 @@ fn values(out: &mut String, s: &PictureSettings) {
     for (i, l) in s.sliders.iter().enumerate() {
         let v = slider_var(s, i);
         let volume = |w: &mut dyn FnMut(String), cmd: &str| {
-            // 100 × (p/100)^1.661, p the position 0-100: Nitroplus's volume setting
-            // (exe FUN_00476730: setting/1000, a factor on every sound_set_volume
-            // 00475f50 volume, sent as 3322·log10 hundredths of a dB) as a cubic;
-            // slider_volume in the tests is the same sum.
+            // 100 × (p/100)^1.661, p the position 0-100: Nitroplus's volume setting.
+            // src: Muramasa.exe FUN_00476730 (setting/1000 to 005d3b10-18), FUN_00475980 (copies
+            // it to a sound's +0x118), sound_set_volume 00475f50 (DirectSound volume
+            // 3322·log10(f·v/1000) hundredths of a dB, 3322.0 at 0x514fe8); Django.exe 1.01 the
+            // same at 0x457ed1 (fmuls +0x118, fmull 0x4d56e0 = 3322.0, fyl2x with fldlg2).
+            // English: Diesel's own mixer (sqApp_setSoundTypeVolume 0x4d0c60 keeps 0-1; the
+            // curve is in Mware.dll), the Japanese curve kept (muramasa-en.md, Scope).
+            // ours: the cubic, NScripter having no pow; within 1 of the exe's percent at every
+            // p (slider_volume_follows_the_exe_curve).
             w(format!(
                 "mov {TMP},(1000-{v})/10:mov {TMP},({TMP}*(138300+{TMP}*(11017-24*{TMP}))+500000)/1000000:{cmd} {TMP}"
             ));

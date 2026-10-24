@@ -315,8 +315,9 @@ pub struct SliderSteps {
 /// bottom).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SliderSetting {
-    /// Full at the top, silent at the bottom (the Nitroplus exe's curve,
-    /// percent = 100 × (v/1000)^1.661 of v = 1000 - p, approximated).
+    /// Full at the top, silent at the bottom (the Nitroplus exes' curve,
+    /// percent = 100 × (v/1000)^1.661 of v = 1000 - p; src and the
+    /// integer cubic within 1 percent: conv-cons picture_settings.rs).
     BgmVolume,
     SeVolume,
     VoiceVolume,
