@@ -985,19 +985,23 @@ impl Lowering<'_, '_> {
                 let z = |i: usize, old: f32| if arg(i).is_empty() { Some(old) } else { number(arg(i)).map(|v| v as f32 / 1000.0) };
                 let (Some(zx), Some(zy)) = (z(3, l.stretch.0), z(4, l.stretch.1)) else { return false };
                 let raw = |i: usize| a.get(i).map_or("", |v| v.trim());
+                // src: exe FUN_00131f30 (_STZ4: x0, y0 = the starting zoom, arguments 1 and 2)
                 let from = (if raw(1).is_empty() { Some(l.stretch.0) } else { number(raw(1)).map(|v| v as f32 / 1000.0) }, if raw(2).is_empty() { Some(l.stretch.1) } else { number(raw(2)).map(|v| v as f32 / 1000.0) });
                 l.stretch = (zx, zy);
                 if let Some(off) = number(arg(7)) {
                     l.stretch_off = off as u8 != 0; // src: a byte at 0x874 of the state
                 }
+                // src: exe FUN_00131f30 (_STZ4 duration, argument 5)
                 let ms = if raw(5).is_empty() { Some(0) } else { number(raw(5)) };
                 // src: exe 0x162d20 (ms × 60 / 1000 frames; under 17 ms none)
                 let timed = match (ms, from) {
+                    // src: exe 0x132820 (under 17 ms is at once)
                     (Some(ms), _) if ms < 17 => true,
                     // From where it ends: the same at once.
                     (Some(_), (Some(x0), Some(y0))) if (x0, y0) == (zx, zy) => true,
                     (Some(ms), (Some(x0), Some(y0))) => {
                         let start = Layer { stretch: (x0, y0), ..l.clone() };
+                        // src: exe FUN_00130c80 (easing) drawn by FUN_00138a70; no bit of _STCF waits for a zoom (FUN_001329f0)
                         self.timed_now(n as usize, start, ms as u32, ease(number(raw(6)).unwrap_or(0)), 0)
                     }
                     _ => false,
@@ -1047,13 +1051,16 @@ impl Lowering<'_, '_> {
                 let raw = |i: usize| a.get(i).map_or("", |v| v.trim());
                 let from = if raw(1).is_empty() { Some(l.angle) } else { number(raw(1)) };
                 l.angle = number(arg(2)).unwrap_or(0);
+                // src: exe FUN_001326e0 (_STRT handler; an empty from keeps the current angle)
                 let ms = if raw(3).is_empty() { Some(0) } else { number(raw(3)) };
                 let zero = |i: usize| raw(i).is_empty() || number(raw(i)) == Some(0);
                 // At once, `from` and the easing mean nothing (checked only where from = to); a centre of 0 is none.
                 let done = match (ms, from) {
                     (Some(0), Some(f)) => f == l.angle,
+                    // ours: a timed turn runs only without a centre; the exe's turn handler is FUN_001326e0
                     (Some(ms), Some(f)) if ms >= 17 && zero(5) && zero(6) => {
                         let start = Layer { angle: f, ..l.clone() };
+                        // src: exe FUN_00130c80 (easing) drawn by FUN_00137f50; _STCF bit 4 waits for a turn (FUN_001329f0)
                         self.timed_now(n as usize, start, ms as u32, ease(number(raw(4)).unwrap_or(0)), 4)
                     }
                     _ => false,
@@ -1217,9 +1224,12 @@ impl Lowering<'_, '_> {
             self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: alpha * 256 / 255 });
             return true;
         };
+        // src: exe 0x1637a0 (the fade, unchanged here; the lines only moved)
         let key = |ms, alpha: u32| MotionKey { ms, x: 0, y: 0, zoom: 100, angle: 0, opacity: alpha * 256 / 255, zoom_y: 100, ease: None };
+        // src: exe 0x1637a0 (as above)
         self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: 256 });
         self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), MotionKey { ease: curve, ..key(ms, to) }], end: MotionEnd::Keep });
+        // src: exe 0x1637a0 (as above)
         self.motion_bits[slot] = 8;
         true
     }
@@ -1234,6 +1244,7 @@ impl Lowering<'_, '_> {
     fn timed_now(&mut self, n: usize, start: Layer, ms: u32, curve: Curve, bits: u8) -> bool {
         let Some(to) = self.staged[n].clone() else { return false };
         let Some(slot) = self.slot_layer.iter().position(|&l| l == Some(n)) else { return false };
+        // src: exe FUN_00131f30 / FUN_001326e0 set the live layer, FUN_00130c80 eases it (see the commit message); the rest is ours: the layer must be shown as staged.
         let same = |l: &Layer| Layer { stretch: (0.0, 0.0), angle: 0, ..l.clone() };
         if self.shown[n].as_ref().map(same) != Some(same(&to))
             || to.fade.is_some()
@@ -1444,6 +1455,7 @@ impl Lowering<'_, '_> {
                     l.alpha = a.clamp(0, 255) as u32;
                 }
                 let (zx, zy) = (on(Motion::ZOOM_X, k.zoom().0), on(Motion::ZOOM_Y, k.zoom().1));
+                // ours: moved unchanged from run_motion into move_states (the motion keys set the zoom)
                 l.stretch = (zx.map_or(l.stretch.0, |z| f32::from(z) / 1000.0), zy.map_or(l.stretch.1, |z| f32::from(z) / 1000.0));
                 if let Some(t) = k.turn().filter(|_| motion.mask & Motion::TURN != 0) {
                     l.angle = t;
