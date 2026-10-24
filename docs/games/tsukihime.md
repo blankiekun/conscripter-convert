@@ -64,8 +64,30 @@ Paused 2026-10-20.
      `FUN_00148ac0`; F025 by `FUN_00147b10`.
    No gap: F822 (= 1 from `START_SCRIPT`, never reset: novel layout),
    F1109 (only set 0), F823 and F847–F869 (page line counters, reset per
-   page; our pages hold them). Field writers of the layer, text and
-   sound structs: not done.
+   page; our pages hold them).
+8. Layer field writers (`research/typemoon/field_writers.py` over the
+   layer block `PTR_DAT_00be0250`, 0x19B8 bytes, one array per field:
+   387 writes in 49 functions; `command_of.py` names the command):
+   - `_STCH`/`_SCH2` (`FUN_00160840`) without arg 18 reset the `_STZ4`
+     zoom +0x7D4/+0x824 to 1000 and +0x874 to 0, `_SACL` byte +0x54,
+     `_STEC` +0x1404, `_SNX2`/`_SNX3` +0x1454/+0x1458 (1.0); always set
+     `_STTR` +0x8EC to −1 (110 uses); an empty picture also clears
+     `_SBAS` +0x93C and `_SOXY` +0x98C/+0x9DC (208 uses).
+   - `_STCH` (not `_SCH2`) sets the turn +0x284 to 0 and the centre
+     +0x374/+0x414 from the picture record; `_STPV` (`FUN_001639a0`,
+     734 uses) and motions also write the centre.
+   - Arg 18 (about 4,874 uses) copies the source's fields and re-points
+     every layer whose +0x89C (clip source) or +0x93C (parent) is the
+     source; ours re-points only the parent.
+   - Motions (`FUN_00197b80`) zoom through the `_STZ4` words
+     +0x7D4/+0x824 (mask 0x80200000/0x100400000), not arg 4's +0x324;
+     the key turn goes to +0x284 (0x88000) and, under mask bit 34, to
+     the clip turn +0xBE4; they also drive the clip rectangle +0xA2C
+     (0x10000080 x, 0x4000400 y), +0xB6C, +0xBBC, +0x7C, +0x1454/+0x1458
+     and `_STNS`'s +0x13B4/+0x13DC (24,333 `_STMA`); how many motions
+     set the clip bits: not counted.
+   - `FUN_00157450` (callers 0x140CD0, 0x140DB0, 0x182330) writes every
+     field: not identified. Text and sound structs: not done.
 
 ## Scope
 
