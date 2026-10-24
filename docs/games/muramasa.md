@@ -22,7 +22,7 @@ Active (Japanese and English in one build).
 | Text, choices, pictures, motion, processes, blends, sounds | ✅ (approximations parked) |
 | System screens, extras, 立方陣 | ✅ each checked beside the original |
 | English text and pictures, censored/uncensored layer | ✅ (`docs/games/muramasa-en.md`) |
-| Web build | 🟡 JP prologue played 370 pages (known bugs) |
+| Web build | 🟡 JP (4 routes) and EN (1) played 1800 s each; known bugs |
 | Dry-run `score` (`metrics.json`) | 99.90 (picture 99.67) |
 
 Known bugs:
@@ -38,23 +38,31 @@ Known bugs:
   `--english`.
 - One engine segfault on `end` after a `dwave` voice, Ctrl held.
 - `layer\uncensored\` unchecked on a censored CG.
-- Web play (title start, 1800 s real time, 370 pages; frames in
-  `out/play-bugs/`):
-  - `f_mb01_002` (route start `--at mb01_001`, pg 117, 0.txt line 234638,
-    `if %981 == 0 dwave 0,"voice\mb01\0020100a12.ogg"`): auto-play stops "20000
-    waits without a new page" right after the dwave; frame `stall-mb01_002`.
-  - Prologue pg 100 (`ma00`, text.en line "For example...@ what if Kakei only
-    looks committed?"): the text after `@` is run as the command `what`
-    (warning "unknown command") and never shown; frame `en-text-dropped-pg100`
-    (pg 98, the nearest shot).
-  - Prologue pg 233: text over a black screen with no text window or name
-    plate; frame `no-window-pg233` (check against the script: may be intended).
-  - `cons_trace_check` reports 4417 "missing" files that exist in
-    `out/muramasa-web` (`cg/data/*.webp`, `system/window_*.webp`, `cg/bg/*.jpg`):
-    the checker's lookup of a loose web build, not the game.
+- Web play (`out/muramasa-web`, loose; frames in `out/play-bugs/`):
+  - `f_mb01_002` (pg 117, 0.txt line 234638, `if %981 == 0 dwave 0,"voice\mb01\0020100a12.ogg"`):
+    auto-play stops "20000 waits without a new page" after the dwave (`--at mb01_001`
+    stalled; the 1800 s mb01 run passed it); frame `stall-mb01_002`.
+  - English `@` cut: text after `@ ` is run as a command (`what`, `and`, `then`: "unknown
+    command") and never shown; 227 `text.en` entries have `@ word`; prologue pg 100,
+    en-mc01 pg 32 (0.txt line 234895) and pg 213 (236008); frames `en-text-dropped-pg100`,
+    `en-mc01-at-cut-pg36`.
+  - Prologue pg 233: text over black with no window or name plate; frame `no-window-pg233`
+    (may be intended).
+  - `rain_streak.png` given to `particle` while only `system/strip/rain_streak.webp` exists:
+    no rain ("particle: can't find"; 0.txt lines 240204, 241496, 242508, 304630, 306851);
+    seen in mb01, md01, en-mc01; frame `jp-md01-rain-streak-png`.
+  - md05 pg 580-1062 HUD counter digits `cg\cp\mura|ave\自機カウンター\0N.webp` (0.txt
+    562417-566022): "can't find" (~380) although the files are in `out/muramasa-web` and
+    `cons_index.json`; digits not drawn; frame `jp-md05-hud-counter-digits`.
+  - md01 pg 2220 (0.txt 304728, battle): text page with no text and no window (suspect);
+    frame: see `out/play/jp-md01/bugs.txt`.
+- Web runs (1800 s real time, auto-play, random choices; `cons_trace_check` "missing"
+  findings are the checker's loose-build lookup, not the game): JP prologue 370 pages;
+  JP mb01 3166; mc01 2757; md01 3226; md05 1062 (reached the end); EN mc01 (Kanae route
+  `--at mc01_001`) 382 pages (script waits up to 46 s; English text fits the window, no
+  Japanese in any page).
 
-Next: (1) play the web build through, Japanese then English, fixing
-what blocks or shows wrong; (2) the known bugs; (3) release.
+Next: (1) fix the web-play bugs above (`muramasa/playable`); (2) the known bugs; (3) release.
 
 ## Scope
 
