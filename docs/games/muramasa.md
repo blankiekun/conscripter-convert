@@ -46,6 +46,12 @@ Known bugs:
   at it once merged. Headless runs without `--real-time` show no window
   after `windowfade 256,150,0,0` (the virtual clock never ends the
   fade): compare such pages with `--real-time` runs.
+- Script skip and auto locks (`$SYSTEM_skip_lock`, `$SYSTEM_text_auto_lock`)
+  use `modelock` from engine PR blankiekun/CONscripter#200; point the
+  submodule at it once merged. `#SYSTEM_play_speed` 3 (the rolls) runs at
+  100 % whatever the game speed. `$SYSTEM_text_interval` 128 and
+  `$SYSTEM_text_waitkey` false are left out: the scripts set them only
+  around the 6 staff rolls, which are pictures with no text page.
 - A list lens (mc01_020vs) does not restore on a load (whole screen
   differs; a still lens does).
 - Web runs (1800 s real time, auto-play, random choices; `cons_trace_check` "missing"

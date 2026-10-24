@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, ScreenEffect, SliderSetting, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     SourceLoc, TransitionStyle, Var, ZoomStyle, RowControl, SettingValue,
 };
 
@@ -722,7 +722,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
             game_speed: script
                 .picture_settings
                 .as_ref()
-                .filter(|s| s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })))
+                .filter(|s| picture_settings::has_game_speed(s))
                 .map(|_| picture_settings::GAME_SPEED),
             toggles: script.settings.as_ref().is_some_and(|m| menu::has_switch(m, Switch::ClickStopsAuto) || menu::has_switch(m, Switch::ClickStopsSkip))
                 || script.picture_settings.as_ref().is_some_and(|s| s.pairs.iter().any(|p| p.option == conv_core::ir::PairOption::ClickStopsAuto)),

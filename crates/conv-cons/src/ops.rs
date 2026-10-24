@@ -185,6 +185,13 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::StopAutoSkip => writeln!(out, "skipoff:autooff").unwrap(),
+        Op::ModeLock { mask, on } => writeln!(out, "modelock {},{mask}", if *on { *mask } else { 0 }).unwrap(),
+        Op::NormalSpeed(on) => {
+            if script.picture_settings.as_ref().is_some_and(crate::picture_settings::has_game_speed) {
+                let speed = if *on { "100" } else { crate::picture_settings::GAME_SPEED };
+                writeln!(out, "mov {},{}:consset \"gamespeed\",{speed}", crate::picture_settings::NORMAL_SPEED, u8::from(*on)).unwrap();
+            }
+        }
         Op::BacklogLine { text, voice, character } => match (voice, character) {
             (Some(v), Some(c)) if voice_switches && crate::line_log_screen::engine_log(script).is_some() => {
                 writeln!(out, "logadd \"{}\",\"{}\",{c}", strings.string(LOG, escape(text)), path(v)).unwrap()

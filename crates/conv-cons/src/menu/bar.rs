@@ -211,7 +211,8 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("csp {slot}"));
     }
     if let Some(v) = s.game_speed {
-        w(format!("consset \"gamespeed\",{v}"));
+        // Not while the story runs at the normal speed (Op::NormalSpeed).
+        w(format!("if {} == 0 consset \"gamespeed\",{v}", crate::picture_settings::NORMAL_SPEED));
     }
     w("texec".into());
     w("return".into());

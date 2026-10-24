@@ -93,7 +93,7 @@
 "SL_Rightdownfade": {"calls": 1, "gaps": 0, "left_out": 1, "reasons": [["no function of this name: the exe skips the call too", 1]], "weighted": 0.0, "credit": 0.0, "channel": "unclassed"},
 "ShakeOne": {"calls": 1, "gaps": 0, "left_out": 1, "reasons": [["no function of this name: the exe skips the call too", 1]], "weighted": 0.0, "credit": 0.0, "channel": "motion"}
 },
-"outside_calls": [["branches of a runtime if end with different helper variables", 78878], ["paths merge with different $テキストデータバックログ１", 4597], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3305 more", 625099]],
+"outside_calls": [["branches of a runtime if end with different helper variables", 78878], ["paths merge with different $テキストデータバックログ１", 4597], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3305 more", 624903]],
 "text": {"pages": 54538, "gaps": 0, "credit": 54538.0, "reasons": []},
 "timing": {"calls": 940},
 "parity": {"source_ms": 544944009, "ours_ms": 599704648, "short_ms": 4725370, "scenes_short": 414},

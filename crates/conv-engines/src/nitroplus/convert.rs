@@ -61,6 +61,13 @@ const BOOT: &str = "0_boot_開始スクリプト.nss";
 const MAX_LAYER: u32 = 900;
 // The game's sprites (62 + layer) stay under the menus' extra slots.
 const _: () = assert!(62 + MAX_LAYER < conv_core::alloc::MENU_MORE_SPRITES.start);
+/// The `$SYSTEM` variables locking the player's modes and speed
+/// ([`Op::ModeLock`], [`Op::NormalSpeed`]): set anew in each file, unknown
+/// where branches set them differently. `$SYSTEM_text_interval` (slower
+/// text) and `$SYSTEM_text_waitkey` (no click) are left out: 装甲悪鬼村正's
+/// scripts set them only around its staff rolls, which have no text.
+pub(super) const PLAYER_LOCKS: [&str; 3] = ["$SYSTEM_skip_lock", "$SYSTEM_text_auto_lock", "#SYSTEM_play_speed"];
+
 /// The NScripter variables that hold which branch of a choice or of a
 /// runtime `if` was taken (one per fork of a file, in turn).
 const FORK_VARS: std::ops::Range<u16> = 40..70;
@@ -1515,6 +1522,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let stops = (key == "$SYSTEM_text_auto" && new.int() == 0) || (key == "$SYSTEM_menu_lock" && new.int() != 0);
                 if stops && self.ops.last() != Some(&Op::StopAutoSkip) {
                     self.ops.push(Op::StopAutoSkip);
+                }
+                // The modes and speeds the script locks: only where they
+                // change (each page writes text_auto_lock false).
+                if PLAYER_LOCKS.contains(&key.as_str()) {
+                    let known = |v: &Value| matches!(v, Value::Int(_) | Value::Str(_));
+                    if !known(&new) || !known(&old) || !old.equals(&new) {
+                        let n = new.int();
+                        self.ops.push(match key.as_str() {
+                            "$SYSTEM_skip_lock" => Op::ModeLock { mask: 1, on: n != 0 },
+                            "$SYSTEM_text_auto_lock" => Op::ModeLock { mask: 2, on: n != 0 },
+                            // 3: the config's NORMAL (Django's sys_config.nss).
+                            _ => Op::NormalSpeed(n == 3),
+                        });
+                    }
                 }
                 if key == "$GameName" {
                     self.vars.insert(GAME_NAME_SET.into(), Value::Int(1));

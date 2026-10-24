@@ -20,6 +20,9 @@ pub(crate) const GAME_SPEED: &str = "%2921";
 
 // Locals.
 const MUTE: [&str; 3] = ["%171", "%172", "%173"];
+/// 1 while the story runs at the normal speed whatever the game speed
+/// ([`Op::NormalSpeed`](conv_core::ir::Op::NormalSpeed)): per save.
+pub(crate) const NORMAL_SPEED: &str = "%conv_normal_speed";
 
 pub(crate) const APPLY: &str = "conv_ps_apply";
 pub(crate) const DEFAULTS: &str = "conv_ps_defaults";
@@ -89,6 +92,14 @@ pub(crate) fn define(out: &mut String, s: &PictureSettings, language: &str) {
     if has_language(s) {
         out.push_str(&format!("defvar {},global\n", named(&format!("seen_{}", language))));
     }
+    if has_game_speed(s) {
+        out.push_str(&format!("defvar {}\n", &NORMAL_SPEED[1..]));
+    }
+}
+
+/// Whether there is a game speed slider.
+pub(crate) fn has_game_speed(s: &PictureSettings) -> bool {
+    s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. }))
 }
 
 pub(crate) fn pair_var(s: &PictureSettings, i: usize) -> String {
@@ -172,7 +183,7 @@ pub(crate) fn init(out: &mut String, s: &PictureSettings, language: &str) {
         out.push_str(&format!("if {set} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
     }
     // `reset` comes back here: the title runs at the normal speed.
-    if s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })) {
+    if has_game_speed(s) {
         out.push_str("consset \"gamespeed\",100\n");
     }
 }
