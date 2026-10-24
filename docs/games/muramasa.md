@@ -30,9 +30,10 @@ Known bugs:
 - Trace diff: pages the original shows and ours lacks (`ma03_015`…;
   lead's lane R).
 - Scene-start check (640 of 865 scenes clean, before
-  `scene_objects.py` read containers' children: rerun it): ours
-  shows 3 trust digits on `mb02_026vs`'s first page and a lock-on
-  mark on `mc01_010vs`'s after `Cockpit_AllFade0` (NSS: none);
+  `scene_objects.py` read containers' children: rerun it):
+  `mc01_010vs`'s lock-on mark is not a bug (`CP_LockOn` is
+  top-level, not under `CPW`, so `Cockpit_AllFade0` leaves it; it
+  sits behind the full-screen `ev946`, as in the original);
   `md05_027a`/`b`… (8) open black, missing
   `ev253_飢餓虚空の内側.jpg`; `mc04_014vsa`… (7) miss
   `ev187_銘伏の妖剣_i.jpg`.

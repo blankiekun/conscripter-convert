@@ -581,6 +581,9 @@ impl Compiler<'_, '_> {
             "Request" => {
                 let action = arg(1).string().to_ascii_lowercase();
                 let targets = self.matching(&arg(0));
+                if action == "stop" {
+                    self.stop_one_shots(&self.object_name(&arg(0)));
+                }
                 if targets.is_empty() && action == "enter" {
                     self.pending_enter = Some(arg(0).string().trim_start_matches('@').to_string());
                 }
