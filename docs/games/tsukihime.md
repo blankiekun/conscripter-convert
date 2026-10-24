@@ -40,6 +40,13 @@ Paused 2026-10-20.
    fades and the loading icon); the save list's date place; Gallery's
    ground, row cell anchor and fades (widget data at 0x54E410 not
    decoded).
+7. Text window overflow, accepted (2026-10-23): 1 of 15711 JP pages
+   exceeds 11 rows, 4 of 31431 EN pages exceed 13
+   (`research/typemoon/overflow_pages.txt`); the engine's `pastPage`
+   (`engine/src/cons/ONScripter_cons.cpp`) splits them onto one extra
+   click, nothing is clipped. The original's behaviour on those pages
+   is unread (it seems to draw past 720 px; page clear and wrap not
+   read); not pursued.
 
 ## Scope
 
