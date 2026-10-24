@@ -690,6 +690,14 @@ pub enum Op {
     /// `Request` `AddRender`/`MulRender`/`SubRender`. Inside a transition,
     /// as [`Op::Sprites`].
     SpriteBlend { layer: u32, mode: u8 },
+    /// Shakes a layer's sprite alone (it and nothing else moves; other
+    /// layers stay put) by `effect`, a [`ScreenEffect::Shake`],
+    /// [`ScreenEffect::ShakeList`] or [`ScreenEffect::Jolt`], in `slot`
+    /// (1-2, their offsets added), or with `None` stops that slot. Runs by
+    /// itself while the script goes on; cleared with the layer
+    /// (CONscripter's `spshake`). Shown at once unless a transition is
+    /// open.
+    SpriteShake { layer: u32, slot: u32, effect: Option<ScreenEffect> },
     /// A layer's sprite draws `passes` copies of itself under it at
     /// `alpha` per mille of its alpha, copy i where its motions
     /// ([`Op::SpriteMotion2`]) had it `lag` × i ms before; `passes` 0 ends
