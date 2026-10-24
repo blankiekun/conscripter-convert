@@ -1914,7 +1914,9 @@ fn colour(t: &Block) -> u32 {
 ///   new behind, about the vertical axis (`:Param` 0 below 2) or the
 ///   horizontal one (a turn of the new screen growing from a line here);
 /// - 1: a fade with the rows waving sideways (`:Param` 1 the size, 2 the
-///   waves; their scale is a guess: the shader's constants are uniforms);
+///   waves). The shader's uniform `value` is (progress, `:Param` 0, 1 or
+///   1.5 when 0, 2 or 2.0 when 0) (0x8104ce66, 0x8104d25e); the scale is
+///   in fragment GXP 0x8115f63c, not decoded: ours (guess);
 /// - 6: a fade blurred sideways, the most halfway, by `:Param` 1 pixels
 ///   of 1280 either side, `:Param` 0 = 1 only the new screen;
 /// - 4: not looked at (2 uses).
@@ -1927,7 +1929,7 @@ fn act_style(t: &Block) -> TransitionStyle {
         Some(2) => TransitionStyle::Mosaic,
         Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
         Some(1) => {
-            let param = |i: usize| -> f64 { t.at("Param", i).and_then(Val::float).unwrap_or(0.0) };
+            let param = |i: usize| -> f64 { t.at("Param", i).and_then(Val::float).filter(|&v| v != 0.0).unwrap_or([0.0, 1.5, 2.0][i]) };
             TransitionStyle::Wave { direction: direction as u8, amplitude: (param(1) * 100.0).round() as u32, waves: (param(2) * 10.0).round() as u32 }
         }
         Some(6) => TransitionStyle::Blur {
