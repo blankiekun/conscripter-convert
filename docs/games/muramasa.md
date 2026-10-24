@@ -62,6 +62,34 @@ Known bugs:
   `--at mc01_001`) 382 pages (script waits up to 46 s; English text fits the window, no
   Japanese in any page).
 
+Static checks (`docs/new-game.md` steps 6-7; 20 fields, 62 `set_system_variable` cases, 6
+every-frame passes), gaps ranked by script writes:
+
+- `$SYSTEM_text_auto_lock` (72 writes, 5 files): auto mode off from `PreTextRoll` to the end;
+  exe 0047cd70 case 0x26 → DAT_005d4060 → FUN_0047c8b0; ours: ignored.
+- `#SYSTEM_play_speed = 3` (22 writes, 10 files; function.nss 5614/5916/5944): normal speed
+  forced for the credit rolls and md06_036, restored after; exe case 0 → FUN_0047c2a0 →
+  DAT_005d4074 → 0047c250; ours: setting %2921 not forced, the rolls follow the player's speed.
+- `$SYSTEM_text_waitkey = false` (13 writes, 6 ending files): a click does not finish the typing;
+  exe case 0x3a → DAT_005d4114, read in 00483930; ours: ignored.
+- `$SYSTEM_skip_lock` (11 writes, 6 files; mz00_000 19-37): no skipping; exe case 0x1f →
+  DAT_005d40ac, read by 0046ba20 and 0047b400; ours: ignored (`menu_lock` is, convert.rs).
+- Text interval (3 writes: `PreSetRoll`, `PreSetRoll02A`, `PreTextRoll`, function.nss
+  5926/5952/5990): the 6 epilogue files type at 128 ms a character, not 48; exe case 0x14 →
+  FUN_00485630 → DAT_005d3b1c, read by 00483930; ours: 48 fixed (`muramasa/screens.rs`).
+- Present: the 1024x576 A8R8G8B8 frame is drawn to the desktop-sized back buffer as a quad with
+  no -0.5 texel offset, LINEAR, CLAMP (0048af60, quad 0048c6e0): a 0.5/r px shift and blur, up
+  to ~128 levels at r=1 on hard edges (flat areas 0); then `Present` 48b308 stretches it to the
+  window (driver filter); ours: one linear scale, identity at 1024x576.
+- Unconfirmed: no write found to `+0xa0` (tempo) in 00446010 or `+0x100` (alias) in 004475b0,
+  where builtin.rs cites them (pointer forms; needs Ghidra xrefs). `CreateStencil` clears `+0x9d4`
+  in 00409fa0, not 00443800; `CreateChoice` clears it too (00442a70, 00442bb0; only in 0_boot and
+  prutestselect, which we replace). JPEG (libjpeg 6b) decode options not read.
+- Fine: no gamma ramp, no pixel shaders, software composition into the locked texture, no
+  blending at present; `+0x9d4` (8 writers), `+0x11f4` (4), speed index 005dcaf0 (1).
+- PNG gamma: libpng reads `gAMA` (0049b9d0, 004a4730) but no 2.2 screen gamma is in the decomp;
+  the 353 PNGs in a `cg` sample all carry 0.45454 (identity); the rest of the PNGs unchecked.
+
 Next: (1) fix the web-play bugs above (`muramasa/playable`); (2) the known bugs; (3) release.
 
 ## Scope
