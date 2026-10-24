@@ -23,7 +23,7 @@ Paused 2026-10-20.
    out/tsukihime-cons`) and play it in the web build; fix what blocks a
    play-through before anything below.
 2. Layer commands not converted (open rows of `tsukihime.findings.tsv`):
-   quakes `_SQK2`/`_SHK2`/`_SSW2`, `_STPV`, `_SNX2`/`_SNX3`,
+   `_STPV`, `_SNX2`/`_SNX3`,
    `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY`, `_VCWT`, `_VPL2`,
    `_SESP`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`; motion keys' priority,
    expression and stepped fields.

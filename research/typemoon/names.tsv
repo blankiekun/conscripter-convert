@@ -108,3 +108,5 @@
 001ee200	snd_player_start	sound player p starts item id (nn::atk-style handle per player)
 001ee4e0	snd_player_stop	sound player p: Stop(fade frames) on its handle and marks it free (+0x18 = -1)
 001ee590	snd_player_active	sound player p holds a sound (+0x18 >= 0)
+0013c970	layer_update	per-frame layer update; slots 0/1 of _SQK2/_SHK2/_SSW2 at layer*0x24c+0x158.. (offsets x 0x184+4s, y 0x18c+4s)
+00134440	layer_draw_offset	a layer's draw offset: screen shake*2 + layer quake slots /3 (1280x720 px)

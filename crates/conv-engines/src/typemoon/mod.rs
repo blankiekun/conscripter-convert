@@ -19,6 +19,7 @@ pub mod mzx;
 pub mod nso;
 pub mod nxopus;
 pub mod nxx;
+pub mod quake;
 pub mod question;
 pub mod script;
 pub mod settings;
