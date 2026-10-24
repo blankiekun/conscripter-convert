@@ -1,8 +1,9 @@
 """Route tracer for a converted 装甲悪鬼村正 0.txt (docs/new-game-reference.md, "Route simulation").
 
 Runs the control flow of the NScripter script that `convert-nss` writes
-(labels, goto, if, mov/add/sub/mul/div, select, end; everything else is
-skipped) along a choice path, and prints the story files it passes, the
+(labels, goto, if, mov/add/sub/mul/div, select and the choice plates, end;
+everything else is skipped; `^<key>` lines are read from text.ja.txt beside
+0.txt, `defvar` names become numbers from 20000) along a choice path, and prints the story files it passes, the
 choices it takes and the ending it reaches. Variables from %800 on are
 NScripter globals (the game's `#` flags): they survive NEWGAME, the rest
 is cleared, as when a new game starts from the title.
@@ -37,6 +38,7 @@ convert-nss` prints on stderr (`flag %308 $Ichizyou_Flag`); --watch then
 prints the named flags (`$Ichizyou_Flag`, or a part of a name such as
 `死亡`) at each story file where one of them changed.
 """
+import os
 import re
 import sys
 from collections import defaultdict
@@ -49,8 +51,61 @@ MAX_PROBLEMS = 20
 def load_script(path):
     lines = open(path, 'rb').read().decode('utf-8').split('\n')
     lines = [l.rstrip('\r') for l in lines]
+    # Lines kept in the text table beside 0.txt (`^<key>`: text, and
+    # commands too, such as a choice's `mov %312,...`) are put back.
+    table = os.path.join(os.path.dirname(path), 'text.ja.txt')
+    if os.path.exists(table):
+        texts = dict(row.rstrip('\n').split('\t', 1) for row in open(table, encoding='utf-8'))
+        lines = [texts.get(l[1:], l) if l.startswith('^') else l for l in lines]
+    # Named variables (defvar) become numbers past the real ones.
+    names = defvars(lines)
+    if names:
+        rx = re.compile(r'%(' + '|'.join(sorted(names, key=len, reverse=True)) + r')\b')
+        lines = [rx.sub(lambda m: f'%{names[m.group(1)]}', l) if '%' in l else l for l in lines]
     labels = {l[1:].strip(): i for i, l in enumerate(lines) if l.startswith('*')}
     return lines, labels
+
+
+NAMED = 20000  # first number given to a defvar name
+
+
+def defvars(lines):
+    """{name: number} of the `defvar` names, numbered from NAMED."""
+    found = [m.group(1) for l in lines if (m := re.match(r'defvar (\w+)', l))]
+    return {n: NAMED + k for k, n in enumerate(found)}
+
+
+PLATE_WAIT = re.compile(r'if %9 >= 1 && %9 <= (\d+) goto \*(conv_cplate\d+_c)$')
+
+
+def plate_items(lines, pc):
+    """A choice plate (`btnwait %9` at `pc`, then `if %9 >= 1 && %9 <= N
+    goto *conv_cplateK_c`; after that label one `if %9 == k goto *X` per
+    option): [("#k", X)], as `select` items; None for any other btnwait.
+    The texts come from the `vstrsp` lines (`#k` without them)."""
+    m = lines[pc] == 'btnwait %9' and pc + 1 < len(lines) and PLATE_WAIT.match(lines[pc + 1])
+    if not m:
+        return None
+    n, i = int(m.group(1)), lines.index('*' + m.group(2), pc)
+    # The texts: the `vstrsp` lines (one per option) before the wait label.
+    j = max(k for k in range(pc) if lines[k].startswith('*'))  # *conv_cplateK_wait
+    texts = [t.group(1) for l in lines[max(0, j - 4 * n - 4):j] if (t := re.match(r'vstrsp %\d+,"([^"]*)"', l))][-n:]
+    if len(texts) != n:
+        texts = [f'#{k}' for k in range(1, n + 1)]
+    items = {}
+    while len(items) < n:
+        i += 1
+        if g := re.fullmatch(r'if %9 == (\d+) goto \*(\w+)', lines[i]):
+            items[int(g.group(1))] = g.group(2)
+    return [(texts[k - 1], items[k]) for k in range(1, n + 1)]
+
+
+def _self_check():
+    lines = ['vstrsp %20000,"a",1', 'vstrsp %20002,"b",1', '*conv_cplate0_wait', 'btnwait %9', 'if %9 >= 1 && %9 <= 2 goto *conv_cplate0_c', 'goto *conv_cplate0_wait',
+             '*conv_cplate0_c', 'if %9 == 1 cell %20001,2', 'if %9 == 1 goto *choice64_0',
+             'if %9 == 2 goto *choice64_1']
+    assert plate_items(lines, 3) == [('a', 'choice64_0'), ('b', 'choice64_1')]
+    assert plate_items(['btnwait %9', 'goto *x'], 0) is None
 
 
 def split_cmds(line):
@@ -107,7 +162,8 @@ class Run:
         for k in [k for k in self.var if k < GLOBAL_BORDER]:
             del self.var[k]
         self.svar.clear()
-        self.pc = self.labels['start'] + 1
+        # the script starts at *start, or after `game` when 0.txt has no such label
+        self.pc = self.labels['start'] + 1 if 'start' in self.labels else self.lines.index('game') + 1
         self.file = None
         self.files = []
         self.pages = 0
@@ -205,8 +261,11 @@ class Run:
             return self.choose(items)
         if op == 'end':
             return len(self.lines)
-        # A screen's wait (the favour screen): the player clicks.
         if op == 'btnwait':
+            items = plate_items(self.lines, self.pc)
+            if items:
+                return self.choose(items)
+            # A screen's wait (the favour screen): the player clicks.
             self.var[int(rest.strip()[1:])] = 0
         return None
 
@@ -371,6 +430,7 @@ def read_path(path):
 
 
 def main():
+    _self_check()
     args = sys.argv[1:]
     route = None
     if '--route' in args:

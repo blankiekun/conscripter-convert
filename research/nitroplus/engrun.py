@@ -12,9 +12,9 @@ the options taken, the puzzle results and the story files passed, per
 playthrough (each new game and each LOAD starts one; the paths of the
 four routes make five, one per ending). Each becomes one engine run, in
 a copy of the game (`<out>/<N>/`, symlinks and a patched `0.txt`):
-- every `select` takes the recorded option (`gosub *eng_pick`, which
+- every `select` and choice plate takes the recorded option (`gosub *eng_pick`, which
   hands out the next one in `%1098`, then a jump to `*eng_selectN`, one
-  `if` per option), and the 立方陣 is skipped with its
+  `if` per option; a plate's `btnwait %9` becomes `mov %9,%1098`), and the 立方陣 is skipped with its
   recorded result;
 - `*conv_click_wait` returns at once; the `#` flags the run starts with
   (from the routes before it) are set after `erasetextwindow 0`; a path
@@ -156,6 +156,7 @@ def patch(text, seg, at=None):
     out = []
     selects = []
     started = False
+    names = {n: name for name, n in nstrace.defvars(lines).items()}
     for i, line in enumerate(lines):
         if line == '*conv_click_wait':
             out += [line, 'return']
@@ -164,7 +165,7 @@ def patch(text, seg, at=None):
             if at:
                 # Start at the file, with every variable as nstrace had it.
                 var, svar, picks = seg['at']
-                movs = [f'mov %{k},{v}' for k, v in sorted(var.items()) if v]
+                movs = [f'mov %{names.get(k, k)},{v}' for k, v in sorted(var.items()) if v]
                 movs += [f'mov {k},"{v}"' for k, v in sorted(svar.items())]
                 movs += [f'mov %{NEXT},{picks}', f'goto *f_{at}']
             else:
@@ -180,6 +181,9 @@ def patch(text, seg, at=None):
             out += [line, f'*eng_puzzle{done[i]}_done']
         elif line == 'end':
             out += ['lsp 999,"TRACE:END",0,0', line]
+        elif line == 'btnwait %9' and nstrace.PLATE_WAIT.match(lines[i + 1] if i + 1 < len(lines) else ''):
+            # A choice plate: the recorded option is the button pressed.
+            out.append(f'gosub *eng_pick:mov %9,%{PICK}')
         elif m := re.search(r'select ((?:"[^"]*"\s*,\s*\*\w+\s*,?\s*)+)$', line):
             # One `if` per line: a false `if` skips the rest of its line.
             targets = re.findall(r'"[^"]*"\s*,\s*\*(\w+)', m.group(1))
