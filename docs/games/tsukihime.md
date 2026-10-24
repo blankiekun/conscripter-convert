@@ -32,6 +32,21 @@ Paused 2026-10-20.
 4. Backlog; several Config rows drawn without effect; the save list's
    route picture and chapter labels.
 5. The first launch's prologue (ours goes straight to the title).
+6. Guesses the exe doesn't give without runtime state (exe-values pass,
+   parked): gauss blur radius (in the compiled BNSH shader; the
+   uniform write not found yet); the menu's and Config's ground: not
+   part 0x52 (FUN_0013b9a0's FUN_001b7f00(0xe, 0, 0x52, ...): its
+   callback FUN_0013c510 draws only the screen-wide white and black
+   fades and the loading icon); the save list's date place; Gallery's
+   ground, row cell anchor and fades (widget data at 0x54E410 not
+   decoded).
+7. Text window overflow, accepted (2026-10-23): 1 of 15711 JP pages
+   exceeds 11 rows, 4 of 31431 EN pages exceed 13
+   (`research/typemoon/overflow_pages.txt`); the engine's `pastPage`
+   (`engine/src/cons/ONScripter_cons.cpp`) splits them onto one extra
+   click, nothing is clipped. The original's behaviour on those pages
+   is unread (it seems to draw past 720 px; page clear and wrap not
+   read); not pursued.
 
 ## Scope
 

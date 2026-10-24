@@ -60,18 +60,21 @@ impl Source {
 /// 176–1104 here), 464 wide, the first at y 65; glyphs of the screen's
 /// width / 32 × 0.76 (`FUN_001a7790`, the text size setting at its
 /// default). In English from x 30, 584 wide, the first line at y 55,
-/// glyphs × 0.9.
+/// glyphs × 0.9. Lines are the TextWriter's line feed apart: its PairFont
+/// takes the larger feed of exfont_nx01.bffnt (47) and the ScalableFont
+/// (50: Seurat's win ascent + descent, 1.246 em × 40, `FUN_00243ed0`), ×
+/// the glyph scale, + a line space of 16 px.
 fn text_window(english: bool) -> TextWindow {
     TextWindow {
         image: WINDOW.into(),
         x: 0, // src: txtwindow01-1920 (a full-screen panel)
         y: 0,
         text_x: if english { 60 } else { 176 },  // src: exe 0x1391a0 (30 or 88, × 2)
-        text_y: if english { 88 } else { 104 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448); guess: the glyph's offset in its line (FUN_001a7790's +14) not added
+        text_y: if english { 88 } else { 104 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448); FUN_001a7790's (x + 4, y + 14) pair is the TextWriter's char/line space (writer +0x40/+0x44), not an origin
         columns: if english { 41 } else { 30 },  // src: exe 0x1391a0 (584 × 2 = 1168 px / 28, or 928 px / 30.4); the window types ≥ 3 (table 0x44DEFC: 299.8, 405.6, 509.8) are the same in both languages and not drawn
-        rows: 14,     // guess: the 16 line slots, as many as fit the screen at this pitch
+        rows: if english { 13 } else { 11 }, // ours: the exe has 16 line slots (0x1391a0, 0xBFECCC…0xBFED08), the last ones below the screen; these are the slots that fit 720 px
         font_size: if english { 27 } else { 30 }, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4, × 0.9 in English = 27.4)
-        line_gap: 15, // guess: a 45 px pitch (28 of 448, the drawer's step for its extra lines); the exe measures a line of the font
+        line_gap: if english { 23 } else { 24 }, // src: exe 0x1391a0's slot pitch, the TextWriter cursor y after " ^ " ('\n', FUN_00240cc8) = FUN_00245170: line feed 50 × scaleY + line space 16 = 54.0 or 50.2 px (research/typemoon/linefeed_exe.py), less font_size
         vertical: false,
         name_plate: None,
         wait_icon_at: None,

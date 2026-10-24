@@ -5,8 +5,8 @@
 //! (0x4C2, a dim over the whole screen) and `dialog_win` (0x4C0) centred,
 //! the question (system message 0x5A5 + `F027`, from `SYSMES_TEXT.DAT`:
 //! 「ヘンテコヒントコーナー(第n回)に入りますか？」) centred at y
-//! 224 − 42.31, and the buttons 0xD9 (index 0) at (241, 238.53) and 0xDA
-//! (index 1) at (327, 238.53); left and right pick them
+//! 224 − 42.31, and the buttons 0xD9 (index 0) at (241, 238.52) and 0xDA
+//! (index 1) at (327, 238.52); left and right pick them
 //! (`FUN_00185690`). The question is drawn into a picture per lesson
 //! with the build's font. Left out: the window's pop from 105 % as it
 //! fades in.
@@ -30,9 +30,11 @@ const FIRST_MESSAGE: usize = 0x5a5;
 /// The question picture's size: the window's width (824 of 1080p).
 const TEXT_W: i32 = 549;
 const TEXT_H: i32 = 40;
-/// guess: the glyphs' size (FUN_001ab4d0's 0.37 × 0.46 of a size not traced)
-const FONT_SIZE: f32 = 22.0;
-/// guess: the questions' fade (FUN_001848b0: 0.1 a step; its step not traced)
+/// src: exe 0x185900 (FUN_001ab4d0 with 0.37 × 0.46044 of FUN_001a7790's
+/// screen width / 32: 1280 / 32 × 0.46 = 18.4 high; ours: the glyphs not
+/// narrowed to the exe's 0.37)
+const FONT_SIZE: f32 = 18.0;
+/// src: exe 0x1848b0 (0.1 a frame, FUN_00140ed0's frames elapsed: 10 frames at 60 Hz)
 const FADE_MS: u32 = 167;
 
 /// A point of the 640 × 448 stage on the screen.
@@ -57,9 +59,9 @@ pub(super) fn ops(lesson: Var, no: String, yes: String, english: bool, tag: impl
     let (cx, cy) = stage(320.0, 224.0);
     let (ww, wh) = (px(824.0), px(416.0));
     let backdrop = [placed(format!("{DIR}/dim.png"), (0, 0), (px(1920.0), px(1080.0))), placed(format!("{DIR}/window.png"), (cx - px(412.0), cy - px(208.0)), (ww, wh))];
-    // guess: (241, 238.53) is a button's top left (the two then sit about the middle)
+    // src: exe 0x185900 (FUN_001ae000 at (241, 238.518) and (327, 238.518)), 0x183b20 (hit rect 0x75BBB8 from (0, 0): the top left)
     let cell = (px(224.0) * 2, px(66.0));
-    let buttons = vec![(placed(format!("{d}no.png"), stage(241.0, 238.53), cell), no), (placed(format!("{d}yes.png"), stage(327.0, 238.53), cell), yes)];
+    let buttons = vec![(placed(format!("{d}no.png"), stage(241.0, 238.5185), cell), no), (placed(format!("{d}yes.png"), stage(327.0, 238.5185), cell), yes)];
     let (_, ty) = stage(320.0, 224.0 - 42.311);
     let mut out = Vec::new();
     for n in 1..=LESSONS {
