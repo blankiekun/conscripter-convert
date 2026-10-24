@@ -270,6 +270,11 @@ pub enum ScreenEffect {
     /// `delay_ms` > 0: it holds still that long first; `time_ms` and
     /// `end_ms` count from then.
     Shake { time_ms: u32, interval_ms: u32, path: bool, speed: (i32, i32), range: [(i32, i32); 2], end_ms: u32, delay_ms: u32 },
+    /// Shaking through a list of offsets (x, y pixels) worked out update by
+    /// update: the first at once (after `delay_ms`), the next every
+    /// `interval_ms`; after the last, `looped` starts over, else the slot
+    /// clears itself.
+    ShakeList { interval_ms: u32, offsets: Vec<(i32, i32)>, looped: bool, delay_ms: u32 },
     /// Rippling through `map` (a greyscale picture as large as the screen):
     /// each pixel comes from `amplitude` × sin(2π(grey/256 + phase/1000))
     /// pixels away in direction `angle` (0.1°, 0 = right, 900 = down). The

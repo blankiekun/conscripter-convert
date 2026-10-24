@@ -488,6 +488,15 @@ impl<'a> Emitter<'a> {
                     )
                     .unwrap();
                 }
+                Some(ScreenEffect::ShakeList { interval_ms, offsets, looped, delay_ms }) => {
+                    let list: Vec<String> = offsets.iter().map(|(x, y)| format!("{x},{y}")).collect();
+                    let tail = match (*looped, *delay_ms) {
+                        (false, 0) => String::new(),
+                        (l, 0) => format!(",{}", u8::from(l)),
+                        (l, d) => format!(",{},0,{d}", u8::from(l)),
+                    };
+                    writeln!(out, "screenshake {slot},0,{interval_ms},3,\"{}\"{tail}", list.join(" ")).unwrap();
+                }
                 Some(ScreenEffect::Zoom { interval_ms, zoom, centre, zoom_ms, fade_ms, ease, power }) => {
                     let time = zoom_ms.max(fade_ms).max(&1);
                     writeln!(out, "screenzoom {slot},{time},{interval_ms},{zoom},{},{},{zoom_ms},{fade_ms},{ease},{power}", centre.0, centre.1).unwrap();
