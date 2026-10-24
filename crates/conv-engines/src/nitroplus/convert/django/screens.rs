@@ -123,6 +123,24 @@ fn title_motion(a: &mut dyn Assets, t: &mut TitleScreen, image: &str, keys: &[co
 /// chosen, OFF at rest; one switch here turns all questions off), the
 /// display options, the voice test, DEFAULT (it would ask with no
 /// picture of its own), the links. 各キャラ opens [`voice_window`].
+/// A character's ms in the exe at a text speed (0-1000) and game speed
+/// NORMAL: the interval 30 × the speed stored as an f32 × 0.001, cut to
+/// an integer (so 700 gives 20, 900 gives 26); 0 puts the page at once.
+// src: Django.exe set_system_variable case 0xb 0045f11a-0045f126 (#SYSTEM_text_speed × 0.001 into the f32 at 005293d0);
+// 004605b0 (005295b0 = 0x1e: the scripts set no $SYSTEM_text_interval); 00461e40 at 004625de-004625f9 (an
+// interval of 0 at 0x28: fild 005295b0, fmul 005293d0, _ftol2), 0046259a-004625bc (elapsed ms × text_speed_seconds,
+// 1.0 at play_speed 3, _ftol2), 00462601-0046261a (characters = that ÷ (wait + interval)), 00462576-0046258e (005293d0
+// == 0.0: no wait); numbers: research/nitroplus/django_text_speed_exe.py
+fn letter_ms(speed: u32) -> u32 {
+    (30.0 * f64::from((f64::from(speed) * 0.001) as f32)) as u32  // src: exe 0045f120, 004625f3, 004625f9
+}
+
+/// The slider position (TextSpeed { ms: 30 }: position × 30 ÷ 1000)
+/// whose ms is the exe's at a text speed.
+fn text_speed_position(speed: u32) -> u32 {
+    (letter_ms(speed) * 1000).div_ceil(30)  // src: exe 005295b0 (30), picture_settings.rs TextSpeed
+}
+
 fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     const DIR: &str = "cg/sys/config";
     let button = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
@@ -164,7 +182,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     };
     let bullets_chosen = |a: &mut dyn Assets, y: i32| -> Option<Vec<Placed>> { (1..=10).map(|k| picked(a, "bar-弾", 306 + 12 * (k - 1), y)).collect() };
     // src: sys_config.nss setgrade (text speed k × 100, level 1 none; auto 20 ms × k; volumes k × 100)
-    let text_speed = |k: u32| if k == 1 { 0 } else { k * 100 };
+    let text_speed = |k: u32| text_speed_position(if k == 1 { 0 } else { k * 100 });
     let per_char = |k: u32| k * 100;
     let volume = |k: u32| 1000 - k * 100;
     // The level a position of SliderSetting::GameSpeed gives: 12 - p × 12 / 1000.
@@ -180,8 +198,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         // src: Django.exe reset_system_defaults 0045cb30 (the table at 00529408 that text_speed_seconds 0045d520 reads)
         stepped(SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, presets, speed(3), false),
         // The engine starts at 500 (level 5, under wine; config_default's
-        // 1000 is DEFAULT's). src: Django.exe 00461e40 (a character's ms = the base × text_speed ÷ 1000),
-        // 004605b0 (the base 30 ms: the scripts set no $SYSTEM_text_interval)
+        // 1000 is DEFAULT's); a character's ms: letter_ms.
         stepped(SliderSetting::TextSpeed { ms: 30 }, bullets(a, 212, &text_speed)?, text_speed(5), true),
         // src: setgrade's 20 ms × level, config_default's 100 (level 5); Django.exe 00461e40 (0x46217e,
         // 0x462268: auto wait += characters × #SYSTEM_auto_wait_per_character); volumes: system.ini 700, 900, 1000
@@ -555,4 +572,23 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         exit_without_asking: false,
         ..Default::default()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Django.exe under Unicorn (research/nitroplus/django_text_speed_exe.py):
+    /// text speed, the first elapsed ms 00461e40 puts a character at.
+    const EXE_LETTER_MS: [(u32, u32); 11] =
+        [(0, 0), (100, 3), (200, 6), (300, 9), (400, 12), (500, 15), (600, 18), (700, 20), (800, 24), (900, 26), (1000, 30)];
+
+    #[test]
+    fn text_speed_matches_exe() {
+        for (speed, ms) in EXE_LETTER_MS {
+            assert_eq!(letter_ms(speed), ms, "text speed {speed}");
+            // what the engine's slider line (position × 30 / 1000) makes of the position
+            assert_eq!(text_speed_position(speed) * 30 / 1000, ms, "text speed {speed}");
+        }
+    }
 }
