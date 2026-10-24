@@ -31,8 +31,6 @@ Open bugs:
   field (531, 6) (`0x499040` in `0x496fe0`) against ours (524, 6),
   chapter title (73, 6) (`0x49b1a0`) against ours (72, 7), the cursor
   (`0x140c`: box - 70, row + 5) against ours (542, row + 5).
-- Text style 6 rows/columns and the default style
-  (`convert.rs` text window match): not looked at yet.
 - Unchecked: that `arc.nsa` (about 1.2 GB) loads in the web build
   (else split the voices into `arc1.nsa`), and that saves, thumbnails
   and `kidoku.dat` persist there.
