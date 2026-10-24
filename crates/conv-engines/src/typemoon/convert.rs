@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, ScreenEffect, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
 use super::exe::{Key, Motion, Picture};
+use super::quake::{self, Kind, Quake};
 use super::script::Command;
 use crate::metrics::Metrics;
 
@@ -296,6 +297,7 @@ const UNREAD_HARMLESS: &[(&str, usize, &str)] = &[
     ("_STCH", 8, "the Switch exe never reads it"),
     ("_SCH2", 7, "the Switch exe never reads it"),
     ("_SCH2", 8, "the Switch exe never reads it"),
+    ("_SQK2", 8, "the Switch exe never reads it (cmd_SQK2 0x191540 reads 0-7)"),
 ];
 
 /// Commands left out on purpose (command, why): done for the completion
@@ -548,6 +550,23 @@ struct Lowering<'g, 'a> {
     /// What the last `spmotion` on each IR layer is, as `_STCF`'s mask
     /// bits (`FUN_001329f0`): 8 an `_STGS` fade, 0x20 an `_STMA` motion.
     motion_bits: Vec<u8>,
+    /// Each layer's quakes in the exe's two slots (0: `_SQK2`, 1: `_SHK2`/`_SSW2`).
+    quakes: Vec<[Option<Placed>; 2]>,
+    /// The quake (its id) each IR layer's `spshake` slots 1, 2 run.
+    shaking: Vec<[Option<u32>; 2]>,
+    /// The last quake's id (its random seed).
+    quake_id: u32,
+}
+
+/// A layer's quake: its id, its `spshake` list (`None`: it moves no
+/// pixel), whether it runs for ever, and `_SQK2`'s follow (layers 2 up
+/// take layer 0's or 1's offsets).
+#[derive(Debug, Clone)]
+struct Placed {
+    id: u32,
+    effect: Option<ScreenEffect>,
+    forever: bool,
+    follow: bool,
 }
 
 impl Lowering<'_, '_> {
@@ -707,6 +726,19 @@ impl Lowering<'_, '_> {
                 let speed = (65536 + period / 2) / period;
                 let range = [(x * SCREEN_W as i32 / 1280, y * SCREEN_H as i32 / 720), (0, 0)];
                 self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(ScreenEffect::Shake { delay_ms: delay.max(0) as u32, time_ms, interval_ms: 16, path: false, speed: (speed, speed), range, end_ms: time_ms }) });
+            }
+            "_SQK2" | "_SHK2" | "_SSW2" => {
+                let n = |i: usize, default: i32| if arg(i).is_empty() { Some(default) } else { number(arg(i)) };
+                let kind = match c.opcode() {
+                    "_SQK2" => 1,
+                    "_SHK2" => 2,
+                    _ => 3,
+                };
+                return self.quake_start(kind, n);
+            }
+            "_SQS2" | "_SHS2" | "_SSS2" => {
+                let Some(n) = number(arg(0)) else { return false };
+                self.quake_stop(n, usize::from(c.opcode() != "_SQS2"));
             }
             // `shake_stop`: `_SHAF()` ends it at once (`_SHAF(ms)`, unused, decays it).
             "_SHAF" if arg(0).is_empty() => self.ops.push(Op::ScreenEffect { slot: 1, effect: None }),
@@ -1367,6 +1399,7 @@ impl Lowering<'_, '_> {
                     self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
                     self.blends[slot] = BLEND_NORMAL;
                     self.clips[slot] = None;
+                    self.shaking[slot] = [None; 2]; // csp stops its spshake
                 }
             }
 
@@ -1385,6 +1418,7 @@ impl Lowering<'_, '_> {
                 }
             }
         }
+        self.sync_quakes(u32::MAX);
         self.ops.push(Op::EndTransition);
     }
 
@@ -1596,6 +1630,110 @@ impl Lowering<'_, '_> {
     }
 
     /// Whether layer `j` is placed in layer `i`, or in one placed in it.
+    /// `_SQK2` (kind 1, `cmd_SQK2` 0x191540), `_SHK2` (kind 2, 0x191900),
+    /// `_SSW2` (kind 3, 0x191cf0): a quake on layer `a[0]` (< 0: each shown
+    /// one; `_SSW2`: nothing) in the exe's slot 0 (kind 1) or 1 (0x4514f0).
+    /// Amplitudes 0 clear the slot. shortcut: a finite quake starts while
+    /// skipping too (the exe's `_SQK2` doesn't, FUN_0015afb0).
+    fn quake_start(&mut self, kind: u8, n: impl Fn(usize, i32) -> Option<i32>) -> bool {
+        let Some(layer) = n(0, 0) else { return false };
+        if layer >= LAYERS as i32 || (kind == 3 && layer < 0) {
+            return true; // src: exe 0x191540, 0x191cf0 return
+        }
+        let (slot, quake, follow) = match kind {
+            1 => {
+                let (Some(x), Some(y), Some(hold), Some(ms), Some(delay), Some(follow), Some(fade_in)) = (n(1, 15), n(2, 15), n(3, 0), n(4, -1), n(5, 0), n(6, 0), n(7, 0)) else { return false };
+                // src: exe 0x191540: hold ms < 0: 1 frame, < 17: 2, else ms*3/50 + 1
+                let hold = if hold < 0 { 1 } else if hold < 17 { 2 } else { quake::frames(hold) + 1 };
+                let q = (x != 0 || y != 0).then(|| Quake { kind: Kind::Quake { x, y, hold, fade_in: quake::frames(fade_in) }, frames: quake::length(ms), delay: quake::frames(delay) });
+                (0, q, follow != 0)
+            }
+            2 => {
+                let (Some(x), Some(y), Some(period), Some(ms), Some(delay), Some(decay), Some(fade_in), Some(flicker)) = (n(1, 0), n(2, 15), n(3, 300), n(4, -1), n(5, 0), n(6, 0), n(7, 0), n(8, 1)) else { return false };
+                let period = Some(quake::frames(period)).filter(|&p| p > 0).unwrap_or(60); // src: exe 0x13c970 (period 0: 60 frames)
+                let kind = Kind::Sway { x, y, period, decay: decay != 0, fade_in: quake::frames(fade_in), flicker };
+                (1, (x != 0 || y != 0).then(|| Quake { kind, frames: quake::length(ms), delay: quake::frames(delay) }), false)
+            }
+            _ => {
+                let (Some(amin), Some(amax), Some(pmin), Some(pmax), Some(gain), Some(ms), Some(delay)) = (n(1, 7), n(2, 15), n(3, 1000), n(4, 2000), n(5, 1), n(6, -1), n(7, 0)) else { return false };
+                let kind = Kind::Drift { amp: (amin, amax), period: (quake::frames(pmin), quake::frames(pmax)), gain };
+                (1, (amax != 0 && gain != 0).then(|| Quake { kind, frames: quake::length(ms), delay: quake::frames(delay) }), false)
+            }
+        };
+        let first = self.quake_id + 1;
+        // src: exe 0x191540: < 0 is every shown layer
+        for i in (0..LAYERS).filter(|&i| if layer < 0 { self.shown[i].is_some() } else { i as i32 == layer }) {
+            self.quakes[i][slot] = quake.as_ref().map(|q| {
+                self.quake_id += 1;
+                let id = self.quake_id;
+                Placed { id, effect: quake::effect(q, id), forever: q.frames.is_none(), follow: follow && i >= 2 }
+            });
+        }
+        self.sync_quakes(first);
+        true
+    }
+
+    /// `_SQS2` (slot 0), `_SHS2`/`_SSS2` (slot 1) (0x163680): the slot's
+    /// quake on layer `n` (< 0: all 40) stops, its offset 0 at once.
+    fn quake_stop(&mut self, n: i32, slot: usize) {
+        for q in self.quakes.iter_mut().enumerate().filter(|&(i, _)| n < 0 || i as i32 == n) {
+            q.1[slot] = None;
+        }
+        self.sync_quakes(u32::MAX);
+    }
+
+    /// The quake layer `j`'s exe slot `s` draws: its own, or in slot 0 its
+    /// topmost quaking ancestor's (0x134440: a layer with a quake of its
+    /// own shakes, a child by its ancestor's), and with follow layer 0's
+    /// (1's when 0 isn't shown; neither: none).
+    fn quake_of(&self, j: usize, s: usize) -> Option<Placed> {
+        let mut q = self.quakes[j][s].as_ref()?;
+        if s == 0 {
+            let mut a = j;
+            for _ in 0..LAYERS {
+                let Some(p) = self.shown[a].as_ref().and_then(|l| l.parent) else { break };
+                if let Some(pq) = self.quakes[p][0].as_ref() {
+                    q = pq;
+                }
+                a = p;
+            }
+            if q.follow {
+                let lead = (0..2).find(|&l| self.shown[l].is_some())?;
+                q = self.quakes[lead][0].as_ref()?;
+            }
+        }
+        Some(q.clone())
+    }
+
+    /// Brings each IR layer's `spshake` slots to its layer's quakes: the
+    /// quakes from id `fresh` up start (with their delay); one that moves
+    /// to another IR layer at a `_FADS` starts there again if it runs for
+    /// ever (ours: from its start, no delay), else stops.
+    fn sync_quakes(&mut self, fresh: u32) {
+        for c in 0..LAYERS {
+            for s in 0..2 {
+                let want = self.slot_layer[c].and_then(|j| self.quake_of(j, s));
+                if self.shaking[c][s] == want.as_ref().map(|q| q.id) {
+                    continue;
+                }
+                let effect = want.filter(|q| q.id >= fresh || q.forever).and_then(|q| {
+                    let mut e = q.effect?;
+                    if q.id < fresh
+                        && let ScreenEffect::ShakeList { delay_ms, .. } = &mut e
+                    {
+                        *delay_ms = 0;
+                    }
+                    Some((q.id, e))
+                });
+                if effect.is_none() && self.shaking[c][s].is_none() {
+                    continue;
+                }
+                self.shaking[c][s] = effect.as_ref().map(|(id, _)| *id);
+                self.ops.push(Op::SpriteShake { layer: c as u32, slot: s as u32 + 1, effect: effect.map(|(_, e)| e) });
+            }
+        }
+    }
+
     fn descends(&self, mut j: usize, i: usize) -> bool {
         for _ in 0..LAYERS {
             match self.shown[j].as_ref().and_then(|l| l.parent) {
@@ -1861,6 +1999,9 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         source_map: Vec::new(),
         motion_from: vec![None; LAYERS],
         motion_bits: vec![0; LAYERS],
+        quakes: vec![[None, None]; LAYERS],
+        shaking: vec![[None; 2]; LAYERS],
+        quake_id: 0,
     };
     let mut starts = Vec::new();
     for (name, commands) in &g.scripts {
@@ -2230,6 +2371,48 @@ mod tests {
         // 240 + 0.5 × (120 − 240) = 180 script units: 480 px; 136 + 0.5 × (68 − 135.75) ≈ 102.1: 270 px.
         assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 480, y: 270, ms: 0 }), "{ops:?}");
         assert!(ops.contains(&Op::SpriteAngle { layer: 38, degrees: 0, zoom: (25, 25) }), "{ops:?}");
+    }
+
+    #[test]
+    fn quakes_shake_the_layers_and_follow_them() {
+        // A child shakes with its parent; a for-ever quake moves with its layer to another IR layer.
+        let src = "_STCH(1,img1,240,136,1000,255,10);_STCH(2,dot,120,68,1000,255,20,,CC,,,1);_FADS(1,0,0);\
+                   _SQK2(-1,15,30,0,-1,0,0,0,0);_SHK2(2,0,15,300,600,0,1);\
+                   _STCH(3,dot,0,0,1000,255,5);_FADS(1,0,0);_SQS2(-1);_SSW2(-1);";
+        let g = Game {
+            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
+            textures: [("img1".into(), (2560, 1440)), ("dot".into(), (20, 20))].into(),
+            ..game(src)
+        };
+        let shakes: Vec<(u32, u32, Option<ScreenEffect>)> = compile(&g)
+            .ops
+            .into_iter()
+            .filter_map(|op| match op {
+                Op::SpriteShake { layer, slot, effect } => Some((layer, slot, effect)),
+                _ => None,
+            })
+            .collect();
+        let delay = |e: &Option<ScreenEffect>| match e {
+            Some(ScreenEffect::ShakeList { delay_ms, looped, .. }) => Some((*delay_ms, *looped)),
+            _ => None,
+        };
+        let at: Vec<(u32, u32, Option<(u32, bool)>)> = shakes.iter().map(|(l, s, e)| (*l, *s, delay(e))).collect();
+        assert_eq!(
+            at,
+            [
+                (38, 1, Some((33, true))),
+                (39, 1, Some((33, true))),
+                (38, 2, Some((0, false))),
+                // the move: layer 2 to 37 (its parent's list again, no delay); 38 already runs layer 1's
+                (37, 1, Some((0, true))),
+                (38, 2, None),
+                (39, 1, None),
+                (37, 1, None),
+                (38, 1, None),
+            ]
+        );
+        // the child runs its parent's list
+        assert_eq!(shakes[0].2, shakes[1].2);
     }
 
     #[test]
