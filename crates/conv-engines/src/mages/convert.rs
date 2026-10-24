@@ -1189,7 +1189,14 @@ impl Lowering<'_> {
                             y: sy(k.y.round() as i64),
                             zoom: (k.scale * 100.0).round().max(0.0) as u32,
                             zoom_y: (k.scale * 100.0).round().max(0.0) as u32,
-                            // Radians, clockwise on the screen (our guess).
+                            // Radians, clockwise on the screen: the eboot's
+                            // sprite draw (0x8103d53c) passes the angle to the
+                            // libm import 0x811313b4 with r0 = 0 then 1 (sin,
+                            // cos; 0x8103dce4, 0x8103dcf4), builds the rows
+                            // [c s; -s c] and multiplies them before the
+                            // place and the y-down projection (0x8112a630,
+                            // out = B*A, row vectors): x' = xc - ys,
+                            // y' = xs + yc in screen pixels.
                             angle: (-k.roll.to_degrees()).round() as i32,
                             opacity: (k.alpha.clamp(0.0, 255.0) * 256.0 / 255.0).round() as u32,
                             ease: None,
