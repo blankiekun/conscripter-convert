@@ -846,11 +846,16 @@ impl AssetBank {
             2 | 7 => (24, 12, 24, 13, (37, 35)),
             3 | 4 => (17, 5, 40, 23, (42, 25)),
             5 => (17, 11, 36, 16, (32, 21)),
-            // 18 px weight 400, gap 12 (src: exe 0x517678 record 6, +0x50, +0x58);
-            // guess: rows, and columns as TextWnd0's 650 px (the game doesn't use style 6).
-            6 => (17, 13, 36, 5, (28, 21)),
+            // 18 px weight 400, gap 12 (src: exe 0x517678 record 6, +0x50,
+            // +0x58), margins 28, 21, 28 (+0x18..+0x20); TextWnd6 is 706x248:
+            // 650 px over 18 = 36 columns. Only s2_l26 sets style 6 and
+            // nothing calls it. Rows: (248 - 21) / 30 = 7, the rule the
+            // measured styles' rows fit (floor of height - top over pitch);
+            // ours: rows (no row count in the exe).
+            6 => (17, 13, 36, 7, (28, 21)),
             8 => (20, 14, 34, 15, (43, 60)),
-            // guess: no such style in the game.
+            // ours: the exe has 9 styles (op_4f -> 0x4a1d80 and 0x4a0690 log
+            // "error." for 9 or more); the scripts set only 0 to 8.
             _ => (24, 12, 26, 3, (28, 21)),
         };
         let file = format!("TextWnd{}.004", preset.style);
