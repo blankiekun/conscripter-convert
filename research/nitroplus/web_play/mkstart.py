@@ -1,4 +1,4 @@
-"""mkstart.py: mkstart.py <build> <scratch> [--at file] [--path p.txt] [--args 'a b']: a scratch
+"""mkstart.py <build> <scratch> [--at file] [--path p.txt] [--args 'a b']: a scratch
 game for the web build: symlinks to the build's read-only inputs, 0.txt patched by
 engrun (route choices; --at starts at that story file with nstrace's variables),
 cons_index.json (lazyload, every file, extra engine args)."""

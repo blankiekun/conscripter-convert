@@ -1,4 +1,4 @@
-"""webshots.py: CDP screenshots of the web run. <outdir> [--every s] [--port p] [--for s]: connects to web_run's
+"""webshots.py <outdir> [--every s] [--port p] [--for s]: connects to web_run's
 Chromium over CDP and saves a small JPEG of the page every N s, named
 <sec>_pg<page>.jpg (page = last trace record's pg)."""
 import sys, time, os, json
