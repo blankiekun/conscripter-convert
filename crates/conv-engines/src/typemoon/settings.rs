@@ -23,7 +23,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use conv_core::ir::{PageTab, PagedSettings, Placed, RowControl, Setting, SettingRow, SettingValue, SettingsMenu, SettingsPage, Switch, Var};
-use image::{imageops, GenericImageView, Rgba, RgbaImage};
+use image::{imageops, GenericImageView, RgbaImage};
 
 use super::title::{px, Parts};
 use crate::labels::Labels;
@@ -171,6 +171,7 @@ fn stack(parts: &[RgbaImage]) -> RgbaImage {
 struct Source<'a> {
     conf: Option<Parts>,
     menu: Option<Parts>,
+    ground: Option<RgbaImage>,
     output: &'a Path,
 }
 
@@ -251,7 +252,7 @@ fn draw_steps(canvas: &mut Canvas, src: &Source, minus: (f32, f32), plus: (f32, 
 /// The settings screen; `language`: the build has both languages, kept in
 /// this global (0 Japanese, 1 English).
 pub fn settings(romfs: &Path, output: &Path, font: &[u8], dry_run: bool, language: Option<Var>) -> Result<SettingsMenu> {
-    let src = if dry_run { Source { conf: None, menu: None, output } } else { Source { conf: Some(Parts::read(romfs, "CONF_PARTS")?), menu: Some(Parts::read(romfs, "MENU_PARTS")?), output } };
+    let src = if dry_run { Source { conf: None, menu: None, ground: None, output } } else { Source { conf: Some(Parts::read(romfs, "CONF_PARTS")?), menu: Some(Parts::read(romfs, "MENU_PARTS")?), ground: Some(super::menu::ground(romfs)?), output } };
     let labels = if dry_run { None } else { Some(Labels::new(font).context("the font doesn't load")?) };
     let shift = |page2: bool| if page2 { HEADER as i32 - SPLIT as i32 } else { 0 };
     let sw = SettingValue::Switch;
@@ -448,8 +449,9 @@ fn option_word(src: &Source, labels: &Labels, word: &str, col: u32) -> Result<Rg
 fn bases(src: &Source, labels: &Labels, language: bool) -> Result<Vec<RgbaImage>> {
     let menu = src.menu.as_ref().context("no pictures in a dry run")?;
     let mut common = Canvas::new();
-    // guess: the game dimmed under it, as the system menu (menu.rs)
-    common.put(&RgbaImage::from_pixel(1920, 1080, Rgba([0, 0, 0, 160])), (0, 0));
+    // src: the system menu's ground (menu::ground, FUN_0014b880), still
+    // drawn under Config
+    common.put(src.ground.as_ref().context("no pictures in a dry run")?, (0, 0));
     common.put(&src.get("config_innerbg")?, hd(120.0, 0.0));
     // src: FUN_0014c370 (menu.rs): the bar, its buttons at rest, Config lit
     common.put(menu.get("system_titlebg")?, hd(0.0, 0.0));

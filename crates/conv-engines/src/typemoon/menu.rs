@@ -9,14 +9,13 @@
 //! name, the cursor's line and light (`systemcursor_*`), the route
 //! picture of the slot under the pointer (`saveinfobg_arc`/`_ciel`, by
 //! the save's phase: the unknown one is drawn), the chapter label of each
-//! save (`savetitle`, by its phase), the date and time drawn in the
-//! picture digits, the 39 autosaves (`saveauto`).
+//! save (`savetitle`, by its phase), the 39 autosaves (`saveauto`).
 
 use std::path::Path;
 
 use anyhow::Result;
 use conv_core::ir::{GridText, Placed, Rect, SaveList, SystemMenu, SystemPage, SystemTab};
-use image::RgbaImage;
+use image::{RgbaImage, imageops};
 
 use super::title::{Parts, px};
 
@@ -25,6 +24,37 @@ const DIR: &str = "sys/menu";
 /// A point of the 640 × 448 stage on the screen.
 fn stage(x: f32, y: f32) -> (i32, i32) {
     (px(x * 3.0), px(y * 1080.0 / 448.0))
+}
+
+/// The menu's ground at 1920 × 1080, at rest (also under Config).
+///
+/// src: FUN_0014b880, drawn while the menu is open (FUN_0014cba0 starts it,
+/// FUN_00149630(1/18)): part 0x52 full-screen, then 0x53-0x5A centred
+/// (flags 0x14) at x 320 of the 640 × 448 stage (0x4E at 283.25, 0x50 at
+/// 276.5), 0x53-0x56 at y 720 - (132, 107, 85, 55), 0x57-0x5A at (103.5,
+/// 78.5, 56.5, 26.5) of a 720 high screen: each band's edge on the screen's
+/// bottom or top. Their opacities (64, 96, 160, 224) and (64, 96, 128, 160)
+/// / 255. The ids: FUN_001a90c0 numbers textures in load order; 0x53-0x5A
+/// fit only DISP_PARTS' menuBG04_0..3 and menuBG05_0..3 (half heights 198,
+/// 160.5, 127.5, 82.5 and 155.5, 118, 85, 40 at 1080, the offsets × 1.5), so
+/// 0x52 is the texture before them, menuBG01_upscale (1920 × 1080).
+/// ours: no animation (the bands ease in over 60 frames, the ground fades
+/// in by 1/18 and out by 1/30 a frame); the menu's own fade covers it.
+pub(super) fn ground(romfs: &Path) -> Result<RgbaImage> {
+    let disp = Parts::read(romfs, "DISP_PARTS")?;
+    let mut out = disp.get("menuBG01_upscale")?.clone();
+    // src: FUN_0014b880: (part, stage x, y of 720, opacity of 255)
+    let bands = [("menuBG04_0_upscale", 320.0, 720.0 - 132.0, 64), ("menuBG04_1_upscale", 320.0, 720.0 - 107.0, 96), ("menuBG04_2_upscale", 320.0, 720.0 - 85.0, 160), ("menuBG04_3_upscale", 320.0, 720.0 - 55.0, 224), ("menuBG05_0_upscale", 320.0, 103.5, 64), ("menuBG05_1_upscale", 283.25, 78.5, 96), ("menuBG05_2_upscale", 320.0, 56.5, 128), ("menuBG05_3_upscale", 276.5, 26.5, 160)];
+    for (name, x, y, alpha) in bands {
+        let mut band = disp.get(name)?.clone();
+        for p in band.pixels_mut() {
+            p[3] = (u32::from(p[3]) * alpha / 255) as u8;
+        }
+        let at = |c: f32, size: u32| (c - size as f32 / 2.0).round() as i64;
+        // src: FUN_0014b880: flags 0x14, centred; x of 640, y of 720, here at 1080
+        imageops::overlay(&mut out, &band, at(x * 3.0, band.width()), at(y * 1.5, band.height()));
+    }
+    Ok(out)
 }
 
 /// The system menu, and (unless `dry_run`) its pictures in `<output>/sys/menu`.
@@ -52,10 +82,9 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) 
     // system_scenebg (0x1F8) at (250.67, 0), underline (0x1FC) at
     // (0, 29.87), menu_window (0x1F6) at (18.67, 1); the route panel
     // (saveinfobg, 0x224-0x226) at (453.33, 39.41)
-    // guess: the game dimmed under it; the exe draws part 0x52 full-screen
-    // (0x14b880), named through the runtime table 0x1A4DF90
-    let dim = (!dry_run).then(|| RgbaImage::from_pixel(1280, 720, image::Rgba([0, 0, 0, 160])));
-    let mut backdrop = vec![placed("dim", dim, (0, 0))?];
+    // src: FUN_0014b880 (ground()): the ground, opening with the menu
+    let ground = if dry_run { None } else { Some(imageops::resize(&ground(romfs)?, 1280, 720, imageops::FilterType::Triangle)) };
+    let mut backdrop = vec![placed("ground", ground, (0, 0))?];
     backdrop.push(placed("inner", part(&save, "config_innerbg")?, stage(120.0, 0.0))?);
     backdrop.push(placed("panel", part(&save, "saveinfobg_unknown")?, stage(453.333, 39.407))?);
     backdrop.push(placed("titlebg", part(&menu, "system_titlebg")?, stage(0.0, 0.0))?);
@@ -90,8 +119,13 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) 
         // src: exe 0x14f240 (FUN_001a62c0's 1280 / 640 × 100 × 0.827 = 165 by
         // 720 / 448 × 53 × 1.092 = 93, scaled 1.15: 190 × 107; exe 0x14f240)
         thumb: Rect { x: tx, y: ty, w: 190, h: 107 },
-        // guess: the date where the picture digits are, in the font
-        date: text((lx, ty), 20, 20, 1),
+        // ours: "%Y/%m/%d %H:%M" in the font, 11 px a digit (5.5 x 3 x 2/3,
+        // size 22); the hour and minute land 3.8 stage units (8 px) left
+        // src: FUN_0014f240: 12 digits of savedate_number (0x223, year, month,
+        // day) and savetime_number (0x228, hour, minute), 24 x 32 cells from
+        // tables 0x692298/0x6922F0, at the row's place + table 0x450650:
+        // x 118 + 5.5 a digit (the hour at 182.333), y 24.889
+        date: text(rel(133.667 + 118.0, 24.889), 22, 16, 1),
         chapter: text((lx, ty + 28), 22, 18, 1),
         line: text((lx, ly - 10), 18, 18, 2),
         preview: None,
