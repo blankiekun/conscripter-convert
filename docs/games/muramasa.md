@@ -39,9 +39,6 @@ Known bugs:
 - One engine segfault on `end` after a `dwave` voice, Ctrl held.
 - `layer\uncensored\` unchecked on a censored CG.
 - Web play (`out/muramasa-web`, loose; frames in `out/play-bugs/`):
-  - `f_mb01_002` (pg 117, 0.txt line 234638, `if %981 == 0 dwave 0,"voice\mb01\0020100a12.ogg"`):
-    auto-play stops "20000 waits without a new page" after the dwave (`--at mb01_001`
-    stalled; the 1800 s mb01 run passed it); frame `stall-mb01_002`.
   - Prologue pg 233: text over black with no window or name plate; frame `no-window-pg233`
     (may be intended).
   - md01 pg 2220 (0.txt 304728, battle): text page with no text and no window (suspect);
