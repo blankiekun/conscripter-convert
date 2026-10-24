@@ -48,18 +48,15 @@ Known bugs:
   fade): compare such pages with `--real-time` runs.
 - A list lens (mc01_020vs) does not restore on a load (whole screen
   differs; a still lens does).
-- Web play (`out/muramasa-web`, loose; frames in `out/play-bugs/`):
-  - Prologue pg 233: text over black with no window or name plate; frame `no-window-pg233`
-    (may be intended).
-  - md01 pg 2220 (0.txt 304728, battle): text page with no text and no window (suspect);
-    frame: see `out/play/jp-md01/bugs.txt`.
 - Web runs (1800 s real time, auto-play, random choices; `cons_trace_check` "missing"
   findings are the checker's loose-build lookup, not the game): JP prologue 370 pages;
   JP mb01 3166; mc01 2757; md01 3226; md05 1062 (reached the end); EN mc01 (Kanae route
   `--at mc01_001`) 382 pages (script waits up to 46 s; English text fits the window, no
-  Japanese in any page).
+  Japanese in any page). A shot's `pgN` is the last page begun: after a
+  `TypeBegin…IO`/`…CIO` page the window is closed (`windowfade 0,150`) as there; the
+  vertical boxes (`TextWindow*.png`) are black, so unseen over black.
 
-Next: (1) fix the web-play bugs above (`muramasa/playable`); (2) the known bugs; (3) release.
+Next: (1) the known bugs above (`muramasa/playable`); (2) release.
 
 ## Scope
 
