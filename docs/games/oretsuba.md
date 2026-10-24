@@ -41,17 +41,18 @@ Paused 2026-10-20.
    engine particle layer lands. The eboot's law (U = rand()/2^31, units
    of a 1280×720 screen drawn ×0.7556, +31 px snow, +32 px others;
    sheets 32-px cells, row = class, column = frame; every update runs
-   once a frame, 60 Hz):
+   once a frame, 60 Hz; run under exe_call:
+   `research/oretsuba/particles_exe.py`, fixture `particles_exe.txt`):
 
    | | snow 51 | light balls 52 | confetti 54 |
    |---|---|---|---|
    | pool, ctor | 200, 0x810479f4 | 200, 0x81043604 | 100, 0x81042f66 |
    | update, per frame | 0x81047dfa, 2 steps | 0x81043c8a, 2 steps | 0x81043464, 2 steps of 0x8112ad40 |
    | class c | 4U + [U>0.7] | 3U + [U>0.7] | 3U + [U>0.7] |
-   | start | inactive; each step P=0.002 | same; 600 steps run at start (0x81043902) | same |
-   | spawn | x = 1280U, y = −720 | x = 1280U, y = 1440 | y = 1440U−720: ≥0 → y = −32, x = 1280U; else x = −64 or 1344 |
-   | vertical | v = 5/(4.5−c), then >5: /5, >4: ×0.55, >3: ×0.75 | rises v = 1.25/(4.5−c) | vy += ay, ay += (U−0.5)·0.025, vy∈[−0.2,0.6], ay∈±0.1; y += vy + 10 |
-   | horizontal | x += vx, vx += ax, ax += (U−0.5)·0.2; vx∈±1.3, ax∈±0.2; ax starts U | same, vx∈±1.6 | x ± s·10·r, s = 0.6c+0.2+0.05U, sign U; flip each 50 frames, frames 0-1-2-1-0, direction turns at 0 and 2, r from 0 by r=(r+0.008)·1.2 |
+   | start | inactive; each step P=0.002 (the spawning step does not move) | same; 600 steps at start only when :Param 1 ≠ 0 (0x81043902) | same; 1200 steps only when :Param 3 ≠ 0 (scenes: 0) |
+   | spawn | x = 1280U, y = −720 (respawn keeps vx, ax) | x = 1280U, y = 1440 | y = 1440U−720: ≤ 0 → y = −32, x = 1280U; > 0 → side at that y, x = −32 first, on respawn −64 if 10U > 5 else 1344 (0x8112b11c) |
+   | vertical | v = 5/(4.5−c), then >5: /5, >4: ×0.55, >3: ×0.75 (c ≥ 4.5: v < 0, the particle rises for good) | rises v = 1.25/(4.5−c) | vy += ay, ay += (U−0.5)·0.025 (ay starts 0.4U), vy∈[−0.2,0.6], ay∈±0.1; y += vy + fall (:Param 1, 0 → 10; scenes 1.5) |
+   | horizontal | x += vx, vx += ax, ax += (U−0.5)·0.2; vx∈±1.3, ax∈±0.2; ax starts U | same, vx∈±1.6 | x ± s·m·r, m = :Param 2 (0 stays 0; scenes 0.5), s = 0.6c+0.2+0.05U, sign U; flip each 50 updates (not steps), frames 0-1-2-1-0, direction turns at 0 and 2, r from 0 by r=(r+0.008)·1.2 |
    | end | y ≥ 470+50c: x out of [0,1280) respawn, else α −20 a step, respawn at α ≤ 25 | y ≤ 80−20c, same | x ≥ 1312, x < −64 or y ≥ 720: respawn |
    | colour | white, α | 0xffff00, α × one of 20 triangle waves (±0.032/frame, i mod 20) | one of red, yellow, blue, green (U) |
    | cell | row int(c) | row int(c) | row int(c), column frame |

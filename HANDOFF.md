@@ -26,19 +26,26 @@
   0x81042f66 reads count +0x1c, fall +0x20, drift mult +0x24; update
   0x81043464 -> step 0x8112ad40). Records: [3]=x [4]=y [0]=vx [1]=vy
   [2]=ax [5]=active byte [6]=c [7]=x0 [8]=xw [0xb]=alpha (snow/light).
-- Reading the decompile again found errors in the values below (to be
-  confirmed by the eboot run):
-  * light balls: vy = 0.2*25/(4.5-c) = 5/(4.5-c) rising (x0.25 only if
-    < 0.6, never), not 1.25/(4.5-c); wa=0.2:0.2:1 and x=0:1280 like snow;
-    the 600 warm steps run only when :Param 1 (+0x20) is nonzero.
-  * confetti spawn: y = 1440U-720; y <= 0 -> top: y = -32, x = 1280U;
-    y > 0 -> side at that y in (0,720): x = -32 on the first spawn, on a
-    respawn x = 1344 or -64 (U*10 >= 5 -> right). Engine side= is
-    p:xl:xr:y0:y1 with y in [y0,y1): use side=0.5:-64:1344:0:720 (the
-    first-spawn left-only x=-32 is not modelled). Box: x >= 32+1280,
-    y >= 720, x < -64 -> respawn. Flip period int(U)*50+50 = 50.
-    Fall +0x2ec and drift multiplier +0x2f0 come from :Param 1/2
-    (default 10 each, capped 10).
+- Eboot run DONE (third agent, commit ea6af4fe):
+  research/oretsuba/particles_exe.py, fixture research/oretsuba/particles_exe.txt
+  (particle 0 per update; rand per call site: spawn tests 0, rest U).
+  Settled by the run (Status item 7 updated):
+  * light balls vy = 1.25/(4.5-c) (x0.25 always applies): c=0.3 0.297619,
+    1.5 0.416667, 3.7 1.5625. The "5/(4.5-c)" re-read was wrong.
+  * confetti spawn y = 1440U-720: <= 0 top (y=-32, x=1280U); > 0 side at
+    that y in (0,720): first x=-32, respawn x=-64 if 10U > 5 else 1344
+    (0x8112b11c). 1344 >= 1312 respawns at once; -64 plus leftward drift
+    < -64 respawns at once. side=0.5:-64:1344:0:720 approximates this.
+  * warm: light 600 steps only when :Param 1 != 0 (rand calls 200 vs
+    120400; scenes pass 0 or 1); confetti 1200 steps only when :Param 3
+    != 0 (scenes always 0).
+  * confetti :Param 2 (drift mult) 0 stays 0; :Param 1 (fall) 0 -> 10.
+    The scenes' only confetti :Param is 40,1.5,0.5,0: fall 1.5, mult
+    0.5 (drift=...:...:...:0.5, vy constant 1.5, not 10).
+  * snow c >= 4.5 (U1 >= 0.875 and U2 > 0.7, 3.75%): vy < 0, rises for
+    good, never respawns. Snow :Param 30 in its one scene.
+  * spawning step does not move; respawn keeps vx/ax; confetti flip
+    counts updates (time - last >= 50), not steps; cell column = frame.
   * every class table (DAT_81162568, DAT_81162578) is 32.
 
 ## Done
@@ -95,10 +102,10 @@ Converter values per kind (eboot units; scale=0.75555557, ox=oy=31 snow /
   x0.55, >3 x0.75; c in [0,5), 50 entries), x=0:1280, y=-720, walk=x,
   wv=-1.3:1.3, wa=0.2:0.2:1, end=470:50:1, fade=20:25.
 - light balls: cls=3:1:0.7, vy = -1.25/(4.5-c) (40 entries), y=1440,
-  wv=-1.6:1.6, end=80:-20:-1, warm=600, tint=ffff00 (0xAARRGGBB, settled), twinkle=20:0.032.
+  wv=-1.6:1.6, end=80:-20:-1, warm=600 only when :Param 1 != 0, tint=ffff00 (0xAARRGGBB, settled), twinkle=20:0.032.
 - confetti: n<=100, cls=3:1:0.7, walk=y, wv=-0.2:0.6, wa=0.1:0.025:0.4,
-  vy=10, x=0:1280, y=-32, side=0.5:-64:1344:-720:0,
-  box=-64:-100000:1312:720, drift=0.6:0.2:0.05:10, flip=3:50:0.008:1.2,
+  vy=<:Param 1 fall, scenes 1.5>, x=0:1280, y=-32, side=0.5:-64:1344:0:720,
+  box=-64:-100000:1312:720, drift=0.6:0.2:0.05:<:Param 2, scenes 0.5>, flip=3:50:0.008:1.2,
   tint=ff0000:ffff00:0000ff:00ff00.
 One setlayer per kind (define), configured at start so a loaded save
 draws; EffectStart sends "s|..." (restart) and shows sprite "*k"; stop
