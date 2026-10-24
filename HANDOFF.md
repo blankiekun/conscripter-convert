@@ -51,13 +51,13 @@ Stopped at the 80k context cap before any play. No bug found yet in play.
   stopped "stuck: 20000 waits without a new page" at pg 117 (mb01_002, 0.txt line 233372): recheck on the
   rebuilt game.
 
+## Phase 1 result (2026-10-24)
+- Rebuilt on origin/main (#666): out/muramasa-web 10:24, 6.03 GB peak; images exist as hashed .webp
+  (system/strip, system/window_*, cg/sys/adv/textwindow.webp).
+- Stall still there: mb01_002 pg 117, 0.txt line 234638 (dwave 0,"voice\mb01\0020100a12.ogg").
+- Prologue 1800 s: 370 pages, trace-check 2 errors + 4417 "missing" (checker false positives) + others (out/play/prologue-check.txt).
+- Bugs are in docs/games/muramasa.md Status; frames in out/play-bugs/. Not fixed.
+
 ## Next
-1. Rebuild out/muramasa-web once muramasa/playable (the converter fix) is merged, so images match 0.txt;
-   rebuild the scratches with mkstart as above.
-2. Prologue from the title (s0), 1800 s real time.
-3. The 30-minute runs: route starts via mkstart --at (paths as above), `EVERY=60 capped.sh 4 play.sh
-   <scratch> <name> 1800` each.
-4. Per trace: `python3 engine/tools/cons_trace_check.py out/play/<n>/trace.jsonl --script
-   out/play/<scratch>/0.txt --config research/nitroplus/cons_trace_check.json`; triage; shots only where
-   the trace points.
-5. Bugs: one frame each under out/play-bugs/; list in docs/games/muramasa.md Status; push; update PR #665.
+1. Route runs at mc01_001, md01_001, md05_001 (mkstart --at, paths above), 1800 s each; trace check each.
+2. EN half; system screens (not reached in the prologue).

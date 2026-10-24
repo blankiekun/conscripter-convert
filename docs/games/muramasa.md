@@ -22,7 +22,7 @@ Active (Japanese and English in one build).
 | Text, choices, pictures, motion, processes, blends, sounds | ✅ (approximations parked) |
 | System screens, extras, 立方陣 | ✅ each checked beside the original |
 | English text and pictures, censored/uncensored layer | ✅ (`docs/games/muramasa-en.md`) |
-| Web build | 🟡 not played through |
+| Web build | 🟡 JP prologue played 370 pages (known bugs) |
 | Dry-run `score` (`metrics.json`) | 99.90 (picture 99.67) |
 
 Known bugs:
@@ -38,6 +38,20 @@ Known bugs:
   `--english`.
 - One engine segfault on `end` after a `dwave` voice, Ctrl held.
 - `layer\uncensored\` unchecked on a censored CG.
+- Web play (title start, 1800 s real time, 370 pages; frames in
+  `out/play-bugs/`):
+  - `f_mb01_002` (route start `--at mb01_001`, pg 117, 0.txt line 234638,
+    `if %981 == 0 dwave 0,"voice\mb01\0020100a12.ogg"`): auto-play stops "20000
+    waits without a new page" right after the dwave; frame `stall-mb01_002`.
+  - Prologue pg 100 (`ma00`, text.en line "For example...@ what if Kakei only
+    looks committed?"): the text after `@` is run as the command `what`
+    (warning "unknown command") and never shown; frame `en-text-dropped-pg100`
+    (pg 98, the nearest shot).
+  - Prologue pg 233: text over a black screen with no text window or name
+    plate; frame `no-window-pg233` (check against the script: may be intended).
+  - `cons_trace_check` reports 4417 "missing" files that exist in
+    `out/muramasa-web` (`cg/data/*.webp`, `system/window_*.webp`, `cg/bg/*.jpg`):
+    the checker's lookup of a loose web build, not the game.
 
 Next: (1) play the web build through, Japanese then English, fixing
 what blocks or shows wrong; (2) the known bugs; (3) release.
