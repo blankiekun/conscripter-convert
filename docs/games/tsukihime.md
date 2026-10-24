@@ -22,17 +22,24 @@ Paused 2026-10-20.
 1. Resume: rebuild (`conscripter-convert build <game-102> -o
    out/tsukihime-cons`) and play it in the web build; fix what blocks a
    play-through before anything below.
-2. Layer commands not converted (open rows of `tsukihime.findings.tsv`):
+2. From the exe (see "The exe"), not drawn yet: the lesson bubbles
+   (F1105 3–32, 621 `_WKST` in the 25 `QA_*`; we draw one window),
+   F1105 1–2 bands; `_STCH` arg 11 is the clip source, not the place
+   parent (6,029 uses; `_SBAS`, 943 uses, is the place parent), arg 19
+   turns the clip, not the picture (2 uses); plain colours (not
+   textures) show through the output curve below, up to 9 levels
+   darker (14 → 5).
+3. Layer commands not converted (open rows of `tsukihime.findings.tsv`):
    `_STPV`, `_SNX2`/`_SNX3`,
    `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY`, `_VCWT`, `_VPL2`,
    `_SESP`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`; motion keys' priority,
    expression and stepped fields.
-3. Gallery's Music Player, Movie and Flowchart; the CG viewer's zoom
+4. Gallery's Music Player, Movie and Flowchart; the CG viewer's zoom
    and pan; `allui` into the media folder.
-4. Backlog; several Config rows drawn without effect; the save list's
+5. Backlog; several Config rows drawn without effect; the save list's
    route picture and chapter labels.
-5. The first launch's prologue (ours goes straight to the title).
-6. Text window overflow, accepted (2026-10-23): 1 of 15711 JP pages
+6. The first launch's prologue (ours goes straight to the title).
+7. Text window overflow, accepted (2026-10-23): 1 of 15711 JP pages
    exceeds 11 rows, 4 of 31431 EN pages exceed 13
    (`research/typemoon/overflow_pages.txt`); the engine's `pastPage`
    (`engine/src/cons/ONScripter_cons.cpp`) splits them onto one extra
@@ -156,8 +163,19 @@ picture's record against its texture, prints a motion's keys.
   - `_STCH` (`FUN_00160840`): 0 layer; 1 picture (empty clears); 2, 3
     x, y (left out: kept); 4 zoom ‰; 5 alpha; 6 priority (default layer
     × 10); 7, 8 never read; 9, 10 the expression (`_a_b` added unless
-    both 0); 11 parent layer (−1 none); 12–17 shorts (a clip?); 18 a
-    layer to copy every setting from; 19 rotation in 1/100°.
+    both 0); 11 the clip source layer (word +0x89C, −1 none: STCH
+    copies its clip words at once; the draw `FUN_001884f0` takes its
+    clip rectangle and arg-19 turn, multiplies the alpha by its alpha,
+    and moves the layer by the clip's top-left unless byte 0x54 bit 6,
+    `_SACL`); 12–15 the clip x, y, w, h in 1920 × 1080 px (shorts
+    +0xA2C; 244 of 2,435 are 0, 0, 1920, 1080); 16 a short (+0xB6C)
+    and 17 a byte (+0xBBC), knife's inset and mode; 18 a layer to copy
+    every setting from; 19 the clip's turn in 1/100° (word +0xBE4, the
+    `_STRR` word, wrapped to ±18000; `FUN_00136520` turns the clip mask,
+    texture 0x157, about the clip centre; −32768 follows the layer's
+    turn), not the picture's (used twice, `05_00_ARC05_9B`).
+  - `_SBAS(layer, base)` (`script_command`, case 0x424153) sets word
+    +0x93C, the parent `FUN_001892b0` places a child by (943 uses).
   - `_STCC(n)` clears layer n (none: 0, negative: all) and its priority
     to 0. `_STCP(layer, p)` sets the priority.
   - `_STZ4(layer, x0, y0, x1, y1, ms, e, f)` (`FUN_00162d20`): zoom ‰
@@ -210,9 +228,27 @@ picture's record against its texture, prints a motion's keys.
 - **Sound effects**: `_SEPL(channel, loop, sound, …)`
   (`FUN_0016a340`) replaces the channel's sound, except the same sound
   already looping there goes on.
-- **Text**: `_WNTY(n)` (`FUN_00138ea0`) the window type, 0 or 1 (the
-  drawer `FUN_001391a0` offsets a line by 3.5 or 5.5). `_WTTM(ms)`
+- **Text**: `_WNTY(n)` (`FUN_00138ea0`) stores n and sets flag F799 =
+  n ≠ 0, the page-break icon: the drawer `FUN_001391a0` draws it at
+  +5.5 (page) or +3.5 (line). Scripts use only 0 (42,820) and 1
+  (15,756); 98% of `_WNTY(1)` messages (15,424 of 15,737) reach a
+  `_PGST` before the next text, 0.4% of `_WNTY(0)` ones (104 of
+  26,864), so it marks the page end. The window style is F1105
+  (word +0x8A2), set by `_WKST`: 0–2 the bands (26 story scripts),
+  3–32 the lesson corner bubbles (621 sets, all 25 `QA_*`): the drawer
+  takes slot and origin from the 12-byte table at 0x44D94C, alpha
+  fixed at 0.78431 (200/255) and text flag 0x800000 for 3 and up. `_WTTM(ms)`
   waits ms·3/50 frames.
+- **Output colour**: every target is format 2822 (R8G8B8A8 sRGB,
+  `FUN_001d683c`); textures are drawn once through
+  `nexl_nxshader_pre_alter.bnsh` (three FMUL32I × 1/2.2), and the final
+  blit `FUN_001d7bd0` uses shader 1 of the table at 0xBD2308,
+  `nexl_nxshader_noalpha_srgb.bnsh` (three × 2.2). Net for a texel:
+  identity within 1 level (76 of 256 levels move by 1). For a colour
+  not from a texture (plain fills): encode(v^2.2), at most 9 levels
+  darker (14 → 5; 12 → 4, 21 → 13, 63 → 60), 4+ levels for 4–50,
+  black and white kept. Blending runs on these 2.2-gamma values: 1/8
+  of level 127 over black shows 7, sRGB-byte blending gives 16.
 - **Story movies**: `_TOMP(n)` plays entry n of the table at 0x50B890
   (0x30 bytes): 4 prologue, 5–6 openings, 8–0x22 day cards, 0x23–0x25
   endings, 0x26 `TM_CI`, 0x27–0x2D credits. Seen bits
