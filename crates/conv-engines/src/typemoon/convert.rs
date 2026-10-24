@@ -972,24 +972,40 @@ impl Lowering<'_, '_> {
                 }
             }
             // `_STZ4(layer, x0, y0, x1, y1, ms, ease, off)` (`FUN_00162d20`): the
-            // zoom in ‰ goes to x1, y1 (`_STCH` resets it to 1000) over ms · 60
-            // / 1000 frames; at 0 frames `FUN_00131f30` leaves out x0, y0 and the
-            // easing. `off` (empty: the layer's, `_STCH` clears it) keeps the
-            // zoom from the draw (`FUN_00132e30`).
-            // shortcut: a timed zoom (2 uses) jumps to its end; its x0, y0, ms and easing stay gaps.
+            // zoom in ‰ goes from x0, y0 (default: the layer's) to x1, y1
+            // (`_STCH` resets it to 1000) over ms · 60 / 1000 frames along the
+            // easing (`FUN_00132030`, drawn by `FUN_00138a70` with
+            // `FUN_00130c80`), on the shown layer at once (`FUN_00131f30`); at
+            // 0 frames it is x1, y1 at once. `_STCF` doesn't wait for it
+            // (`FUN_001329f0` reads no zoom count). `off` (empty: the layer's,
+            // `_STCH` clears it) keeps the zoom from the draw (`FUN_00132e30`).
             "_STZ4" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 let Some(l) = self.staged[n as usize].as_mut() else { return true };
                 let z = |i: usize, old: f32| if arg(i).is_empty() { Some(old) } else { number(arg(i)).map(|v| v as f32 / 1000.0) };
                 let (Some(zx), Some(zy)) = (z(3, l.stretch.0), z(4, l.stretch.1)) else { return false };
+                let raw = |i: usize| a.get(i).map_or("", |v| v.trim());
+                let from = (if raw(1).is_empty() { Some(l.stretch.0) } else { number(raw(1)).map(|v| v as f32 / 1000.0) }, if raw(2).is_empty() { Some(l.stretch.1) } else { number(raw(2)).map(|v| v as f32 / 1000.0) });
                 l.stretch = (zx, zy);
-                if a.get(5).map_or(Some(0), |v| number(v.trim())).is_some_and(|ms| (0..17).contains(&ms)) {
+                if let Some(off) = number(arg(7)) {
+                    l.stretch_off = off as u8 != 0; // src: a byte at 0x874 of the state
+                }
+                let ms = if raw(5).is_empty() { Some(0) } else { number(raw(5)) };
+                // src: exe 0x162d20 (ms × 60 / 1000 frames; under 17 ms none)
+                let timed = match (ms, from) {
+                    (Some(ms), _) if ms < 17 => true,
+                    // From where it ends: the same at once.
+                    (Some(_), (Some(x0), Some(y0))) if (x0, y0) == (zx, zy) => true,
+                    (Some(ms), (Some(x0), Some(y0))) => {
+                        let start = Layer { stretch: (x0, y0), ..l.clone() };
+                        self.timed_now(n as usize, start, ms as u32, ease(number(raw(6)).unwrap_or(0)), 0)
+                    }
+                    _ => false,
+                };
+                if timed {
                     for i in [1, 2, 5, 6] {
                         arg(i);
                     }
-                }
-                if let Some(off) = number(arg(7)) {
-                    l.stretch_off = off as u8 != 0; // src: a byte at 0x874 of the state
                 }
             }
             // `_STGS(layer, from, to, ms, ease)` (`FUN_001637a0`): the alpha
@@ -1020,18 +1036,29 @@ impl Lowering<'_, '_> {
             // `_STRT(layer, from, to, ms, ease, cx, cy)` (`FUN_00162b20`): the
             // turn in 1/100 degrees goes to `to` (default 0; `_STCH` resets it)
             // from `from` (default: the layer's) over ms · 60 / 1000 frames
-            // (`FUN_001326e0`: at 0 frames straight to `to`); `ease` the
-            // easing (`FUN_001325d0`), `cx`, `cy` two shorts beside the turn
-            // (the live layer's 0x72, 0x74).
+            // on the shown layer at once (`FUN_001326e0`: at 0 frames straight
+            // to `to`), along the easing `ease` (`FUN_001325d0`, drawn by
+            // `FUN_00137f50` with `FUN_00130c80`); `_STCF`'s bit 4 waits for
+            // it (`FUN_001329f0`). `cx`, `cy` two shorts beside the turn (the
+            // live layer's 0x72, 0x74).
             "_STRT" => {
-                let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
-                l.angle = number(arg(2)).unwrap_or(0);
-                // Every use is at once and from = to: then `from` and the easing
-                // mean nothing, and a centre of 0 is none.
-                // shortcut: a timed turn would jump to its end; its arguments stay gaps.
+                let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
+                let Some(l) = self.staged[n as usize].as_mut() else { return true };
                 let raw = |i: usize| a.get(i).map_or("", |v| v.trim());
+                let from = if raw(1).is_empty() { Some(l.angle) } else { number(raw(1)) };
+                l.angle = number(arg(2)).unwrap_or(0);
+                let ms = if raw(3).is_empty() { Some(0) } else { number(raw(3)) };
                 let zero = |i: usize| raw(i).is_empty() || number(raw(i)) == Some(0);
-                if zero(3) && (raw(1).is_empty() || number(raw(1)) == Some(l.angle)) {
+                // At once, `from` and the easing mean nothing (checked only where from = to); a centre of 0 is none.
+                let done = match (ms, from) {
+                    (Some(0), Some(f)) => f == l.angle,
+                    (Some(ms), Some(f)) if ms >= 17 && zero(5) && zero(6) => {
+                        let start = Layer { angle: f, ..l.clone() };
+                        self.timed_now(n as usize, start, ms as u32, ease(number(raw(4)).unwrap_or(0)), 4)
+                    }
+                    _ => false,
+                };
+                if done {
                     for i in [1, 3, 4].into_iter().chain([5, 6].into_iter().filter(|&i| zero(i))) {
                         arg(i);
                     }
@@ -1194,6 +1221,44 @@ impl Lowering<'_, '_> {
         self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: 256 });
         self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), MotionKey { ease: curve, ..key(ms, to) }], end: MotionEnd::Keep });
         self.motion_bits[slot] = 8;
+        true
+    }
+
+    /// Runs a timed `_STZ4` or `_STRT` on layer `n` at once: from `start`
+    /// (the staged layer with the change's first value) to the staged layer
+    /// over `ms`, its children following; `bits` is what `_STCF` waits on.
+    /// False (the change then jumps to its end at the next `_FADS`) when the
+    /// layer isn't drawn as staged.
+    // shortcut: a timed change on a layer not drawn as staged (none in either script), or one whose
+    // fade, motion or loop (or a child's loop) has started since it was drawn, jumps to its end.
+    fn timed_now(&mut self, n: usize, start: Layer, ms: u32, curve: Curve, bits: u8) -> bool {
+        let Some(to) = self.staged[n].clone() else { return false };
+        let Some(slot) = self.slot_layer.iter().position(|&l| l == Some(n)) else { return false };
+        let same = |l: &Layer| Layer { stretch: (0.0, 0.0), angle: 0, ..l.clone() };
+        if self.shown[n].as_ref().map(same) != Some(same(&to))
+            || to.fade.is_some()
+            || to.motion.is_some()
+            || self.motion_bits[slot] != 0
+            || self.loop_runs.iter().any(|(_, runs)| runs.iter().any(|&(c, _)| self.slot_layer[c].is_some_and(|j| j == n || self.descends(j, n))))
+        {
+            return false;
+        }
+        let shown = self.shown[n].replace(start.clone());
+        let at_start = self.resolved(n, 0);
+        self.shown[n] = Some(to.clone());
+        let at_end = self.resolved(n, 0);
+        self.shown[n] = shown;
+        let (Some(at_start), Some(at_end)) = (at_start, at_end) else { return false };
+        let runs = self.move_states(slot, &[(0, None, at_start, start), (ms, curve, at_end, to.clone())], 0);
+        if runs.iter().any(|&(c, _)| c == slot) {
+            self.motion_bits[slot] = bits;
+        }
+        self.shown[n] = Some(to);
+        for c in 0..LAYERS {
+            if let Some(j) = self.slot_layer[c].filter(|&j| j == n || self.descends(j, n)) {
+                self.slots[c] = self.resolved(j, 0);
+            }
+        }
         true
     }
 
@@ -1389,6 +1454,25 @@ impl Lowering<'_, '_> {
         if states.is_empty() {
             return;
         }
+        let loop_from = motion.loop_from;
+        let runs = self.move_states(slot, &states, loop_from);
+        if runs.iter().any(|&(c, _)| c == slot) {
+            self.motion_bits[slot] = 0x20; // a child's own motion stays as it was
+        }
+        if loop_from != 0 {
+            self.looping[i] = Some(m);
+            self.loop_runs.push((i, runs));
+        }
+    }
+
+    /// Moves layer `slot_layer[slot]` (shown as `slots[slot]`) and the
+    /// children that follow it through `states` (ms, the easing to it, the
+    /// layer as drawn and as shown) with an `spmotion` each, from what is
+    /// drawn; its state then jumps to the last one. The IR layers written,
+    /// with the layer each draws.
+    fn move_states(&mut self, slot: usize, states: &[(u32, Curve, Layer, Layer)], loop_from: u32) -> Vec<(usize, usize)> {
+        let Some(i) = self.slot_layer[slot] else { return vec![] };
+        let (Some(start), Some(shown), Some((_, _, at, _))) = (self.slots[slot].clone(), self.shown[i].clone(), states.last().cloned()) else { return vec![] };
         let mut moves = vec![(slot, start, states.iter().map(|(ms, e, l, _)| (*ms, *e, l.clone())).collect::<Vec<_>>())];
         for c in (0..LAYERS).filter(|&c| c != slot) {
             let (Some(j), Some(child)) = (self.slot_layer[c], self.slots[c].clone()) else { continue };
@@ -1408,25 +1492,18 @@ impl Lowering<'_, '_> {
         // A motion replaces the layer's loop: stopped where the new one doesn't run.
         let ran: Vec<usize> = moves.iter().map(|m| m.0).collect();
         self.stop_loop(i, &ran, false);
-        let loop_from = motion.loop_from;
         let mut runs = Vec::new();
         for (c, start, keys) in moves {
             if self.emit_motion(c, &start, &keys, loop_from) {
                 runs.push((c, self.slot_layer[c].unwrap_or(i)));
-                if c == slot {
-                    self.motion_bits[c] = 0x20; // a child's own motion stays as it was
-                }
             }
-        }
-        if loop_from != 0 {
-            self.looping[i] = Some(m);
-            self.loop_runs.push((i, runs));
         }
         // shortcut: the layer's state jumps to the motion's end; a picture drawn again mid-motion starts there.
         let end = |l: &mut Layer| (l.x, l.y, l.alpha, l.stretch, l.angle) = (at.x, at.y, at.alpha, at.stretch, at.angle);
         for l in [self.slots[slot].as_mut(), self.shown[i].as_mut(), self.staged[i].as_mut()].into_iter().flatten() {
             end(l);
         }
+        runs
     }
 
     /// An `spmotion` on IR layer `slot` from `start` (as it is drawn)
@@ -1947,6 +2024,24 @@ mod tests {
         let ops = compile(&g).ops;
         let Some(Op::SpriteMotion2 { keys, .. }) = ops.iter().find(|o| matches!(o, Op::SpriteMotion2 { .. })) else { panic!("{ops:?}") };
         assert_eq!(keys[1].ease, Some((23, 0)));
+    }
+
+    #[test]
+    fn timed_zoom_and_turn_run_on_the_shown_layer() {
+        // zoom 1000 -> 2000 ‰ from 1500 over 1000 ms, easing 3 (quad out); a turn 0 -> 90° over 500 ms.
+        let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STZ4(1,1500,1500,2000,2000,1000,3);_STRT(1,0,9000,500,0);_STCF(1,4);";
+        let g = Game { pictures: [picture("img1", 1280.0, 724.0)].into(), ..game(src) };
+        let ops = compile(&g).ops;
+        let motions: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep } = o { Some(keys) } else { None }).collect();
+        assert_eq!(motions.len(), 2, "{ops:?}");
+        assert_eq!(motions[0].iter().map(|k| (k.ms, k.zoom, k.zoom_y, k.angle, k.ease)).collect::<Vec<_>>(), [(0, 150, 150, 0, None), (1000, 200, 200, 0, Some((2, 2)))]);
+        // spmotion turns counter-clockwise from the place's angle (2000 ‰)
+        assert_eq!(motions[1].iter().map(|k| (k.ms, k.zoom, k.angle)).collect::<Vec<_>>(), [(0, 100, 0), (500, 100, -90)]);
+        assert!(ops.iter().any(|o| matches!(o, Op::MotionWait { layer: 39 })), "{ops:?}");
+        // From where it ends (or not shown yet): at once.
+        let src = "_STCH(1,img1,240,136);_STZ4(1,800,800,800,800,2000,0,0);_FADS(1,0,0);";
+        let g = Game { scripts: scripts(src), ..g };
+        assert!(!compile(&g).ops.iter().any(|o| matches!(o, Op::SpriteMotion2 { .. })));
     }
 
     #[test]

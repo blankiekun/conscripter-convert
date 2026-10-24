@@ -169,9 +169,11 @@ picture's record against its texture, prints a motion's keys.
   - `_STCC(n)` clears layer n (none: 0, negative: all) and its priority
     to 0. `_STCP(layer, p)` sets the priority.
   - `_STZ4(layer, x0, y0, x1, y1, ms, e, f)` (`FUN_00162d20`): zoom ‰
-    over ms·60/1000 frames, easing `e` (`FUN_00130c80`); `f` = byte
+    from x0, y0 to x1, y1 over ms·60/1000 frames, easing `e`
+    (`FUN_00130c80`), on the shown layer at once; `f` = byte
     0xA2, the zoom goes only to the shaders (inferred: for blurs).
-  - `_STRT` turns in 1/100° clockwise. `_STBR(layer, n)`
+  - `_STRT(layer, from, to, ms, e, cx, cy)` turns in 1/100° clockwise,
+    timed like `_STZ4`; `_STCF` bit 4 waits for it, not for a zoom. `_STBR(layer, n)`
     (`FUN_00162490`) picks a pixel shader via table 0x44DD70 into the
     56 names at 0xBD2308 (0 default, 7 monotone, 8 negative, 11 gauss,
     18 add, 19 multi, 23 lighten, 24 screen, 31 overlay, …).
