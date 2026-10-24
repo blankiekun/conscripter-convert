@@ -35,6 +35,35 @@ Open bugs:
   (else split the voices into `arc1.nsa`), and that saves, thumbnails
   and `kidoku.dat` persist there.
 
+Static checks (`docs/new-game.md` steps 6-7), gaps ranked:
+- Normal blend rounds differently: the exe's MMX blend (`0x42c4e0`,
+  C twin `0x42bbe0`, table `0x518228`) is k = a·opacity >> 8, d +=
+  (s − d)·k >> 8, floored; ours (`blendWeight`, engine
+  `AnimationInfo.cpp`) is exact. Over every (s, d, a): ours −1 to +2
+  levels, +1 or more in 49.7 %, max +2 at (s 192, d 0, a 129); opaque
+  pixels lose 1 level in the exe where s > d (255 over 0 gives 254).
+- Link clickability: `0x492bb0` case `0xb` reads each link's variable
+  (record +6) and a list check `0x464870` (list `0x519580`, not
+  decoded); ours (`shown_by`) tests only the page's first link's
+  variable, and not the list (214 link reads; `href_enable` 2 writes,
+  %36 5 writes).
+- PNG gamma: the exe's loader `0x4b6930` applies no gAMA; 951 of the
+  3,004 PNGs carry one (8 at 1/2.39). Matches only if CONscripter's
+  decoder (SDL_image, native and web) also ignores gAMA: unchecked.
+- Fx animation module (`Aom_Animation_Parts` `0x417580`, via `0x8b`)
+  writes the object's position (+0x18c/+0x190), scale (+0x1a8/+0x1ac),
+  rotation (+0x1b0) and opacity (`0x40f160`) when its flags (+0x20 bits
+  0x20-0x100) are set; the flags' writer wasn't traced. Ours plays the
+  frames only (the `.ap` frame flags are all 0).
+- No gap: object opacity, blend, anchor, scale and size (+0x1b2, +0x1b4,
+  +0x180, +0x1a8/+0x1ac, +0x198/+0x19c) are written by their opcodes,
+  `object_create`/`0x40f310` defaults, save restore `0x40f7d0`, env
+  creators `0x5013c0` (blend 1 only for unused kind 1), bust-ups
+  (`0x434130`: centre anchor, as ours) and system screens; the CG set
+  `0x51ea18` also by `0x54`/`0x55` (`0x4222c0`, handled); surfaces take
+  the desktop format (32-bit: identity), present `0x4ad120` is a 1:1
+  Blt; no gamma ramp, premultiplied alpha or D3D drawing.
+
 Next: take a bug when the user or a play-through reports one.
 
 ## Build
