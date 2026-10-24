@@ -62,9 +62,9 @@ Sources: `docs/games/tsukihime.findings.tsv` (the Switch program), `docs/games/t
 | `_SEVL` | Changes a sound effect channel's volume over a time. | channel, volume, ms | `chvolfade` |
 | `_SGMA` | Makes a motion start from where a layer is now. | layer, motion, key | not converted |
 | `_SHAF` | Ends the screen shake, at once or dying out. | ms | `screenshake` cleared |
-| `_SHK2` | unknown | layer, as `_SQK2` | not converted |
+| `_SHK2` | Sways a layer in a sine wave (slot 1, shared with `_SSW2`), maybe dying out or flickering. | layer, x, y, period, ms, delay, decay, fade-in, flicker | `spshake` offset list |
 | `_SHOK` | Shakes the screen in a sine wave that dies out. | x, y, period, turns, delay | `screenshake` |
-| `_SHS2` | Stops the layer effect `_SHK2` started. | layer | not converted (nothing started) |
+| `_SHS2` | Stops the layer's `_SHK2` or `_SSW2`. | layer | `spshake` cleared |
 | `_SNX2` | unknown | layer, value | not converted |
 | `_SNX3` | unknown | layer, value | not converted |
 | `_SNX4` | Does nothing: the Switch program has no such command. | - | left out: the Switch program ignores it |
@@ -73,10 +73,10 @@ Sources: `docs/games/tsukihime.findings.tsv` (the Switch program), `docs/games/t
 | `_SPMA` | unknown | on or off | not converted |
 | `_SPRC` | Frees the pictures loaded ahead of time. | none | nothing |
 | `_SPRD` | Loads a range of pictures ahead of time. | layer, name, ranges | nothing |
-| `_SQK2` | Shakes a layer (or every shown one), for a time or for ever. | layer, x, y, ms | not converted |
-| `_SQS2` | Stops a layer shake. | layer | not converted (nothing started) |
-| `_SSS2` | Stops the layer effect `_SSW2` started. | layer | not converted (nothing started) |
-| `_SSW2` | unknown | layer, arguments 0-7 | not converted |
+| `_SQK2` | Shakes a layer (or every shown one), for a time or for ever. | layer, x, y, hold, ms, delay, follow, fade-in | `spshake` offset list |
+| `_SQS2` | Stops a layer shake. | layer | `spshake` cleared |
+| `_SSS2` | Stops the layer's `_SSW2` or `_SHK2`. | layer | `spshake` cleared |
+| `_SSW2` | Drifts a layer: per axis, turns of random amplitude and length. | layer, amp min, max, period min, max, gain, ms, delay | `spshake` offset list |
 | `_STBR` | Sets how a layer's picture blends with what is below (a shader). | layer, shader | blends and filters; arguments 2, 3 not read |
 | `_STCC` | Clears a picture layer (or all of them). | layer | sprite removed |
 | `_STCF` | Waits until a layer's fade or motion has finished. | layer, mask | a wait for the fade or motion |
@@ -115,4 +115,4 @@ Sources: `docs/games/tsukihime.findings.tsv` (the Switch program), `docs/games/t
 
 ## Unknown
 
-Commands whose effect the sources don't give yet: `_SBAS`, `_SELA`, `_SHK2`, `_SNX2`, `_SNX3`, `_SPMA`, `_SSW2`, `_STNS`, `_STPV`, `_STRA`, `_XRSM`, `_XSTP`.
+Commands whose effect the sources don't give yet: `_SBAS`, `_SELA`, `_SNX2`, `_SNX3`, `_SPMA`, `_STNS`, `_STPV`, `_STRA`, `_XRSM`, `_XSTP`.
