@@ -347,7 +347,7 @@ scene a.nss
         Op::ParticleLayer { layer, particles } => Some((*layer, particles.as_ref().map(|p| p.keys.clone()))),
         _ => None,
     }).collect();
-    assert!(matches!(&layers[..], [(2, Some(k)), (2, None)] if k.starts_with("cw=1,ch=196,n=16,hz=24,cls=12:0:1,vy=333.333:312.5:") && k.ends_with(",ey=512,tex=288:512:0:0")), "{layers:?}");
+    assert!(matches!(&layers[..], [(2, Some(k)), (2, None)] if k.starts_with("cw=1,ch=196,n=16,hz=24,cls=12:0:1,vy=111.111:104.167:") && k.ends_with(",ey=512,tex=288:512:0:0")), "{layers:?}");
     let sprite = c.ops.iter().find_map(|op| match op {
         Op::AnimatedSprite { sprite, cells, looped, zoom, .. } => Some((sprite.image.as_str(), sprite.x, sprite.y, *cells, *looped, *zoom)),
         _ => None,

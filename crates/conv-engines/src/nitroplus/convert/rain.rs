@@ -4,9 +4,11 @@
 //! zooms, turns and fades ([`super::sync`]).
 //!
 //! Both move each particle along its own path from above the top to the
-//! bottom (a line, or for Drop with a swing an S curve), its rate in path
-//! points per 16 ms (`00449930` at game speed 1.0), redrawn at most every
-//! 42 ms, back at the start once past the end.
+//! bottom (a line, or for Drop with a swing an S curve), one path point a
+//! row, redrawn at most every 42 ms (every 3rd 16 ms frame) and then moved
+//! rate × one frame's ms / 16 points (`00449930`: the frame's ms, not the
+//! 42, since the frame loop `0044b850` stamps the object after the
+//! update): rate points every 48 ms, back at the start once past the end.
 //!
 //! Rain (`00435e60` sets it up, `00436390` draws it): `$SYSTEM_effect_rain_dencity`
 //! drops (at most 128), each a grey streak 196 px tall whose alpha rises
@@ -47,10 +49,10 @@ const COEF: [f64; 12] = [1.0, 0.75, 1.0, 0.75, 0.5, 0.75, 0.3, 0.5, 0.5, 0.3, 0.
 // the exe's rate over that time.
 const TICKS: i64 = 24;
 
-/// `rate` points per 16 ms as points per tick.
+/// `rate` points per 48 ms as points per tick.
 fn per_tick(rate: i64) -> String {
-    // ours: 62.5 = 1000/16, the exe's 16 ms rate unit, spread over a 1/TICKS tick
-    let v = rate as f64 * 1000.0 / 16.0 / TICKS as f64;
+    // src: exe 00449930 (index += frame ms · 65536/16 · rate, 16.16), 0048c5d0 (16 ms frame), 00436390 (≥42 ms: every 3rd frame); research/nitroplus/rain_speed_exe.py
+    let v = rate as f64 * 1000.0 / 48.0 / TICKS as f64;
     format!("{}", (v * 1000.0).round() / 1000.0)
 }
 
@@ -122,8 +124,8 @@ mod tests {
 
     #[test]
     fn rates_per_tick() {
-        // 128 points a 16 ms: 8000 a second, 333.333 a 24th.
-        assert_eq!(per_tick(128), "333.333");
-        assert_eq!(per_tick(3), "7.813");
+        // 128 points a 48 ms: 2666.7 a second, 111.111 a 24th.
+        assert_eq!(per_tick(128), "111.111");
+        assert_eq!(per_tick(3), "2.604");
     }
 }
