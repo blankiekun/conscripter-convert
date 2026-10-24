@@ -17,6 +17,11 @@ with `--help`; this file holds what `--help` cannot say. Wrappers live in
 - `--trace-ignore` leaves the game's own UI sprites out and keeps
   auto-play off their buttons.
 - Check: `python3 -I engine/tools/cons_trace_check.py t.jsonl --script 0.txt`.
+- Engine-read variables: a game config's `engine_vars` lists the script
+  variables the original's engine reads that we ignore; run with
+  `--trace-vars $(python3 -I engine/tools/cons_trace_check.py --trace-vars-of research/<engine>/cons_trace_check.json)`
+  (engrun.py, oretsuba/routes.py and playback.sh do) and the check's
+  `engine-var` findings show each place one bites.
 - `--real-time` samples each moving sprite every 4 frames
   (`--trace-motion-samples`) and times each effect; the check's `jump` (a
   sprite stepping much faster than its motion around it, or off and back)

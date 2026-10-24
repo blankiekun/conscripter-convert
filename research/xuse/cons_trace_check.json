@@ -10,5 +10,6 @@
   {"rule": "loop", "match": "se\\\\se028\\.ogg", "at": "^\\*s9_l36:"},
   {"rule": "loop", "match": "se\\\\se225\\.ogg", "at": "^\\*s9_l76:"},
   {"rule": "overlay", "match": "screenripple 5", "at": "^\\*(s61_l1|conv_link43_1):"}
- ]
+ ],
+ "engine_vars": []
 }
