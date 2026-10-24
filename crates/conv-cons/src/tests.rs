@@ -156,7 +156,7 @@ fn clickable_links_call_their_target() {
     ]);
     s.window = Some(window());
     let text = emit(&s);
-    assert!(text.contains("mov ?conv_scene_replayed[%0],%%1\nnext\nwindowback\nhumanz 58\n"));
+    assert!(text.contains("defarr conv_scene_replayed,446,global\nwindowback\nhumanz 58\n"));
     // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
     let expected = "\
 *conv_link1
@@ -1002,7 +1002,6 @@ fn emits_a_scene() {
 nsa
 globalon
 defvar conv_notice_seen,global
-if %3639 == 1 mov %conv_notice_seen,1
 defvar conv_name_text
 defvar conv_name_plate
 spnew %conv_name_text,ui
@@ -1047,30 +1046,10 @@ spnew %conv_link9,ui
 spnew %conv_link10,ui
 spnew %conv_link11,ui
 defarr conv_cg_seen,576,global
-for %0 = 0 to 575
-mov %1,2200+%0
-if %%1 != 0 mov ?conv_cg_seen[%0],%%1
-next
 defarr conv_movie_seen,32,global
-for %0 = 0 to 31
-mov %1,2800+%0
-if %%1 != 0 mov ?conv_movie_seen[%0],%%1
-next
 defarr conv_scene_unlocked,600,global
-for %0 = 0 to 599
-mov %1,3000+%0
-if %%1 != 0 mov ?conv_scene_unlocked[%0],%%1
-next
 defarr conv_progress,32,global
-for %0 = 0 to 31
-mov %1,3600+%0
-if %%1 != 0 mov ?conv_progress[%0],%%1
-next
 defarr conv_scene_replayed,446,global
-for %0 = 0 to 445
-mov %1,3650+%0
-if %%1 != 0 mov ?conv_scene_replayed[%0],%%1
-next
 loadgosub *conv_load_clear
 caption \"Test\"
 effect 2,10,500
@@ -1106,7 +1085,6 @@ delay 500
 ; unsupported: op 0x76 (0003.cd #7)
 end
 *conv_load_clear
-csp 49:csp 50:csp 51:csp 52:csp 53:csp 54:csp 55:csp 56:csp 57:csp 58
 return
 ";
     assert_eq!(text, expected);

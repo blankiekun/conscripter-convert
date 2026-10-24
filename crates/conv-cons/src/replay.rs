@@ -23,7 +23,7 @@ pub(crate) const END: &str = "conv_replay_end";
 pub(crate) const REPLAYING: &str = "%152";
 /// Scene n has been replayed (no "new" mark), n up to 445 (the size the
 /// numbered flags had).
-pub(crate) const REPLAYED: Flags = Flags { name: "conv_scene_replayed", size: 446, old_base: 3650 };
+pub(crate) const REPLAYED: Flags = Flags { name: "conv_scene_replayed", size: 446 };
 const LIST: &str = "conv_replay_list";
 const BEGIN: &str = "conv_replay_begin";
 pub(crate) const MAX_LISTS: usize = 98;

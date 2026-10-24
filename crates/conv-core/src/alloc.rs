@@ -32,15 +32,8 @@ pub const RESERVED: &[(RangeInclusive<u32>, &str)] = &[
     (182..=195, "the overlay per link level (182-189), scene stack"),
     (900..=1010, "the classic menus' globals: save page, volumes, text speed, settings; deleted slots %910 + slot; voice switches %970 + character"),
     (1011..=1110, "save grid locks: %1010 + slot (1-100)"),
-    (2000..=2199, "link targets visited, before ?conv_link_visited: read at start from an older gloval.sav"),
-    (2200..=2775, "CGs seen (9 × 64), before ?conv_cg_seen: read at start from an older gloval.sav"),
-    (2800..=2899, "movies seen, before ?conv_movie_seen: read at start from an older gloval.sav"),
     (2900..=2999, "scene stack across loads, bar state, settings sliders and pairs, title openings, picture extras"),
-    (3000..=3599, "scene replay unlocks, before ?conv_scene_unlocked: read at start from an older gloval.sav"),
-    (3600..=3631, "progress flags, before ?conv_progress: read at start from an older gloval.sav"),
-    (3639..=3639, "the startup notice dismissed, before it was %conv_notice_seen: read once at start from an older gloval.sav"),
     (3640..=3647, "settings switches 0-7"),
-    (3650..=4095, "scene replays watched, before ?conv_scene_replayed: read at start from an older gloval.sav"),
     (4096..=5095, "settings switches 20 up"),
 ];
 

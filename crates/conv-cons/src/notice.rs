@@ -6,10 +6,8 @@ use std::fmt::Write;
 /// A global, 1 once the notice has been dismissed: a name ([`DEFINE`]),
 /// kept in gloval.sav by name.
 pub(crate) const SEEN: &str = "%conv_notice_seen";
-/// Its declaration, in the define section after `globalon`. Builds before
-/// it kept the flag in %3639, which a gloval.sav they wrote still holds.
-// shortcut: the %3639 copy keeps old players from seeing the notice again; drop it with alloc's 3639 entry once those gloval.sav files don't matter.
-pub(crate) const DEFINE: &str = "defvar conv_notice_seen,global\nif %3639 == 1 mov %conv_notice_seen,1";
+/// Its declaration, in the define section after `globalon`.
+pub(crate) const DEFINE: &str = "defvar conv_notice_seen,global";
 /// A save slot written and deleted at once: a save writes gloval.sav (and
 /// syncs it on the web build, where the page may close without a quit).
 const FLUSH_SLOT: u32 = 892;
