@@ -40,6 +40,13 @@ Known bugs:
   `--english`.
 - One engine segfault on `end` after a `dwave` voice, Ctrl held.
 - `layer\uncensored\` unchecked on a censored CG.
+- A load drew vertical text horizontally (`tateyoko` not saved):
+  fixed in engine PR blankiekun/CONscripter#199; point the submodule
+  at it once merged. Headless runs without `--real-time` show no window
+  after `windowfade 256,150,0,0` (the virtual clock never ends the
+  fade): compare such pages with `--real-time` runs.
+- A list lens (mc01_020vs) does not restore on a load (whole screen
+  differs; a still lens does).
 - Web play (`out/muramasa-web`, loose; frames in `out/play-bugs/`):
   - Prologue pg 233: text over black with no window or name plate; frame `no-window-pg233`
     (may be intended).
