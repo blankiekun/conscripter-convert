@@ -50,6 +50,31 @@ Open:
 - From "Coverage": larger-type boxes, `TransLog`, telops the port
   rewrote (md05_037vs, mc01_026) at the Japanese places, one-scene
   boxes, particles, ignored port arguments.
+- Static checks (`docs/new-game.md` steps 6-7) on `muramasa_en.exe` + `Mware.dll`, where the
+  port differs; 8 fields, 2 exe-read settings, 4 every-frame shaders read. Gaps:
+  - Typing time from the scripts (3 calls): `sqText_setMaxTypingTime` 0x4ffc50 writes `+0x14c`,
+    `setMinTypingTime` 0x4ffc20 `+0x150`, read by `setTypingSpeed` `FUN_004b4510`;
+    `function_textbox.nut` passes 800, the `sys_config.nut` sample 800 + 1.5…; ours: the
+    default curve fixed (`muramasa/screens.rs`), right only while the scripts pass the default.
+  - `TextBox.TypeForce`/`TypeForceSpeed` (`function_textbox.nut` ops 177-185) replace the
+    player's speed; ours: not handled; whether a scene sets it is unchecked.
+  - Shake on text, camera and models: `CEffectShake` is also built by the text path (0x4b4ed0 …
+    0x4b8a80; `sqText_randomShake` 0x4ff390), `sqCamera_shake` 0x509080 and 0x474820; ours: the
+    sprite path only (`sqSprite_shake` 0x4eb3f0); `randomShake` in 0 scene files, `shake` in 1.
+  - Mask transition: `+0x4f4`'s one writer FUN_00435760 is reached from `sqSprite_transition`
+    0x4eb320 and `sqSpriteMask_transition` 0x4f40d0; ours: the sprite one; mask path unchecked.
+  - `System.disable_gore` (1 write, `val.nut` 0; launcher 0x405f90 via FUN_00405a40):
+    `ReplaceGoreFilename`, `GoreFilenameReplaceTable` looks empty; ours: not handled.
+  - Not done: writers of the `FwInfo` places, `CTextEnglish_layout` 0x4a7f60 metrics and
+    backlog fields; the globals the exe reads from the VM by name (sq_get not identified among
+    0055c5f0, 0055bca0, 0055bbe0); the sprite layers' render-target format (DXGI table at
+    Mware 0x10189704; RGBA16F would be ±1 level a layer).
+  - Fine: `pssprite_blend_normal.cso` (texture × colour, discard alpha < 1/255) and
+    `posteffect/pssimple.cso` are identity; swap chain and textures R8G8B8A8_UNORM (Mware
+    0x10052880, 0x100658c0), no sRGB format in 8 lists (`FUN_100551a0`); sprite blend
+    SRC_ALPHA/INV_SRC_ALPHA (Mware 1000bff0, FUN_10057410); standing-picture tint
+    (`StSetColorBase`) only `その他` = 1000/1000/1000 (0 of 1653 `St()` calls pass a tag); cg
+    pictures are WebP (882 of 882).
 
 Next: the web play-through (`docs/games/muramasa.md`, Status).
 
@@ -147,7 +172,8 @@ then `patch/*.npk` mounted over them.
   function, 884 scenario files, `lang/en/`). `cg.npk`, `particle.npk`:
   lossless WebP under `.png` names. `font.npk`:
   `droidserif-muramasa.ttf` only. `system.npk`: `setting.ini`
-  (1024×576, `WINDOW_NAME`, `[Font]`), unused DirectX shaders.
+  (1024×576, `WINDOW_NAME`, `[Font]`), the DirectX shaders `Mware.dll` loads by
+  path (`shader/sprite/psSprite_Blend_Normal.cso`; we need none, Status).
 - `sound.npk`, `voice.npk`, `dx.npk`: unused; the Japanese build's
   identical files stand in.
 
