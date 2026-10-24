@@ -1,4 +1,4 @@
-# HANDOFF: Muramasa web play-through, JP half (branch muramasa/web-playthrough, PR #641)
+# HANDOFF: Muramasa web play-through, JP half (branch muramasa/web-playthrough, PR #665)
 
 Stopped at the 80k context cap before any play. No bug found yet in play.
 
@@ -32,19 +32,32 @@ Stopped at the 80k context cap before any play. No bug found yet in play.
 - s0: `mkstart.py out/muramasa-web out/play/s0 --args '--real-time'`, `EVERY=10 capped.sh 4 play.sh out/play/s0 test 90`:
   OK. 760 trace records, pages 2..9 in 90 s, story text in the English box on bg003 (shot
   out/play/test/shots/00080_pg9.jpg). The run exits 1 only because no end record in 90 s.
-- --at mb01_001 with paths/1-ichijou.txt: FAILS in mkstart (engrun): 0.txt has `goto *choice207_end` twice
-  (lines 71866, 71874, in *f_ma02_014) but no `*choice207_end` label and no select between the
-  `*if205_end` (71829) and the first branch: the converter output lost the choice (a build bug, or engrun's
-  expectations are stale). engrun then ends in ma02_014 with 16 problems. Needs a decision/fix before the
-  route starts.
+- --at route starts (2026-10-24): nstrace now reads the current 0.txt shape: `^<key>` lines put back
+  from text.ja.txt beside 0.txt (they hold commands too, e.g. a choice's `mov %312,...`), defvar names
+  mapped to numbers from 20000 (engrun writes them back as names), choice plates (`btnwait %9` +
+  `*conv_cplateN_c`) taken from the path like `select`, texts from their `vstrsp` lines; engrun patches a
+  plate's `btnwait %9` to `mov %9,%1098`. mkstart --path takes several paths (comma-separated), played in
+  one session: routes 3 and 4 need the earlier endings' flags.
+- Scratch build on the fixed 0.txt: out/mw-fixed = out/muramasa-web media + 0.txt, version.txt (copies),
+  text.*.txt and screens/ (links) from ~/Projects/conscripter-convert-muramasa-playable/out/mjen-dry.
+  All 4 pass with 0 problems:
+  `P=research/nitroplus/paths; mkstart.py out/mw-fixed out/play/at-mb01_001 --at mb01_001 --path $P/1-ichijou.txt --args '--real-time'`;
+  mc01_001: $P/2-kanae.txt; md01_001: $P/1-ichijou.txt,$P/2-kanae.txt,$P/3-chachamaru.txt;
+  md05_001: the same plus $P/4-muramasa.txt.
+- Smoke at mb01_001 (90 s, --real-time): f_mb01_001, pages 0..8, village bg with English text
+  (out/play/smoke-mb01/shots/00030_pg3.jpg). Missing images, all because out/muramasa-web predates the
+  converter fix: system/strip/*.png (plates, quick bar), system/window_*.png, cg/sys/adv/en/textwindow.png
+  (no text window drawn), cg/sys/quick/クイックメニュー台座.png. Without --real-time the auto-play run
+  stopped "stuck: 20000 waits without a new page" at pg 117 (mb01_002, 0.txt line 233372): recheck on the
+  rebuilt game.
 
 ## Next
-1. Resolve the missing *choice207_end (check origin/main `git log -- crates/conv-cons`: #649..#664 changed
-   0.txt output); then rerun the --at smoke test.
+1. Rebuild out/muramasa-web once muramasa/playable (the converter fix) is merged, so images match 0.txt;
+   rebuild the scratches with mkstart as above.
 2. Prologue from the title (s0), 1800 s real time.
-3. Route starts via mkstart --at: mb01_001 (paths/1-ichijou), mc01_001 (2-kanae),
-   md01_001 (3-chachamaru), md05_001 (4-muramasa); 1800 s each.
+3. The 30-minute runs: route starts via mkstart --at (paths as above), `EVERY=60 capped.sh 4 play.sh
+   <scratch> <name> 1800` each.
 4. Per trace: `python3 engine/tools/cons_trace_check.py out/play/<n>/trace.jsonl --script
    out/play/<scratch>/0.txt --config research/nitroplus/cons_trace_check.json`; triage; shots only where
    the trace points.
-5. Bugs: one frame each under out/play-bugs/; list in docs/games/muramasa.md Status; push; update PR #641.
+5. Bugs: one frame each under out/play-bugs/; list in docs/games/muramasa.md Status; push; update PR #665.

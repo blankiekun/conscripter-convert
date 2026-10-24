@@ -1,6 +1,7 @@
-"""mkstart.py <build> <scratch> [--at file] [--path p.txt] [--args 'a b']: a scratch
+"""mkstart.py <build> <scratch> [--at file] [--path p.txt[,q.txt...]] [--args 'a b']: a scratch
 game for the web build: symlinks to the build's read-only inputs, 0.txt patched by
-engrun (route choices; --at starts at that story file with nstrace's variables),
+engrun (route choices; --at starts at that story file with nstrace's variables; the
+paths play in order in one session, as later routes need the earlier endings' flags),
 cons_index.json (lazyload, every file, extra engine args)."""
 import sys, os, json, shutil
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -16,7 +17,7 @@ for name in os.listdir(build):
         os.symlink(os.path.join(build, name), os.path.join(scratch, name))
 text = open(os.path.join(build, '0.txt'), 'rb').read().decode('utf-8')
 if path:
-    segs = engrun.record(os.path.join(build, '0.txt'), [path], at)
+    segs = engrun.record(os.path.join(build, '0.txt'), path.split(','), at)
     seg = next(s for s in segs if not at or 'at' in s)
     text = engrun.patch(text, seg, at)
 open(os.path.join(scratch, '0.txt'), 'wb').write(text.encode('utf-8'))
