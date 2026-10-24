@@ -37,9 +37,10 @@ Paused 2026-10-20.
    uniform write not found yet); the menu's and Config's ground: not
    part 0x52 (FUN_0013b9a0's FUN_001b7f00(0xe, 0, 0x52, ...): its
    callback FUN_0013c510 draws only the screen-wide white and black
-   fades and the loading icon); the save list's date place; Gallery's
-   ground, row cell anchor and fades (widget data at 0x54E410 not
-   decoded).
+   fades and the loading icon; not tried yet: the menu's own widgets
+   through FUN_001227f0's descriptors, as the Gallery's 0x54E2F8 …);
+   the save list's date place (not tried yet: the save list's
+   FUN_001227f0 descriptors and their FUN_001adca0 buttons).
 7. Text window overflow, accepted (2026-10-23): 1 of 15711 JP pages
    exceeds 11 rows, 4 of 31431 EN pages exceed 13
    (`research/typemoon/overflow_pages.txt`); the engine's `pastPage`
