@@ -65,6 +65,20 @@ const THUMB: (u32, u32) = (154, 87);
 const COLUMNS: u32 = 6;
 const SCREEN: (u32, u32) = (1280, 720);
 
+/// gallerymenu_btn's cell for row `r`, column `c` (at rest, chosen, lit).
+// src: the menu's list entries (0x54E438, 0x30 bytes) point at five states
+// (0x54E628 + 0x50r, 0x10 each); state 0, 1, 4's piece (0x54E808 …): part
+// 7180, flags 16, texture rect (x0, y0, x1, y1) below
+fn btn_cell(r: u32, c: u32) -> (u32, u32, u32, u32) {
+    let x = match (r, c) {
+        (0, 0) => 7,
+        (5, 1) => 271,
+        (0, 2) => 535,
+        _ => 8 + 264 * c,
+    };
+    (x, 8 + 104 * r, 256, 96)
+}
+
 /// A CG of a slot (the slot table's entries).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cg {
@@ -255,7 +269,9 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
 
     // src: FUN_00106124's widgets (0x54E2F8…): gallerymenu_window (7181) at
     // (56, 0), config_innerbg (7184) at (365, 0), underline (7183) at (0, 72)
-    // guess: over black (what is under the gallery not traced)
+    // src: widget 0x54E410 (kind 1, FUN_001227f0 case 1): the rectangle at
+    // 0x4372B8 (0, 0, 1920 × 1080) at priority 200, under the others (240–300);
+    // FUN_00106124 colours it (0, 0, 0, 1) (FUN_001e2490, FUN_0011f9dc)
     let background = parts.as_ref().map(|p| -> Result<RgbaImage> {
         let mut bg = RgbaImage::from_pixel(SCREEN.0, SCREEN.1, Rgba([0, 0, 0, 255]));
         for (name, x, y) in [("config_innerbg", 365.0, 0.0), ("gallerymenu_window", 56.0, 0.0), ("underline", 0.0, 72.0)] {
@@ -272,7 +288,7 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
             let mut bg = bg.clone();
             for r in 1..6 {
                 let (x, y) = at(80.0, 160.0 + 80.0 * r as f32);
-                imageops::overlay(&mut bg, &p.cells("gallerymenu_btn", &[(0, r * 632 / 6, 266, 105)])?, x.into(), y.into());
+                imageops::overlay(&mut bg, &p.cells("gallerymenu_btn", &[btn_cell(r, 0)])?, x.into(), y.into());
             }
             Some(bg)
         }
@@ -284,10 +300,11 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
     // src: the menu's list (0x54E438): rows at x 80, y 160 + 80 a row;
     // gallerymenu_btn's rows (CG Gallery, Music Player, Flowchart, Movie,
     // Ending List, Title), its columns at rest, chosen and lit
-    // guess: a cell's top left at its row's place
+    // src: a cell's top left at its row's place: the pieces' flags 16 give
+    // anchor 0, origin (0, 0) in FUN_001b0d90's tables 0x4C9810/0x4C9840
     let row = |r: u32, name: &str| -> Result<Placed> {
-        let img = parts.as_ref().map(|p| p.cells("gallerymenu_btn", &[0, 1, 2].map(|c| (c * 800 / 3, r * 632 / 6, 266, 105)))).transpose()?;
-        placed(name, img, at(80.0, 160.0 + 80.0 * r as f32), (px(266.0) * 3, px(105.0)))
+        let img = parts.as_ref().map(|p| p.cells("gallerymenu_btn", &[0, 1, 2].map(|c| btn_cell(r, c)))).transpose()?;
+        placed(name, img, at(80.0, 160.0 + 80.0 * r as f32), (px(256.0) * 3, px(96.0)))
     };
     // Music Player, Flowchart and Movie: modes the script lacks (not clickable)
     let modes = [ExtrasMode::Gallery, ExtrasMode::Sound, ExtrasMode::Turntable, ExtrasMode::Turntable, ExtrasMode::Recollection, ExtrasMode::Back];
@@ -394,11 +411,14 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
         cursor,
         partial_alpha: 255,
         unseen,
-        // guess: the fades (the widgets' alpha steps not traced)
-        open_ms: 300,
-        page_ms: 300,
-        view_fade_ms: 300,
-        close_ms: 300,
+        // src: every alpha tween the gallery classes build (FUN_00126894 in
+        // 0x104000–0x11D000, e.g. FUN_00106934's) runs 0→1 or 1→0 over 0.5;
+        // inferred: seconds (the step's dt, FUN_00127620; 0.5 frames would
+        // end on the first step)
+        open_ms: 500,
+        page_ms: 500,
+        view_fade_ms: 500,
+        close_ms: 500,
         scroll_ms_per_px: 6,
         across: true,
         arrows_when_paged: true,
@@ -413,8 +433,8 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
             // the Ending List's row chosen (its second column)
             for r in 0..6 {
                 let (x, y) = at(80.0, 160.0 + 80.0 * r as f32);
-                let column = if r == 4 { 800 / 3 } else { 0 };
-                imageops::overlay(&mut bg, &p.cells("gallerymenu_btn", &[(column, r * 632 / 6, 266, 105)])?, x.into(), y.into());
+                let column = if r == 4 { 1 } else { 0 };
+                imageops::overlay(&mut bg, &p.cells("gallerymenu_btn", &[btn_cell(r, column)])?, x.into(), y.into());
             }
             // src: the widget at 0x437498: ending_title (7203) at (96, 0)
             let (x, y) = at(96.0, 0.0);
@@ -426,7 +446,7 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
     // ours: Back in the title bar (the last lesson's icon is where the gallery's is)
     let exit = Placed { y: px(20.0), ..gallery.exit.clone() };
     let replay = ending_list(exe, parts.as_ref(), &|name, img| save(name, img), save("ending_bg", ending_background)?, exit)?;
-    Ok(PictureExtras { background, items, hover_se: None, back_se: None, fade_ms: 300, gallery: Some(gallery), sound: None, replay: Some(replay), turntable: None, passage: None })
+    Ok(PictureExtras { background, items, hover_se: None, back_se: None, fade_ms: 500, gallery: Some(gallery), sound: None, replay: Some(replay), turntable: None, passage: None })
 }
 
 /// The Ending List's entries (`cGalleryEnding`, the table at 0x4374E8,
@@ -537,10 +557,10 @@ fn ending_list(exe: &Exe, parts: Option<&Parts>, save: &dyn Fn(&str, Option<Rgba
         blank: scenes[0].blank.clone().unwrap(),
         cursor: scenes[0].cursor.clone().unwrap(),
         scenes,
-        // guess: the fades (the widgets' alpha steps not traced)
-        open_ms: 300,
-        start_ms: 300,
-        end_ms: 300,
+        // src: 0.5 s alpha tweens, as the CG gallery's (above)
+        open_ms: 500,
+        start_ms: 500,
+        end_ms: 500,
         across: None,
         hold: None,
         engine_screen: false,
