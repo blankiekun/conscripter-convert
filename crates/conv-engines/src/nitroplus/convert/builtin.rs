@@ -272,12 +272,13 @@ impl Compiler<'_, '_> {
                             Kind::Other
                         }
                     },
+                    "lens" => Kind::Lens(self.lens()),
                     _ => {
                         self.note(format!("CreateEffect {}", arg(6).string()));
                         Kind::Other
                     }
                 };
-                if matches!(kind, Kind::Particles(_)) {
+                if matches!(kind, Kind::Particles(_) | Kind::Lens(_)) {
                     let o = self.create(name, kind, arg(1).int(), w, h);
                     (o.x, o.y) = (x, y);
                 } else {

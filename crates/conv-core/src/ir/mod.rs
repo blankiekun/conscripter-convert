@@ -325,6 +325,12 @@ pub enum ScreenEffect {
     /// from the first to the last along `ease` ([`Op::MoveEase`]'s; `None`
     /// straight); it stops after `end_ms`.
     Jolt { time_ms: u32, interval_ms: u32, range: [(i32, i32); 2], ease: Option<(u8, u32)>, end_ms: u32 },
+    /// A refraction disc of `diameter` px centred on `centre` (Nitroplus's
+    /// `CreateEffect` "Lens"): `curvature` (1000 = 1.0) and `distance` as
+    /// the original's settings, laid over at `opacity` (0-255). The centre
+    /// moves by each of `offsets` in turn, the next every `interval_ms`;
+    /// after the last, `looped` starts over, else it stays.
+    Lens { centre: (i32, i32), diameter: i32, curvature: i32, distance: i32, opacity: u32, interval_ms: u32, offsets: Vec<(i32, i32)>, looped: bool },
 }
 
 /// In [`Op::Text`] text: wait for a click here and go on typing on the

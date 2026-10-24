@@ -505,6 +505,16 @@ impl<'a> Emitter<'a> {
                     )
                     .unwrap();
                 }
+                Some(ScreenEffect::Lens { centre: (x, y), diameter, curvature, distance, opacity, interval_ms, offsets, looped }) => {
+                    let list = match offsets.is_empty() {
+                        true => String::new(),
+                        false => {
+                            let list: Vec<String> = offsets.iter().map(|(x, y)| format!("{x},{y}")).collect();
+                            format!(",{interval_ms},\"{}\",{}", list.join(" "), u8::from(*looped))
+                        }
+                    };
+                    writeln!(out, "screenlens {slot},{x},{y},{diameter},{curvature},{distance},{opacity}{list}").unwrap();
+                }
             }
             if transition.is_none() {
                 writeln!(out, "print 1").unwrap();

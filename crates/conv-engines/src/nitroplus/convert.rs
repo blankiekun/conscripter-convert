@@ -108,6 +108,7 @@ mod text_object;
 mod sounds;
 mod shake;
 mod rain;
+mod lens;
 mod turn;
 mod random;
 mod story;
@@ -475,6 +476,9 @@ enum Kind<'a> {
     /// `CreateEffect` Rain or Drop: a live particle layer of its own
     /// ([`Op::ParticleLayer`]) drawn as a `w`×`h` picture at its place.
     Particles(ParticleObject),
+    /// `CreateEffect` Lens: a refraction disc as wide as the object, at
+    /// its centre ([`lens`]).
+    Lens(lens::LensObject),
     /// `CreateCamera`: what its children show. Its place is the point the
     /// screen looks at (they are drawn that much the other way); its zoom
     /// `z` and a child's priority `p` (its depth) magnify the child
@@ -981,6 +985,8 @@ struct Compiler<'a, 'b> {
     shown: BTreeMap<String, Shown>,
     /// The particle layers running ([`Kind::Particles`]), as last synced.
     particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
+    /// The lens drawn ([`Kind::Lens`]), as last synced.
+    lens: Option<ScreenEffect>,
     /// The longest non-blocking action since the last sync.
     pending_ms: u32,
     /// The same per object, for a `WaitAction` on one of them.
@@ -1192,6 +1198,7 @@ struct State<'a> {
     seq: u64,
     shown: BTreeMap<String, Shown>,
     particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
+    lens: Option<ScreenEffect>,
     font_size: i64,
     window: Option<TextWindow>,
     window_visible: bool,
@@ -1218,6 +1225,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             seq: 0,
             shown: BTreeMap::new(),
             particle_layers: BTreeMap::new(),
+            lens: None,
             pending_ms: 0,
             pending_by: HashMap::new(),
             pending_tempo: HashMap::new(),

@@ -82,6 +82,7 @@ impl<'a> Compiler<'a, '_> {
             seq: self.seq,
             shown: self.shown.clone(),
             particle_layers: self.particle_layers.clone(),
+            lens: self.lens.clone(),
             font_size: self.font_size,
             window: self.window.clone(),
             window_visible: self.window_visible,
@@ -95,6 +96,7 @@ impl<'a> Compiler<'a, '_> {
         self.seq = s.seq;
         self.shown = s.shown;
         self.particle_layers = s.particle_layers;
+        self.lens = s.lens;
         self.font_size = s.font_size;
         self.window = s.window;
         self.window_visible = s.window_visible;

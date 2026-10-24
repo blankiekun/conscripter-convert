@@ -999,6 +999,7 @@ impl Compiler<'_, '_> {
         changes.extend(placed);
         self.shown.extend(new_shown);
         animated.extend(self.start_one_shots());
+        animated.extend(self.lens_op());
         // Loops started during a change that isn't a move: after their lead.
         for (name, lead) in std::mem::take(&mut self.lead_ins) {
             if let (Some(s), Some(Object { shake: Some((_, keys, from)), .. })) = (self.shown.get(&name), self.objects.get(&name)) {
