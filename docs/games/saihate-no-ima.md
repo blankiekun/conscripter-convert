@@ -18,6 +18,21 @@ Open bugs:
   name plate.
 - Value still not from the exe: the chapter history greys entries
   from a runtime index (`+0x19c`, `0x4682a0`; ours all white).
+- System screens darken the blurred scene by 20 a channel too
+  (Brightness `0x436510` -20 after Filter-Smooth, `0x46c030`); the save
+  menu's `filter` takes one filter, so ours only blurs.
+- Top bar values still from shots (`screens.rs` `top_bars`), read so
+  far: rows, buttons and level box from `0x496610`, `0x497160` and the
+  table `0x4fa720` (box (610, 30), prev 708, next 734, exit 764, row
+  533, pitch 26: all as ours); depth digits right- and bottom-aligned
+  (`0x496397`: +0x24, +0x28 = 1) ending at (669, 47) and (690, 47),
+  digit widths `0x4fa780` (9 5 7 6 9 6 7 7 8 8), cell `0x4fa7f8` 9×13:
+  ours draws full cells at (647, 34), (685, 34). Not read: scene title
+  field (531, 6) (`0x499040` in `0x496fe0`) against ours (524, 6),
+  chapter title (73, 6) (`0x49b1a0`) against ours (72, 7), the cursor
+  (`0x140c`: box - 70, row + 5) against ours (542, row + 5).
+- Text style 6 rows/columns and the default style
+  (`convert.rs` text window match): not looked at yet.
 - Unchecked: that `arc.nsa` (about 1.2 GB) loads in the web build
   (else split the voices into `arc1.nsa`), and that saves, thumbnails
   and `kidoku.dat` persist there.

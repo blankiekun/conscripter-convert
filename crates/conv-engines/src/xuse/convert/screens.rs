@@ -479,9 +479,12 @@ impl AssetBank {
             // src: exe 0x46ac50 (the preview at (389, 136)).
             preview: Rect { x: 389, y: 136, w: 400, h: 300 },
             text_width: 0,
-            // The scene behind is blurred slightly (measured under wine:
-            // Gaussian σ about 1): a 3×3 mean, in SmoothCrossFade's slot.
-            backdrop: Some((SMOOTH_BLUR_SLOT, [FILTER_BLUR, FILTER_BLEND_COPY, 256, 1, 1, 0])),
+            // src: exe 0x46c030 (SaveMode.cpp): the screen behind gets
+            // Filter-Smooth 0x43e670 with (2, 1), a mean of the pixels up to
+            // 2 away across and 1 down (0x43eba0, weights 0x43e430), in
+            // SmoothCrossFade's slot; then Brightness 0x436510 -20 on each
+            // channel (0x436420), which one filter slot can't add (Status).
+            backdrop: Some((SMOOTH_BLUR_SLOT, [FILTER_BLUR, FILTER_BLEND_COPY, 256, 2, 1, 0])),
         })
     }
 
