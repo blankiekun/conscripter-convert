@@ -1,0 +1,11 @@
+# research/typemoon/overflow_pages.py read, 2026-10-23, dry runs of dfdd5c21, engine 15f6279, IPAGothic default.ttf
+# tsukihime (JP): source line of out/snapshot/tsukihime.filled
+891527	split at 891527
+1 pages past the window's rows (1 extra waits)
+# tsukihime-en: source line of out/snapshot/tsukihime-en.filled (JP part ends at 1556729)
+943109	split at 943109
+2036754	split at 2036923
+2037877	split at 2038057
+2181571	split at 2181711
+2258264	split at 2258312
+5 pages past the window's rows (5 extra waits)
