@@ -224,6 +224,99 @@ fn align(a: &[(String, Vec<&str>)], b: &[(String, Vec<&str>)]) -> Vec<(Option<us
     out
 }
 
+/// The plain code lines `a` and `b` both have, in order: (index in a,
+/// index in b). A longest common subsequence where the block is small;
+/// a larger one (past 32M cells, 128 MB; the boot code is 16M) is cut at
+/// the lines each side has once, in the same order (patience diff).
+fn common_lines(a: &[(String, bool)], b: &[(String, bool)]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    common_in(a, b, (0, a.len()), (0, b.len()), &mut out);
+    out
+}
+
+fn common_in(a: &[(String, bool)], b: &[(String, bool)], (mut a0, mut a1): (usize, usize), (mut b0, mut b1): (usize, usize), out: &mut Vec<(usize, usize)>) {
+    const LIMIT: usize = 1 << 25;
+    let same = |i: usize, j: usize| a[i].1 && b[j].1 && a[i].0 == b[j].0;
+    while a0 < a1 && b0 < b1 && same(a0, b0) {
+        out.push((a0, b0));
+        (a0, b0) = (a0 + 1, b0 + 1);
+    }
+    let mut tail = Vec::new();
+    while a0 < a1 && b0 < b1 && same(a1 - 1, b1 - 1) {
+        (a1, b1) = (a1 - 1, b1 - 1);
+        tail.push((a1, b1));
+    }
+    let (n, m) = (a1 - a0, b1 - b0);
+    if n * m <= LIMIT {
+        // len[i][j]: the longest common run of a[a0 + i..a1] and b[b0 + j..b1]
+        let w = m + 1;
+        let mut len = vec![0u32; (n + 1) * w];
+        for i in (0..n).rev() {
+            for j in (0..m).rev() {
+                len[i * w + j] = if same(a0 + i, b0 + j) { len[(i + 1) * w + j + 1] + 1 } else { len[(i + 1) * w + j].max(len[i * w + j + 1]) };
+            }
+        }
+        let (mut i, mut j) = (0, 0);
+        while i < n && j < m {
+            if same(a0 + i, b0 + j) {
+                out.push((a0 + i, b0 + j));
+                (i, j) = (i + 1, j + 1);
+            } else if len[(i + 1) * w + j] >= len[i * w + j + 1] {
+                i += 1;
+            } else {
+                j += 1;
+            }
+        }
+    } else {
+        // lines once on each side, then the longest run of them in order
+        let mut count: HashMap<&str, (usize, usize, usize)> = HashMap::new();
+        for i in (a0..a1).filter(|&i| a[i].1) {
+            let e = count.entry(&a[i].0).or_insert((0, 0, 0));
+            (e.0, e.2) = (e.0 + 1, i);
+        }
+        let mut pairs = Vec::new();
+        for j in (b0..b1).filter(|&j| b[j].1) {
+            if let Some(e) = count.get_mut(b[j].0.as_str()) {
+                e.1 += 1;
+            }
+        }
+        for j in (b0..b1).filter(|&j| b[j].1) {
+            if let Some(&(1, 1, i)) = count.get(b[j].0.as_str()) {
+                pairs.push((i, j));
+            }
+        }
+        // longest increasing run of a's index (pairs are in b's order)
+        let (mut tops, mut prev): (Vec<usize>, Vec<Option<usize>>) = (Vec::new(), vec![None; pairs.len()]);
+        for k in 0..pairs.len() {
+            let at = tops.partition_point(|&t| pairs[t].0 < pairs[k].0);
+            prev[k] = at.checked_sub(1).map(|p| tops[p]);
+            if at == tops.len() {
+                tops.push(k);
+            } else {
+                tops[at] = k;
+            }
+        }
+        let mut anchors = Vec::new();
+        let mut k = tops.last().copied();
+        while let Some(x) = k {
+            anchors.push(pairs[x]);
+            k = prev[x];
+        }
+        anchors.reverse();
+        let (mut i, mut j) = (a0, b0);
+        for (ai, bj) in anchors {
+            common_in(a, b, (i, ai), (j, bj), out);
+            out.push((ai, bj));
+            (i, j) = (ai + 1, bj + 1);
+        }
+        // past the last anchor (or with none): only if small enough now
+        if (a1 - i) * (b1 - j) <= LIMIT {
+            common_in(a, b, (i, a1), (j, b1), out);
+        }
+    }
+    out.extend(tail.into_iter().rev());
+}
+
 /// Two editions of one game in one script (the user's decision,
 /// 2026-10-18: each language plays exactly like its original): the text
 /// by ID as [`translated`], and each run of lines from one source
@@ -251,9 +344,25 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
     }
     let mut m = Merged { kept, ..Default::default() };
     let mut seen: HashMap<String, usize> = HashMap::new();
+    // runs that don't pair up, side by side, are one block: the code both
+    // have in them stays in the script ([`common_lines`])
+    type Group<'s> = (Option<usize>, Option<usize>, Vec<&'s str>, Vec<&'s str>);
+    let mut groups: Vec<Group> = Vec::new();
+    let mut alone = false;
     for (x, y) in align(&ra, &rb) {
-        let a = x.map_or(&[][..], |i| &ra[i].1[..]);
-        let b = y.map_or(&[][..], |j| &rb[j].1[..]);
+        match groups.last_mut() {
+            Some(g) if alone && (x.is_none() || y.is_none()) => {
+                g.0 = g.0.or(x);
+                g.1 = g.1.or(y);
+                g.2.extend(x.map_or(vec![], |i| ra[i].1.clone()));
+                g.3.extend(y.map_or(vec![], |j| rb[j].1.clone()));
+            }
+            _ => groups.push((x, y, x.map_or(vec![], |i| ra[i].1.clone()), y.map_or(vec![], |j| rb[j].1.clone()))),
+        }
+        alone = x.is_none() || y.is_none();
+    }
+    for (x, y, a, b) in groups {
+        let (a, b) = (&a[..], &b[..]);
         let (ca, ka, kb) = (code(a), refs(a), refs(b));
         // the define section runs once, at start, whatever the language:
         // both editions' declarations (their `defvar`s), the base's `language`
@@ -291,25 +400,42 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
         let n = seen.entry(place.clone()).or_insert(0);
         *n += 1;
         ids.at = format!("{place}\u{1}{n}");
-        let filled = |run: &[&str], t| -> Vec<String> { if run.is_empty() { vec![] } else { fill_from(&run.join("\n"), t).lines().map(str::to_string).collect() } };
+        // each line filled, and whether it is plain code (no text by ID)
+        let filled = |run: &[&str], t| -> Vec<(String, bool)> {
+            if run.is_empty() {
+                return vec![];
+            }
+            fill_from(&run.join("\n"), t).lines().zip(run).map(|(l, raw)| (l.to_string(), !raw.contains('^'))).collect()
+        };
         let (mut fa, mut fb) = (filled(a, &own_ids.0), filled(b, &own_ids.1));
         m.blocks += 1;
         // the `language` line stays in the script, where the base has it
-        let is_language = |l: &String| l.trim_start().starts_with("language \"");
+        let is_language = |l: &(String, bool)| l.0.trim_start().starts_with("language \"");
         let (ia, ib) = (fa.iter().position(is_language), fb.iter().position(is_language));
         let (tail_a, tail_b) = match (ia, ib) {
             (Some(i), Some(j)) => (fa.split_off(i + 1), fb.split_off(j + 1)),
             _ => (vec![], vec![]),
         };
-        let language = ia.zip(ib).map(|_| (fa.pop().unwrap_or_default(), fb.pop()));
+        let language = ia.zip(ib).map(|_| (fa.pop().unwrap_or_default().0, fb.pop()));
         for (part_a, part_b, after) in [(&fa, &fb, language.as_ref().map(|l| &l.0)), (&tail_a, &tail_b, None)] {
-            for k in 0..part_a.len().max(part_b.len()) {
-                let (la, lb) = (part_a.get(k).map_or("", String::as_str), part_b.get(k).map_or("", String::as_str));
-                let id = ids.id(DIFFERS, la);
-                writeln!(m.script, "^{id}").unwrap();
-                writeln!(differs.0, "{id}\t{la}").unwrap();
-                writeln!(differs.1, "{id}\t{lb}").unwrap();
-                m.lines += 1;
+            // Code both have stays in the script, in order (labels, jumps:
+            // what reads 0.txt without the tables still finds them); only
+            // the lines between differ per language.
+            let (mut i, mut j) = (0, 0);
+            for (ci, cj) in common_lines(part_a, part_b).into_iter().chain([(part_a.len(), part_b.len())]) {
+                for k in 0..(ci - i).max(cj - j) {
+                    let (la, lb) = (part_a.get(i + k).filter(|_| i + k < ci), part_b.get(j + k).filter(|_| j + k < cj));
+                    let (la, lb) = (la.map_or("", |l| l.0.as_str()), lb.map_or("", |l| l.0.as_str()));
+                    let id = ids.id(DIFFERS, la);
+                    writeln!(m.script, "^{id}").unwrap();
+                    writeln!(differs.0, "{id}\t{la}").unwrap();
+                    writeln!(differs.1, "{id}\t{lb}").unwrap();
+                    m.lines += 1;
+                }
+                if let Some(l) = part_a.get(ci) {
+                    writeln!(m.script, "{}", l.0).unwrap();
+                }
+                (i, j) = (ci + 1, cj + 1);
             }
             if let Some(l) = after {
                 writeln!(m.script, "{l}").unwrap();
@@ -429,6 +555,37 @@ mod tests {
         assert_eq!(blank(fill(&m.script, &m.tables.1)).replace("language \"ja\"", "language \"en\""), fill(&en_script, &table(&en.rows)));
         assert!(m.script.contains("language \"ja\"") && m.script.contains("bg 1") && m.script.contains(&t1));
         assert_eq!(m.blocks, 2, "place 2 and place 3");
+    }
+
+    #[test]
+    fn a_differing_choice_keeps_its_labels_in_the_script() {
+        // ma02_014: the choice's plates differ by language; its labels and
+        // jumps stayed only in the tables, so nstrace and engrun, which
+        // read 0.txt, found `goto *c_end` without `*c_end`
+        use conv_core::ir::SourceLoc;
+        let at = |i| Some(SourceLoc { file: "a.nss".into(), index: i });
+        let choice = |plate: &str| format!("*start\n{plate}\nbtnwait %9\nif %9 == 1 goto *c_0\n*c_0\ngoto *c_end\n*c_end\nend\n");
+        let (ja_script, en_script) = (choice("vstrsp 1,\"はい\",9,9"), choice("strsp 1,\"Yes\",5,5"));
+        let lines = vec![(2, at(1)), (8, None)];
+        let none: Vec<Row> = vec![];
+        let m = merge(Edition { script: &ja_script, lines: &lines, rows: &none }, Edition { script: &en_script, lines: &lines, rows: &none });
+        for l in ["btnwait %9", "if %9 == 1 goto *c_0", "*c_0", "goto *c_end", "*c_end"] {
+            assert!(m.script.lines().any(|s| s == l), "{l} in the script");
+        }
+        assert_eq!((m.blocks, m.lines), (1, 1), "only the plate is per language");
+        let blank = |s: String| s.lines().filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n") + "\n";
+        assert_eq!(blank(fill(&m.script, &m.tables.0)), ja_script);
+        assert_eq!(blank(fill(&m.script, &m.tables.1)), en_script);
+    }
+
+    #[test]
+    fn a_large_block_keeps_its_labels_too() {
+        // past the DP's limit: anchored on the lines each side has once
+        let side = |lang: &str| -> Vec<(String, bool)> { (0..3000).flat_map(|i| [(format!("*l{i}"), true), (format!("lsp 1,\"{lang}\",0,0"), true), ("print 1".into(), true)]).collect() };
+        let (a, b) = (side("ja"), side("en"));
+        let common = common_lines(&a, &b);
+        assert_eq!(common.len(), 6000, "the labels and the prints");
+        assert!(common.iter().all(|&(i, j)| i == j && a[i].0 != "lsp"));
     }
 
     #[test]
