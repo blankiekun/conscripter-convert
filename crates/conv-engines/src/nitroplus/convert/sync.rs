@@ -269,6 +269,7 @@ impl Compiler<'_, '_> {
             // (A particle layer: one picture, drawn live.)
             let (image, cells, base, looped, frame_ms, w, h) = match &o.kind {
                 Kind::Strip(s) => (s.image.clone(), s.cells, s.zoom, s.looped, s.frame_ms, s.w, s.h),
+                // ours: a particle layer is drawn on a picture of the effect's size, unzoomed until the effect's own zoom
                 Kind::Particles(p) => (conv_core::ir::particle_sprite(p.layer), 1, (100, 100), true, 0, p.w, p.h),
                 _ => continue,
             };
@@ -276,11 +277,13 @@ impl Compiler<'_, '_> {
                 // Zoomed and turned by the engine about its centre; a turn
                 // about x or y draws it that much shorter (no perspective).
                 let tilt = |deg: i64, z: i64| (z as f64 * (deg as f64).to_radians().cos().abs()).round() as i32;
+                // ours: 1000 = unit zoom, ‰
                 let zoom = (base.0 * tilt(o.turn.1, o.zoom.0) / 1000, base.1 * tilt(o.turn.0, o.zoom.1) / 1000);
                 let cells = Some((cells, looped, zoom, frame_ms));
                 let (px, py) = self.parent_offset(n);
                 let (x, y) = (o.x + px, o.y + py);
                 let shown = Shown { layer: 0, image, x, y, w, h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, fade: o.fade.clone() };
+                // ours: 1000 = unit zoom, ‰
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (w, h), (false, false)));
             }
         }

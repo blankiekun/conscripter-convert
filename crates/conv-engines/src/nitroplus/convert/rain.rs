@@ -26,16 +26,21 @@ use conv_core::ir::Particles;
 
 // src: exe 00435e60 (128 drops, speed 152), 00436390 (196 px streak, 0xadadad), 0042f680 (alpha)
 const RAIN_DROPS: i64 = 128;
+// src: exe 00435e60 (default speed 152)
 const RAIN_SPEED: i64 = 152;
+// src: exe 00436390 (streak height)
 const STREAK: u32 = 196;
 /// The streak's colour (`0xadadad`).
 const GREY: u8 = 0xad;
 // src: exe 00434200 (256 drops; scale, base and coef tables)
 const DROPS: i64 = 256;
 /// Drawn size of class 3c + k, ‰.
+// src: exe 00434200 (scale table)
 const SCALE: [i64; 4] = [1000, 400, 800, 200];
 /// Rate of class 3c + k, points per 16 ms, plus `COEF`·speed.
+// src: exe 00434200 (base rate table)
 const BASE: [i64; 12] = [4, 3, 4, 3, 2, 3, 1, 2, 2, 1, 1, 2];
+// src: exe 00434200 (coefficient table)
 const COEF: [f64; 12] = [1.0, 0.75, 1.0, 0.75, 0.5, 0.75, 0.3, 0.5, 0.5, 0.3, 0.3, 0.5];
 // ours: TICKS: the layer ticks 24 times a second (41.7 ms; the exe at
 // most every 42 ms, but the layer's rate is a whole number), each moving
@@ -44,6 +49,7 @@ const TICKS: i64 = 24;
 
 /// `rate` points per 16 ms as points per tick.
 fn per_tick(rate: i64) -> String {
+    // ours: 62.5 = 1000/16, the exe's 16 ms rate unit, spread over a 1/TICKS tick
     let v = rate as f64 * 1000.0 / 16.0 / TICKS as f64;
     format!("{}", (v * 1000.0).round() / 1000.0)
 }
@@ -100,6 +106,7 @@ impl Compiler<'_, '_> {
 /// The streak's alpha `k` px down it: 20 + floor(8k/7) to 130 at row 97,
 /// then down by 1 to 32 (`0042f680`, research/nitroplus/rain_exe.py).
 fn alpha(k: u32) -> u8 {
+    // src: exe 0042f680 (alpha ramp)
     let v = if k < 98 { 20 + k * 8 / 7 } else { 130 - (k - 97) };
     v as u8
 }
