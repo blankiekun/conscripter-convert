@@ -26,7 +26,8 @@ Setup and dispatch: `docs/lead-new-game.md`, sections 3-4.
 3. **Identify the engine** from exe strings, RTTI, archive magic, config files (a Windows game: the
    first-contact kit; a known engine: its format docs first). Done: engine named in the document; for a family
    we convert, the nearest game and the code that carries over; prior work (fan-translation tools, engine
-   reimplementations, extractors) listed with what each answers. Detail: reference, "First contact".
+   reimplementations, extractors) listed with what each answers; search again when a paused game resumes.
+   Detail: reference, "First contact".
 4. **Start the game document** from `docs/games/TEMPLATE.md` (public: `<install>`/`<game>` placeholders, no
    local paths). "Status" holds the open state, current in every commit. Done: committed with Scope,
    Walkthrough, Progression variables and Status.
@@ -41,9 +42,14 @@ Setup and dispatch: `docs/lead-new-game.md`, sections 3-4.
 6. **Decode the scripts** fully (header, code, constant pool, labels) with a dump subcommand; rank opcodes or
    built-ins by use, work from the top, resolve every index space a jump uses. Decompile with
    `research/tools/ghidra/ghidra_export.sh`, each identified name in `research/<engine>/names.tsv`; tables and
-   self-contained functions are lifted, not read by hand. Done: every script parses, every jump target exists.
+   self-contained functions are lifted, not read by hand. Each struct field a reading relies on gets its
+   writers listed (xrefs): a field written by another command than ours is a wrong reading. Done: every
+   script parses, every jump target exists.
    Detail: reference, "Decompiling the exe", "Lifting from the exe".
-7. **Convert what the corpus uses**, most-used opcodes first. Done: the ranked gaps are in Status.
+7. **Convert what the corpus uses**, most-used opcodes first. Two lists beside the opcodes: the script
+   variables the exe reads itself (the scripts' API, crossed with the scripts' writes) and the shaders or
+   passes every frame goes through (texture load, final output), not only those a command picks; each ignored
+   one, with its use count, is a gap. Done: the ranked gaps are in Status.
 
 ### Converting
 
