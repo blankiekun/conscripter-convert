@@ -43,7 +43,13 @@ Paused 2026-10-20.
    5.5 vs the eboot's 4.125); confetti's first side birth at x = −64
    or 1344 (eboot −32); a load restarts them from empty, and link
    scenes (`menu/scenes.rs`) don't keep them (Oretsuba has none).
-7. Wave transition (InOut_Act 1): :Param defaults from the eboot; the
+7. Sprite centres without a place (`mages/convert.rs`, two `guess:`
+   comments): with no picture to replace, task_run gives Sprite
+   (640, 560) and SpriteBG's corner (640 - w/2, 360 - h/2) in units not
+   traced; without `:Position`, the record's has-a-place flag (+0x44 in
+   scene_load 0x8102840a) has no reader traced. Routes left: task_run's
+   units; a reader of +0x44.
+8. Wave transition (InOut_Act 1): :Param defaults from the eboot; the
    amplitude unit is in fragment GXP 0x8115f63c (literals read, no
    screen-size factor). Route left: decode it with gxp2glsl (rebuild
    its Vita3K checkout).
