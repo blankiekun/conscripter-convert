@@ -1236,6 +1236,12 @@ fn bit_helper_algorithm() {
 }
 
 #[test]
+fn single_byte_text_goes_on_after_a_click_wait() {
+    let w = conv_core::ir::CLICK_WAIT_MARK;
+    assert_eq!(single_byte_waits(&format!("For example...{w} what if?\nEnd.{w}\nx{w}")), "For example...@`` what if?\nEnd.@\nx@");
+}
+
+#[test]
 fn text_is_made_safe() {
     assert_eq!(text_safe("Ghost: 50% @home"), "　Ghost: 50％ ＠home");
     assert_eq!(text_safe("「a/b」"), "「a／b」");

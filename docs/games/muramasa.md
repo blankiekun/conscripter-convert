@@ -42,10 +42,6 @@ Known bugs:
   - `f_mb01_002` (pg 117, 0.txt line 234638, `if %981 == 0 dwave 0,"voice\mb01\0020100a12.ogg"`):
     auto-play stops "20000 waits without a new page" after the dwave (`--at mb01_001`
     stalled; the 1800 s mb01 run passed it); frame `stall-mb01_002`.
-  - English `@` cut: text after `@ ` is run as a command (`what`, `and`, `then`: "unknown
-    command") and never shown; 227 `text.en` entries have `@ word`; prologue pg 100,
-    en-mc01 pg 32 (0.txt line 234895) and pg 213 (236008); frames `en-text-dropped-pg100`,
-    `en-mc01-at-cut-pg36`.
   - Prologue pg 233: text over black with no window or name plate; frame `no-window-pg233`
     (may be intended).
   - `rain_streak.png` given to `particle` while only `system/strip/rain_streak.webp` exists:

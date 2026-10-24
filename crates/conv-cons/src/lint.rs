@@ -77,6 +77,7 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             continue;
         }
         if is_text(line) {
+            text_resumes(&mut report, i, line);
             if vertical && let Some(c) = half_width_in_text(line) {
                 report.add("half-width character in vertical text (the engine exits)", i, format!("{c:?} in {}", short(line)));
             }
@@ -200,6 +201,71 @@ fn is_text(line: &str) -> bool {
     line.starts_with(|c: char| !c.is_ascii() || c == '`')
 }
 
+/// The kind [`text_resumes`] reports.
+pub const TEXT_AS_COMMAND: &str = "text read as a command (after a closing backquote, or a wait and a space)";
+
+/// Text lines of `script` whose text goes on where the engine reads a
+/// command (engine/src/cons/ScriptHandler.cpp `readToken`): after a
+/// closing backquote, a letter starts a command (`` `a`b ``); after a click
+/// or page wait and a space, a textgosub's return skips the space and
+/// reads on from a letter (`` `a@ b ``, `あ@ b`). `` @` ``, `` \` ``, a
+/// `` `/ `` at the end, `:` and `:br:br:` between strings and the text tags are the forms meant.
+pub fn text_resumes(report: &mut Report, i: usize, line: &str) {
+    let b = line.as_bytes();
+    let command = |at: usize| b.get(at).is_some_and(|&c| c.is_ascii_alphabetic() || c == b'_');
+    let after_wait_space = |mut at: usize| {
+        let start = at;
+        while matches!(b.get(at), Some(b' ' | b'\t')) {
+            at += 1;
+        }
+        at > start && command(at)
+    };
+    let mut at = 0;
+    loop {
+        while matches!(b.get(at), Some(b' ' | b'\t')) {
+            at += 1;
+        }
+        match b.get(at) {
+            None => return,
+            Some(b'`') => {
+                at += 1;
+                while let Some(&c) = b.get(at).filter(|&&c| c != b'`') {
+                    at += 1;
+                    if matches!(c, b'@' | b'\\') && after_wait_space(at) {
+                        return report.add(TEXT_AS_COMMAND, i, around(line, at));
+                    }
+                }
+                at += 1; // the closing backquote
+                if b.get(at) == Some(&b'/') && at + 1 == b.len() {
+                    return;
+                }
+            }
+            Some(b':') => {
+                // the joined lines' `:`, `:br:br:` (strtab::join_text_lines)
+                at += 1;
+                while line[at..].starts_with("br:") {
+                    at += 3;
+                }
+                if b.get(at) != Some(&b'`') {
+                    return;
+                }
+            }
+            Some(_) if command(at) => return report.add(TEXT_AS_COMMAND, i, around(line, at)),
+            Some(b';' | b'~' | b'*') => return,
+            Some(_) => {
+                // two-byte text runs to the line's end
+                while let Some(&c) = b.get(at) {
+                    at += 1;
+                    if matches!(c, b'@' | b'\\') && after_wait_space(at) {
+                        return report.add(TEXT_AS_COMMAND, i, around(line, at));
+                    }
+                }
+                return;
+            }
+        }
+    }
+}
+
 /// The first half-width character in a text line, past the tags the
 /// backend writes (`#rrggbb`, `!zNNN`, `!i1`, `!c`, `!sN`, `!wN`, `!dN`, ruby `(…/…)`)
 /// and the page and click waits.
@@ -271,6 +337,15 @@ fn file_name(s: &str) -> Option<&str> {
     (!stem.is_empty() && EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()) && !name.contains(['$', '%'])).then_some(name)
 }
 
+/// Up to 30 characters of `line` from about 10 bytes before byte `at`.
+fn around(line: &str, at: usize) -> String {
+    let mut from = at.saturating_sub(10).min(line.len());
+    while !line.is_char_boundary(from) {
+        from -= 1;
+    }
+    short(&line[from..])
+}
+
 fn short(line: &str) -> String {
     line.chars().take(30).collect()
 }
@@ -278,6 +353,22 @@ fn short(line: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_text_read_as_a_command() {
+        let lines = ["`For example...@ what if?\\", "`For example...@`` what if?\\", "`a,`I slay them.", "`a,`:br:`b@`/", "`a`:br:br:`b`:`c", "`a`:`b`c", "`a@!i1b\\", "あ@ what", "`x`/"];
+        let flagged: Vec<usize> = lines
+            .iter()
+            .enumerate()
+            .filter(|(i, l)| {
+                let mut r = Report::default();
+                text_resumes(&mut r, *i, l);
+                !r.is_empty()
+            })
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(flagged, [0, 2, 5, 7]);
+    }
 
     #[test]
     fn finds_each_kind_of_problem() {

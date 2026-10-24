@@ -1624,6 +1624,30 @@ fn escape(text: &str) -> String {
         .collect()
 }
 
+/// A single-byte line's click waits: `@`, and where text goes on after it
+/// on the line, `` @`` `` (the string closes and a new one opens). A
+/// textgosub comes back after the wait with a ` string's rest only when
+/// no space follows the `@` (engine/src/cons/ONScripter_text.cpp
+/// `textgosubReturn`, ScriptHandler.cpp `readToken`: it skips the spaces
+/// before it checks `backquote_resume`), else it reads `@ what` on as the
+/// command `what`; after `` @` `` it goes on at the next token, the new
+/// string.
+pub(crate) fn single_byte_waits(text: &str) -> String {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != conv_core::ir::CLICK_WAIT_MARK {
+            out.push(c);
+            continue;
+        }
+        out.push('@');
+        if chars.peek().is_some_and(|&n| n != '\n' && n != conv_core::ir::CLICK_WAIT_MARK) {
+            out.push_str("``");
+        }
+    }
+    out
+}
+
 /// Each character's colour (`#RRGGBB`) and size (percent) from `styles`;
 /// later styles win where they overlap.
 fn colours_and_sizes(n: usize, styles: &[TextStyle]) -> (Vec<String>, Vec<u16>) {
