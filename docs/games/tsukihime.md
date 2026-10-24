@@ -39,6 +39,33 @@ Paused 2026-10-20.
    click, nothing is clipped. The original's behaviour on those pages
    is unread (it seems to draw past 720 px; page clear and wrap not
    read); not pursued.
+7. Engine-read words the converter ignores (`research/typemoon/engine_vars.py`
+   over the 1.0.2 decompile, F at 0x146B442, G at 0x146C892; 110 words
+   read at a constant index, 32 also written by the 549 scripts; only
+   F027 is lowered; `research/typemoon/engine_vars.tsv`), by writes:
+   - F1104 (411 `_WKST`, 140 scripts; 185 set 1): ≠ 0 drops the novel
+     window's plate (`FUN_001391a0`, `else if` at F822 = 1); we always
+     draw it.
+   - F1118 (536 sets; 26 `= 0` at day ends): `_SELA` (`cmd_SELA`
+     0x192930, 26 day-start scripts) opens the `FUN_00183b20` dialog in
+     mode 3 only when it is 0, then sets it 1; we drop `_SELA`.
+   - F022/F023 (548 sets each, 518 scripts): copied into the save record
+     (+0x3414, `FUN_0015a910`) and read by `FUN_0014cba0`; likely the
+     save list's chapter (item 5), unread.
+   - F1106/F1107 (675 sets) with F1105: the bubble's place (item 2).
+   - F1123 (1 span, `09_01_CIEL09_1_1`): = 1 keeps the voice across
+     clicks (`FUN_001802c0` skips `FUN_0019c3b0` under setting +0x2E).
+   - F1110–F1113 (2 sets each, `QA_09`, `QA_20`): read by the drawer;
+     F1112/F1113 also go to empty stubs 0x13B3E0/0x13B400.
+   - G010 (1 set, `00_00`): read by the title (`FUN_0018d5d0`,
+     `FUN_0018e200`, `FUN_001912e0`), written by `FUN_00190180`.
+   - F024/F025 (2–3 sets, `START_SCRIPT`, `ARCHIVE`): F024 read by
+     `FUN_00193d10` (39 times) and `scene_mode_flag`'s setter
+     `FUN_00148ac0`; F025 by `FUN_00147b10`.
+   No gap: F822 (= 1 from `START_SCRIPT`, never reset: novel layout),
+   F1109 (only set 0), F823 and F847–F869 (page line counters, reset per
+   page; our pages hold them). Field writers of the layer, text and
+   sound structs: not done.
 
 ## Scope
 
