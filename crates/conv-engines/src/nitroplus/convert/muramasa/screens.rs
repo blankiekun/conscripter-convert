@@ -504,8 +504,8 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// text's font at 20 (`TextBox.backlogFieldRect`, `FONT_LIST`
 /// `バックログ` in `function_textbox.nut`): rows 570 px wide; the
 /// field from y 10, 480 high, `backlogRowSpace` 10: 34 px apart (the
-/// font's height 24 + 10), 14 rows, the first drawn from y 22 (where the
-/// original's are, measured under wine); the speaker 38 px left of the
+/// font's height 24 + 10), 14 rows, the first drawn from y 22 (field 10 + row
+/// space 10 + the glyph's 2 px drop, measured under wine); the speaker 38 px left of the
 /// field, x 112.
 fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
@@ -532,7 +532,11 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         knob_y: (50, 461),
         voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], voice_x, 0)?, // script voice (sys_backlog.nut) icon, see src lines above
         text_x,
-        text_y: if en { 22 } else { 49 },
+        // src: en 22 = backlogFieldRect.y 10 (function_textbox.nut) + the first line's y, backlogRowSpace 10
+        // (sys_backlog.nut main starts the line stack at it; BackLogUpdateView draws line.y - scroll + rect.y
+        // + over) + 2, the glyph's drop inside its 24 px line (measured under wine: CTextEnglish_layout
+        // 0x4a7f60 takes it from the font's run-time metrics; docs/games/muramasa-en.md Status)
+        text_y: if en { 10 + 10 + 2 } else { 49 },
         row_step: if en { 34 } else { 30 },
         rows: if en { 14 } else { 16 },
         columns,

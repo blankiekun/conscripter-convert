@@ -28,6 +28,10 @@ Open:
 - A frame could settle: backlog speaker icon x (102), save thumbnails
   (158x90) and 300 ms page fade; Q.Save shows our one quick save (the
   port keeps 20).
+- Backlog first row y 22: 20 is the scripts' (`backlogFieldRect.y` 10 +
+  `backlogRowSpace` 10, `sys_backlog.nut`), the glyph's 2 px drop in its
+  line measured under wine; `CTextEnglish_layout` 0x4a7f60 reads it from
+  the font's metrics at run time (Droid Serif ascent 1901/2048 at 20).
 - Not compared with the original: command menu, subtitles, telops,
   quick bar, click icon, quick-save notice, boxes across (H, CH, Noh;
   6 lines), backlog voice icon and scrolling, settings dragging.
