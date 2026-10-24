@@ -31,5 +31,50 @@
    "rule": "invisible",
    "match": "chr\\\\"
   }
+ ],
+ "_engine_vars": "engine_vars: the global flags endings_menu_init (0x81066564, test at 0x8106687c) reads to open an album card; ours opens every card (docs/games/oretsuba.md). [GlobalFlag] n is %410+n in 0.txt (mages/convert.rs GLOBAL_FLAG_BASE)",
+ "engine_vars": [
+  {
+   "var": 410,
+   "name": "GlobalFlag 0",
+   "when": "!=0",
+   "note": "the original opens this ending's album card from here on; ours has every card open"
+  },
+  {
+   "var": 411,
+   "name": "GlobalFlag 1",
+   "when": "!=0",
+   "note": "the original opens this ending's album card from here on; ours has every card open"
+  },
+  {
+   "var": 425,
+   "name": "GlobalFlag 15",
+   "when": "!=0",
+   "note": "the original opens this ending's album card from here on; ours has every card open"
+  },
+  {
+   "var": 413,
+   "name": "GlobalFlag 3",
+   "when": "!=0",
+   "note": "the original opens this ending's album card from here on; ours has every card open"
+  },
+  {
+   "var": 412,
+   "name": "GlobalFlag 2",
+   "when": "!=0",
+   "note": "the original opens this ending's album card from here on; ours has every card open"
+  },
+  {
+   "var": 426,
+   "name": "GlobalFlag 16",
+   "when": "!=0",
+   "note": "the original opens this ending's album card from here on; ours has every card open"
+  },
+  {
+   "var": 427,
+   "name": "GlobalFlag 17",
+   "when": "!=0",
+   "note": "the original opens this ending's album card from here on; ours has every card open"
+  }
  ]
 }

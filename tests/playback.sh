@@ -84,11 +84,13 @@ for id in "${ids[@]}"; do
     cp crates/conv-cli/fonts/ipag.ttf "$run/game/default.ttf"
     cp "$engine" "$run/cons-playback"   # renamed: survives `pkill -x conscripter`
     cp "$cfg/cons_trace_check.json" "$run/game/" 2>/dev/null
+    # the variables the checker's engine-var rule looks at (the config's "engine_vars")
+    watch=$(python3 -I engine/tools/cons_trace_check.py --trace-vars-of "$cfg/cons_trace_check.json" 2>/dev/null)
     start=$(date +%s)
     # in the game folder: the engine opens default.ttf from there
     (cd "$run/game" && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$OLDPWD/research/tools/capped.sh" 3 timeout -k 5 "$timeout" \
         "$run/cons-playback" --root "$run/game" --save-dir "$run/save" --trace "$run/trace.jsonl" \
-        --goto conv_title_start --auto-play "$pages" --real-time > "$run/stdout" 2>&1)
+        --goto conv_title_start --auto-play "$pages" --real-time ${watch:+--trace-vars "$watch"} > "$run/stdout" 2>&1)
     status=$?
     secs=$(( $(date +%s) - start ))
     if [ ! -s "$run/trace.jsonl" ]; then
