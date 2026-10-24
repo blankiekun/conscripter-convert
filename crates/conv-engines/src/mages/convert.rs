@@ -1579,8 +1579,13 @@ impl Lowering<'_> {
                             52 => Particles::LightBalls,
                             _ => Particles::Confetti,
                         };
-                        // ours: the fallback count 60 (eboot: a missing :Param is 0, cfg_number 8108c8a8; no script omits it); guess: frames of 125 ms
-                        let count = t.int_at("Param", 0).unwrap_or(60).max(1) as u32;
+                        // The count is :Param 0 (missing: 0, cfg_number 8108c8a8);
+                        // the effects' :Param readers turn 0, a negative count or
+                        // one over the pool into the pool: 200 (snow 0x81047ccc,
+                        // light balls 0x81043902), 100 (confetti 0x81042f66).
+                        // ours: frames of 125 ms (the eboot steps every frame).
+                        let cap = if n == 54 { 100 } else { 200 };
+                        let count = t.int_at("Param", 0).filter(|&c| c > 0 && c <= cap).unwrap_or(cap) as u32;
                         let animation = if start {
                             self.assets.particles(kind, count).map(|image| Animation {
                                 image,

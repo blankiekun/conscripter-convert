@@ -414,8 +414,10 @@ impl Assets for ArchiveAssets<'_> {
 
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
         let (file, cell, falls) = match kind {
-            // src: ETC.cpk sheets (32×32 cells, measured); the motion below is
-            // ours (guess: the eboot's particle code is not read)
+            // src: ETC.cpk sheets (32×32 cells, measured). ours: the motion
+            // below loops in PARTICLE_FRAMES; the eboot's is rand()-driven
+            // each frame and never loops (snow: update 0x81047dfa, draw
+            // 0x8104839c; docs/games/oretsuba.md Status).
             Particles::LightBalls => ("lightball.png", (32, 32), false),
             Particles::Snow => ("snow.png", (32, 32), true),
             Particles::Confetti => ("paper.png", (32, 32), true),
