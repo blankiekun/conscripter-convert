@@ -29,9 +29,11 @@ Known bugs:
 
 - Trace diff: pages the original shows and ours lacks (`ma03_015`…;
   lead's lane R).
-- Scene-start check (640 of 865 scenes clean): the battle HUD
-  (`cg/cp/*`) shows on the first page of 17 battle scenes, the
-  original's later; `md05_027a`/`b`… (8) open black, missing
+- Scene-start check (640 of 865 scenes clean, before
+  `scene_objects.py` read containers' children: rerun it): ours
+  shows 3 trust digits on `mb02_026vs`'s first page and a lock-on
+  mark on `mc01_010vs`'s after `Cockpit_AllFade0` (NSS: none);
+  `md05_027a`/`b`… (8) open black, missing
   `ev253_飢餓虚空の内側.jpg`; `mc04_014vsa`… (7) miss
   `ev187_銘伏の妖剣_i.jpg`.
 - `--original-archives` (`docs/original-archives.md`) fails with
@@ -206,7 +208,9 @@ research/tools/.venv/bin/python -I research/tools/scene_check.py research/nitrop
 ```
 
 `scene_objects.py` reads a dump's objects, creating calls and render
-records (x, y, alpha; zoom, rotation not compared yet).
+records (x, y, alpha; zoom, rotation not compared yet), with the
+children of names and windows (the battle HUD is under `CPW`; window
+children's x, y not checked against a dump yet).
 
 ## Save format
 
