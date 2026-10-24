@@ -35,14 +35,7 @@ Next:
 2. Play to the end with every bad end seen; check the title's EXTRA,
    LINER NOTES and the congratulations.
 3. Sepia (dja038), Rain (37 uses).
-4. Values from the exe still open (phase 2): the log's 19 px character
-   step (00403400 advances the pen 0x13; CONscripter's rows draw at the
-   font's 20) needs a `gap` on `LineLog`, waiting on PR #649 (it edits
-   the same `LineLog` literal in muramasa/screens.rs); the choices' text
-   place (`TEXT_X` 388, `TEXT_DY` 18, a wine shot): CreateText's auto
-   size (text + 32, glyphs +16) and ruby row start are read, the
-   `inherit` placement is not (callers of FUN_0040ed30).
-5. Release.
+4. Release.
 
 ## Build
 
