@@ -107,7 +107,8 @@ class Run:
         for k in [k for k in self.var if k < GLOBAL_BORDER]:
             del self.var[k]
         self.svar.clear()
-        self.pc = self.labels['start'] + 1
+        # the script starts at *start, or after `game` when 0.txt has no such label
+        self.pc = self.labels['start'] + 1 if 'start' in self.labels else self.lines.index('game') + 1
         self.file = None
         self.files = []
         self.pages = 0

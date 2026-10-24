@@ -72,6 +72,8 @@ at a time. English: `build <english game> --japanese <game>`.
   1.9 GB `arc.nsa` never finishes loading. JP+EN (`build <english game>
   --japanese <game> --webp --loose`): 10 min, 6.0 GB peak (a 4.5 GiB
   cap stops it after the text tables).
+- Web play tools (scratch start, route start with `--at`, screenshots every N s):
+  `research/nitroplus/web_play/` (`mkstart.py`, `play.sh`).
 - The prologue `ma00_000.nss` also unlocks 魔王編. `--file X.nss` alone:
   one scene; full build with `--chain 6`: a few files' assets, seconds.
 - Movies: `ムービー/`, `movie/` or `movies/` in or beside `<game>`, or
