@@ -148,6 +148,18 @@ pub struct SpritePlacement {
 /// placed, at (0, 0): a frozen screen to zoom or blend as one picture.
 pub const SCREEN_UNDER: &str = "(screen under)";
 
+/// [`SpritePlacement::image`] for particle layer `layer`
+/// ([`Op::ParticleLayer`]), drawn as a picture: the sprite's place, zoom,
+/// angle and opacity apply when its keys have `tex`.
+pub fn particle_sprite(layer: u32) -> String {
+    format!("(particles {layer})")
+}
+
+/// The layer of a [`particle_sprite`] image.
+pub fn particle_layer(image: &str) -> Option<u32> {
+    image.strip_prefix("(particles ")?.strip_suffix(')')?.parse().ok()
+}
+
 /// Shows (`Some`) or removes (`None`) the sprite on one layer. Each layer
 /// holds one sprite; layers not mentioned keep theirs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -830,6 +842,10 @@ pub enum Op {
     /// background changes or the sprites are cleared, and a load starts it
     /// again. Shown at once unless a transition is open.
     Particles(Option<Particles>),
+    /// Start (or with `None` stop) the `"particle"` layer `layer` (2 or
+    /// more; 1 is [`Op::Particles`]'), drawing nothing by itself: a sprite
+    /// shows it ([`particle_sprite`]). A load starts it again.
+    ParticleLayer { layer: u32, particles: Option<Particles> },
 }
 
 /// [`Op::Particles`]' sheet and keys.

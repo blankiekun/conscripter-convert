@@ -341,6 +341,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     let has_chapters = script.button_bar.as_ref().and_then(|b| b.top.as_ref()).is_some_and(|t| t.chapter_history.is_some());
     let has_animation = script.ops.iter().any(|op| matches!(op, Op::Animation(_)));
     let has_particles = script.ops.iter().any(|op| matches!(op, Op::Particles(_)));
+    let particle_layers: std::collections::BTreeSet<u32> = script.ops.iter().filter_map(|op| if let Op::ParticleLayer { layer, .. } = op { Some(*layer) } else { None }).collect();
     // What removes a fade to a colour, after `csp -1` and `popscreen`.
     let clear_fade = if script.ops.iter().any(|op| matches!(op, Op::ScreenFade { .. })) {
         format!(":csp2 {FADE_SPRITE2}")
@@ -426,6 +427,9 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     }
     if has_overlay || has_noise || has_animation || has_particles || in_front {
         writeln!(out, "{}", overlays_define(has_animation, has_particles, has_noise, has_overlay || in_front)).unwrap();
+    }
+    for &layer in &particle_layers {
+        writeln!(out, "{}", particles::define_layer(layer)).unwrap();
     }
     if script.ops.iter().any(|op| matches!(op, Op::Text { links, .. } if links.iter().any(|l| l.target.is_some()))) {
         writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
@@ -656,6 +660,9 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     writeln!(out, "*{LOAD_CLEAR}").unwrap();
     if has_particles {
         writeln!(out, "{}", particles::after_load()).unwrap();
+    }
+    for &layer in &particle_layers {
+        writeln!(out, "{}", particles::layer_after_load(layer)).unwrap();
     }
     match &after_load {
         Some(label) => writeln!(out, "goto *{label}").unwrap(),
@@ -1154,6 +1161,9 @@ pub(crate) fn sprite_mode(image: &str) -> char {
 
 /// `lsp` for a sprite ([`sprite_mode`]).
 fn lsp(slot: u32, s: &SpritePlacement) -> String {
+    if let Some(layer) = conv_core::ir::particle_layer(&s.image) {
+        return format!("lsp {slot},\"*{layer}\",{},{}", s.x, s.y);
+    }
     if s.image == conv_core::ir::SCREEN_UNDER {
         // (Taken at (0, 0): moved to its place.)
         return match (s.x, s.y) {

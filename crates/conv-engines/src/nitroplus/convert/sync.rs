@@ -32,7 +32,25 @@ impl Compiler<'_, '_> {
 
     /// Shows the changes since the last sync, as a cross-fade over `ms`,
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
+    /// Starts the particle layers live effects have gained and stops the
+    /// ones they have lost since the last sync ([`Kind::Particles`]).
+    fn sync_particle_layers(&mut self) {
+        let want: BTreeMap<u32, conv_core::ir::Particles> = self.objects.values().filter_map(|o| if let Kind::Particles(p) = &o.kind { Some((p.layer, p.particles.clone())) } else { None }).collect();
+        for &layer in self.particle_layers.keys() {
+            if !want.contains_key(&layer) {
+                self.ops.push(Op::ParticleLayer { layer, particles: None });
+            }
+        }
+        for (&layer, p) in &want {
+            if self.particle_layers.get(&layer) != Some(p) {
+                self.ops.push(Op::ParticleLayer { layer, particles: Some(p.clone()) });
+            }
+        }
+        self.particle_layers = want;
+    }
+
     pub(super) fn sync(&mut self, ms: u32) {
+        self.sync_particle_layers();
         // (One that also zooms or turns isn't kept: that fade isn't one
         // motion, and a cross-fade would hold the script; mb02_028vs:123.)
         let (disused, now): (Vec<_>, Vec<_>) = std::mem::take(&mut self.disused_fading).into_iter().partition(|(n, _)| !self.pending_size_from.contains_key(n) && !self.pending_turn.contains_key(n));
@@ -248,20 +266,22 @@ impl Compiler<'_, '_> {
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), o.mirror()));
         }
         for (n, o) in &self.objects {
-            if let Kind::Strip(s) = &o.kind
-                && o.opacity > 0
-                && !o.hideable
-                && !faded_out(o)
-            {
+            // (A particle layer: one picture, drawn live.)
+            let (image, cells, base, looped, frame_ms, w, h) = match &o.kind {
+                Kind::Strip(s) => (s.image.clone(), s.cells, s.zoom, s.looped, s.frame_ms, s.w, s.h),
+                Kind::Particles(p) => (conv_core::ir::particle_sprite(p.layer), 1, (100, 100), true, 0, p.w, p.h),
+                _ => continue,
+            };
+            if o.opacity > 0 && !o.hideable && !faded_out(o) {
                 // Zoomed and turned by the engine about its centre; a turn
                 // about x or y draws it that much shorter (no perspective).
                 let tilt = |deg: i64, z: i64| (z as f64 * (deg as f64).to_radians().cos().abs()).round() as i32;
-                let zoom = (s.zoom.0 * tilt(o.turn.1, o.zoom.0) / 1000, s.zoom.1 * tilt(o.turn.0, o.zoom.1) / 1000);
-                let cells = Some((s.cells, s.looped, zoom, s.frame_ms));
+                let zoom = (base.0 * tilt(o.turn.1, o.zoom.0) / 1000, base.1 * tilt(o.turn.0, o.zoom.1) / 1000);
+                let cells = Some((cells, looped, zoom, frame_ms));
                 let (px, py) = self.parent_offset(n);
                 let (x, y) = (o.x + px, o.y + py);
-                let shown = Shown { layer: 0, image: s.image.clone(), x, y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, fade: o.fade.clone() };
-                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
+                let shown = Shown { layer: 0, image, x, y, w, h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, fade: o.fade.clone() };
+                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (w, h), (false, false)));
             }
         }
         for (n, o) in &self.objects {

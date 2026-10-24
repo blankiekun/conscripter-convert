@@ -472,6 +472,9 @@ enum Kind<'a> {
     /// Pictures drawn by a game's own code ([`Assets::frames_strip`]),
     /// shown once in turn while the script goes on, the last one staying.
     Strip(StripObject),
+    /// `CreateEffect` Rain or Drop: a live particle layer of its own
+    /// ([`Op::ParticleLayer`]) drawn as a `w`×`h` picture at its place.
+    Particles(ParticleObject),
     /// `CreateCamera`: what its children show. Its place is the point the
     /// screen looks at (they are drawn that much the other way); its zoom
     /// `z` and a child's priority `p` (its depth) magnify the child
@@ -532,6 +535,16 @@ struct StripObject {
     last: String,
     /// Its cells repeat (else it stops on the last).
     looped: bool,
+}
+
+/// A [`Kind::Particles`]: layer `layer` (2 to 31, one a live object)
+/// running `particles`.
+#[derive(Debug, Clone)]
+struct ParticleObject {
+    layer: u32,
+    particles: conv_core::ir::Particles,
+    w: i64,
+    h: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -966,6 +979,8 @@ struct Compiler<'a, 'b> {
     aliases: HashMap<String, String>,
     seq: u64,
     shown: BTreeMap<String, Shown>,
+    /// The particle layers running ([`Kind::Particles`]), as last synced.
+    particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
     /// The longest non-blocking action since the last sync.
     pending_ms: u32,
     /// The same per object, for a `WaitAction` on one of them.
@@ -1176,6 +1191,7 @@ struct State<'a> {
     aliases: HashMap<String, String>,
     seq: u64,
     shown: BTreeMap<String, Shown>,
+    particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
     font_size: i64,
     window: Option<TextWindow>,
     window_visible: bool,
@@ -1201,6 +1217,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             aliases: HashMap::new(),
             seq: 0,
             shown: BTreeMap::new(),
+            particle_layers: BTreeMap::new(),
             pending_ms: 0,
             pending_by: HashMap::new(),
             pending_tempo: HashMap::new(),
