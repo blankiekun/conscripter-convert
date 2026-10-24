@@ -327,7 +327,7 @@ function Out()
 }
 
 #[test]
-fn rain_is_a_looping_strip_zoomed_and_turned() {
+fn rain_is_a_particle_layer_zoomed_and_turned() {
     // 装甲悪鬼村正's mc01_019vsa: sideways speed lines.
     let story = r#"
 scene a.nss
@@ -338,14 +338,21 @@ scene a.nss
 	Rotate("線", 0, @0, @0, @-90, null, true);
 	Zoom("線", 0, 2000, 2000, null, true);
 	Wait(100);
+	Delete("線");
+	Wait(100);
 }
 "#;
     let c = compile(story, LIBRARY);
-    let strip = c.ops.iter().find_map(|op| match op {
-        Op::AnimatedSprite { sprite, cells, frame_ms, looped, zoom, .. } => Some((sprite.image.as_str(), sprite.x, sprite.y, *cells, *frame_ms, *looped, *zoom)),
+    let layers: Vec<_> = c.ops.iter().filter_map(|op| match op {
+        Op::ParticleLayer { layer, particles } => Some((*layer, particles.as_ref().map(|p| p.keys.clone()))),
+        _ => None,
+    }).collect();
+    assert!(matches!(&layers[..], [(2, Some(k)), (2, None)] if k.starts_with("cw=1,ch=196,n=16,hz=24,cls=12:0:1,vy=111.111:104.167:") && k.ends_with(",ey=512,tex=288:512:0:0")), "{layers:?}");
+    let sprite = c.ops.iter().find_map(|op| match op {
+        Op::AnimatedSprite { sprite, cells, looped, zoom, .. } => Some((sprite.image.as_str(), sprite.x, sprite.y, *cells, *looped, *zoom)),
         _ => None,
     });
-    assert_eq!(strip, Some(("system/strip/rain_288x512_16_128.png", 368, 32, 24, 42, true, (200, 200))), "{:?}", c.ops);
+    assert_eq!(sprite, Some(("(particles 2)", 368, 32, 1, true, (200, 200))), "{:?}", c.ops);
     assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteAngle { degrees: 90, zoom: (200, 200), .. })), "{:?}", c.ops);
     assert!(!c.notes.keys().any(|n| n.contains("Rain")), "{:?}", c.notes);
 }

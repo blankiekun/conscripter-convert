@@ -229,3 +229,53 @@ scene a.nss
     assert!(smoke && paused, "{:?}", c.ops);
     assert!(!c.ops.iter().any(|op| matches!(op, Op::SceneMovie { .. })), "{:?}", c.ops);
 }
+
+#[test]
+fn a_lens_is_a_screen_lens_its_loop_process_a_list_of_offsets() {
+    // 装甲悪鬼村正's md05_020vs (faded to 500) and mc01_020vs's DelusionIn
+    // (LensMove: a figure 8 of BezierMoves).
+    let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	$SYSTEM_effect_lens_curvature = 1000;
+	$SYSTEM_effect_lens_distance = 10;
+	CreateEffect("レンズ１", 1000, -100, -300, 1200, 1200, "Lens");
+	Fade("レンズ１", 0, 500, null, true);
+	Wait(100);
+	Delete("レンズ１");
+	Wait(100);
+	$SYSTEM_effect_lens_curvature = 10000;
+	$SYSTEM_effect_lens_distance = 15;
+	CreateEffect("レンズ１", 19000, -88, -312, 1200, 1200, "Lens");
+	CreateProcess("p", 1000, 0, 0, "LensMove");
+	Request("p", Start);
+	Wait(100);
+	Delete("p");
+	Delete("レンズ１");
+	Wait(100);
+}
+function LensMove()
+{
+	while(1)
+	{
+		BezierMove("@レンズ１", 3000, (@0,@0){@5,@-30}{@25,@-30}(@30,@0){@25,@30}{@5,@30}(@0,@0), null, true);
+		BezierMove("@レンズ１", 3000, (@0,@0){@-5,@-30}{@-25,@-30}(@-30,@0){@-25,@30}{@-5,@30}(@0,@0), null, true);
+	}
+}
+"#;
+    let c = compile(story, LIBRARY);
+    let lens: Vec<&Option<ScreenEffect>> = c.ops.iter().filter_map(|op| match op {
+        Op::ScreenEffect { slot: 2, effect } => Some(effect),
+        _ => None,
+    }).collect();
+    assert_eq!(lens.len(), 4, "{lens:?}");
+    assert_eq!(lens[0], &Some(ScreenEffect::Lens { centre: (500, 300), diameter: 1200, curvature: 1000, distance: 10, opacity: 128, interval_ms: 16, offsets: Vec::new(), looped: false }));
+    assert_eq!((lens[1], lens[3]), (&None, &None));
+    let Some(ScreenEffect::Lens { centre: (512, 288), opacity: 255, offsets, looped: true, .. }) = lens[2] else { panic!("{lens:?}") };
+    // 6 s a 16 ms frame; ±30 px across, ±22 down (¾ of the controls' 30).
+    assert_eq!(offsets.len(), 375);
+    assert_eq!(offsets.iter().map(|o| o.0).max(), Some(30));
+    assert_eq!(offsets.iter().map(|o| o.1).min(), Some(-22));
+    assert!(c.notes.keys().all(|n| !n.contains("Lens")), "{:?}", c.notes);
+}

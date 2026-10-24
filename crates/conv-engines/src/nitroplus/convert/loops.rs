@@ -367,6 +367,9 @@ impl<'a> Compiler<'a, '_> {
         targets.sort_by(|a, b| a.0.cmp(&b.0));
         for (target, pass) in targets {
             let v = pass.values(0);
+            if self.lens_wobble(name, &target, len, |t| (pass.values(t)[0], pass.values(t)[1])) {
+                continue;
+            }
             let Some(keys) = pass.keys(len) else { continue };
             if keys.len() > MAX_KEYS {
                 self.note(format!("loop process over {MAX_KEYS} keys: {function} ({})", keys.len()));
@@ -451,6 +454,8 @@ impl<'a> Compiler<'a, '_> {
             for t in self.targets(&arg(0), made) {
                 let Some(o) = self.objects.get(&t) else { continue };
                 let (w, h) = (o.w, o.h);
+                // A lens's path is sampled a frame at a time.
+                let step = matches!(o.kind, super::Kind::Lens(_)).then_some(super::lens::FRAME_MS);
                 let p = passes.entry(t).or_insert_with(|| Pass::starting([o.x as f64, o.y as f64, o.zoom.0 as f64, o.zoom.1 as f64, -o.turn.2 as f64, o.opacity as f64]));
                 let now = |i: usize| p.now(i).round() as i64;
                 match call {
@@ -482,7 +487,7 @@ impl<'a> Compiler<'a, '_> {
                             let (x, y) = (self.eval(x), self.eval(y));
                             pts.push((*control, x.position(at.0 as i64, w, sw) as f64, y.position(at.1 as i64, h, sh) as f64));
                         }
-                        bezier(p, clock, ms, &pts);
+                        bezier(p, clock, ms, &pts, step);
                     }
                 }
             }
@@ -513,7 +518,7 @@ impl<'a> Compiler<'a, '_> {
             let Some(o) = self.objects.get_mut(t) else { continue };
             let pts: Vec<_> = points.iter().map(|(c, x, y)| (*c, x.position(o.x, o.w, sw) as f64, y.position(o.y, o.h, sh) as f64)).collect();
             let mut p = Pass::starting([o.x as f64, o.y as f64, o.zoom.0 as f64, o.zoom.1 as f64, 0.0, 1000.0]);
-            bezier(&mut p, 0, ms, &pts);
+            bezier(&mut p, 0, ms, &pts, None);
             let end = p.ends();
             (o.x, o.y) = (end[0].round() as i64, end[1].round() as i64);
             if let Some(keys) = p.keys(ms).filter(|k| k.len() > 2) {
@@ -544,6 +549,13 @@ impl<'a> Compiler<'a, '_> {
 
     /// Loop process `owner` deleted: its pictures stop.
     pub(super) fn stop_loops(&mut self, owner: &str) {
+        for o in self.objects.values_mut() {
+            if let super::Kind::Lens(l) = &mut o.kind
+                && l.wobble.as_ref().is_some_and(|(p, _)| p == owner)
+            {
+                l.wobble = None;
+            }
+        }
         let stopped: Vec<String> = self.objects.iter().filter(|(_, o)| o.shake.as_ref().is_some_and(|(p, ..)| p == owner)).map(|(k, _)| k.clone()).collect();
         for k in stopped {
             self.objects.get_mut(&k).unwrap().shake = None;
@@ -576,8 +588,9 @@ pub(super) fn lead_in_loop(layer: u32, (x, y, ms): (i32, i32, u32), lead: u32, k
 
 /// `BezierMove` along `pts` (anchors, and between them any number of
 /// control points: `true`) from `clock` over `ms`, into `p`'s x and y: the
-/// anchors and a point between each, in even time per curve.
-fn bezier(p: &mut Pass, clock: u32, ms: u32, pts: &[(bool, f64, f64)]) {
+/// anchors and a point between each, in even time per curve; with `step`,
+/// a point every `step` ms.
+fn bezier(p: &mut Pass, clock: u32, ms: u32, pts: &[(bool, f64, f64)], step: Option<u32>) {
     let mut curves: Vec<Vec<(f64, f64)>> = Vec::new();
     for (i, &(control, x, y)) in pts.iter().enumerate() {
         if i == 0 {
@@ -597,7 +610,7 @@ fn bezier(p: &mut Pass, clock: u32, ms: u32, pts: &[(bool, f64, f64)]) {
     let fit = ((MAX_KEYS - 2) / curves.len()).max(1);
     let count = curves.len() as u32;
     for (k, c) in curves.iter().enumerate() {
-        let pieces = (c.len() - 1).min(fit) as u32;
+        let pieces = step.map_or((c.len() - 1).min(fit) as u32, |s| (ms / count / s.max(1)).max(1));
         for i in 1..=pieces {
             let at = |i: u32| clock + (ms as u64 * (k as u64 * u64::from(pieces) + u64::from(i)) / (u64::from(count) * u64::from(pieces))) as u32;
             let (x, y) = casteljau(c, f64::from(i) / f64::from(pieces));
@@ -636,7 +649,7 @@ mod tests {
     fn a_bezier_path_comes_back_to_its_start() {
         let mut p = Pass::starting([10.0, 20.0, 1000.0, 1000.0, 0.0, 1000.0]);
         let pt = |c, x, y| (c, x, y);
-        bezier(&mut p, 0, 1000, &[pt(false, 10.0, 20.0), pt(true, 15.0, 10.0), pt(true, 0.0, 30.0), pt(false, 0.0, 15.0), pt(true, 15.0, 10.0), pt(true, 0.0, 25.0), pt(false, 10.0, 20.0)]);
+        bezier(&mut p, 0, 1000, &[pt(false, 10.0, 20.0), pt(true, 15.0, 10.0), pt(true, 0.0, 30.0), pt(false, 0.0, 15.0), pt(true, 15.0, 10.0), pt(true, 0.0, 25.0), pt(false, 10.0, 20.0)], None);
         let keys = p.keys(1000).unwrap();
         // Three pieces per cubic curve.
         assert_eq!(keys.len(), 7, "{keys:?}");
@@ -649,7 +662,7 @@ mod tests {
         // BGMoveAutoProcess: (@0,@0){@+50,@+10}{@-30,@+20}{@+30,@-20}{@-50,@-10}(@0,@0).
         let mut p = Pass::starting([0.0, 0.0, 1000.0, 1000.0, 0.0, 1000.0]);
         let pts = [(false, 0.0, 0.0), (true, 50.0, 10.0), (true, -30.0, 20.0), (true, 30.0, -20.0), (true, -50.0, -10.0), (false, 0.0, 0.0)];
-        bezier(&mut p, 0, 15000, &pts);
+        bezier(&mut p, 0, 15000, &pts, None);
         let keys = p.keys(15000).unwrap();
         assert_eq!(keys.len(), 6, "{keys:?}");
         assert_eq!((keys[1].ms, keys[1].x, keys[1].y), (3000, 16, 7));

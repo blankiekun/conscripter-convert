@@ -463,6 +463,7 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::ParticleLayer { layer, particles } => particles::emit_layer(out, *layer, particles),
         Op::Particles(particles) => {
             particles::emit(out, particles);
             if transition.is_none() {
@@ -503,6 +504,16 @@ impl<'a> Emitter<'a> {
                         zoom.0, zoom.1
                     )
                     .unwrap();
+                }
+                Some(ScreenEffect::Lens { centre: (x, y), diameter, curvature, distance, opacity, interval_ms, offsets, looped }) => {
+                    let list = match offsets.is_empty() {
+                        true => String::new(),
+                        false => {
+                            let list: Vec<String> = offsets.iter().map(|(x, y)| format!("{x},{y}")).collect();
+                            format!(",{interval_ms},\"{}\",{}", list.join(" "), u8::from(*looped))
+                        }
+                    };
+                    writeln!(out, "screenlens {slot},{x},{y},{diameter},{curvature},{distance},{opacity}{list}").unwrap();
                 }
             }
             if transition.is_none() {
@@ -992,7 +1003,11 @@ impl<'a> Emitter<'a> {
             // Loop mode 0 repeats the cells, 1 stops on the last.
             let tag = format!("{mode}/{cells},{frame_ms},{}", u8::from(!*looped));
             writeln!(out, "spfilter {slot},0").unwrap();
-            writeln!(out, "lsp {slot},\":{tag};{}\",{},{}", path(&sprite.image), sprite.x, sprite.y).unwrap();
+            match conv_core::ir::particle_layer(&sprite.image) {
+                // (A particle layer: one picture, drawn live.)
+                Some(_) => writeln!(out, "{}", lsp(slot, sprite)).unwrap(),
+                None => writeln!(out, "lsp {slot},\":{tag};{}\",{},{}", path(&sprite.image), sprite.x, sprite.y).unwrap(),
+            }
             if *zoom != (100, 100) || zoomed_layers.contains(layer) {
                 writeln!(out, "spzoom {slot},{},{}", zoom.0, zoom.1).unwrap();
             }

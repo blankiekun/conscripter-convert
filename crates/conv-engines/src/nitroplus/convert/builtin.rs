@@ -264,16 +264,21 @@ impl Compiler<'_, '_> {
                             Kind::Other
                         }
                     },
-                    "rain" => match self.rain(w, h) {
-                        Some(strip) => Kind::Strip(strip),
-                        None => Kind::Other,
+                    "rain" => self.rain(w, h).map_or(Kind::Other, Kind::Particles),
+                    "drop" => match self.drop_effect(w, h) {
+                        Some(p) => Kind::Particles(p),
+                        None => {
+                            self.note("CreateEffect Drop without a picture");
+                            Kind::Other
+                        }
                     },
+                    "lens" => Kind::Lens(self.lens()),
                     _ => {
                         self.note(format!("CreateEffect {}", arg(6).string()));
                         Kind::Other
                     }
                 };
-                if matches!(kind, Kind::Strip(_)) {
+                if matches!(kind, Kind::Particles(_) | Kind::Lens(_)) {
                     let o = self.create(name, kind, arg(1).int(), w, h);
                     (o.x, o.y) = (x, y);
                 } else {
