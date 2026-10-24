@@ -132,13 +132,13 @@ fn title_motion(a: &mut dyn Assets, t: &mut TitleScreen, image: &str, keys: &[co
 // 1.0 at play_speed 3, _ftol2), 00462601-0046261a (characters = that ÷ (wait + interval)), 00462576-0046258e (005293d0
 // == 0.0: no wait); numbers: research/nitroplus/django_text_speed_exe.py
 fn letter_ms(speed: u32) -> u32 {
-    (30.0 * f64::from((f64::from(speed) * 0.001) as f32)) as u32
+    (30.0 * f64::from((f64::from(speed) * 0.001) as f32)) as u32  // src: exe 0045f120, 004625f3, 004625f9
 }
 
 /// The slider position (TextSpeed { ms: 30 }: position × 30 ÷ 1000)
 /// whose ms is the exe's at a text speed.
 fn text_speed_position(speed: u32) -> u32 {
-    (letter_ms(speed) * 1000).div_ceil(30)
+    (letter_ms(speed) * 1000).div_ceil(30)  // src: exe 005295b0 (30), picture_settings.rs TextSpeed
 }
 
 fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
