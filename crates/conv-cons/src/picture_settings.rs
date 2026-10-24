@@ -13,18 +13,10 @@ use conv_core::ir::{PairOption, PictureSettings, SliderSetting, Switch};
 
 use crate::menu::{self, TEXT_MS, TMP};
 
-// Globals (`globalon` keeps %200 and up): 2920-2949, after the switches'
+// Globals (`globalon` keeps %200 and up): 2921, after the switches'
 // second range (2910-2919; the third is 2950 up), below the scene replay's flags (3000).
-// The first two and the slider and pair ranges are where builds before the
-// named globals kept the values (read once by [`init`]).
-/// 1 once builds before the named globals had set the values.
-const SET: &str = "%2920";
 /// The `gamespeed` setting's percent the story runs at.
 pub(crate) const GAME_SPEED: &str = "%2921";
-/// Slider i's position (before the named globals).
-const SLIDER_BASE: u32 = 2922;
-/// Pair i's value (before the named globals).
-const PAIR_BASE: u32 = 2930;
 
 // Locals.
 const MUTE: [&str; 3] = ["%171", "%172", "%173"];
@@ -167,9 +159,6 @@ pub(crate) fn define_language(out: &mut String, load_clear: &str, first: &str) {
 /// start (the editions' settings differ: Japanese has a game speed).
 pub(crate) fn init(out: &mut String, s: &PictureSettings, language: &str) {
     let set = format!("%{}", named("done"));
-    // shortcut: takes the values from where builds before the names kept them; drop once no such gloval.sav is played
-    let copies: String = (0..s.sliders.len()).map(|i| format!(":mov {},%{}", slider_var(s, i), SLIDER_BASE + i as u32)).chain((0..s.pairs.len()).map(|i| format!(":mov {},%{}", pair_var(s, i), PAIR_BASE + i as u32))).collect();
-    out.push_str(&format!("if {set} == 0 && {SET} == 1 mov {set},1{copies}\n"));
     // A global save from before a pair was added: that pair takes its default.
     for v in 2..=done(s) {
         let fresh: String = s.pairs.iter().enumerate().filter(|(_, p)| added_in(p.option) == v)

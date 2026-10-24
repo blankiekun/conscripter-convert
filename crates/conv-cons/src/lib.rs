@@ -171,8 +171,7 @@ fn overlays_define(animation: bool, noise: bool, overlay: bool) -> String {
 }
 /// Sprite layer n is NScripter sprite 62 + n.
 const SPRITE_BASE: u32 = 62;
-/// The `loadgosub` routine: clears UI sprites old saves left, then goes on
-/// to the game's own routine.
+/// The `loadgosub` routine: goes on to the game's own routine.
 const LOAD_CLEAR: &str = "conv_load_clear";
 /// The lsp2 slot of a flash ([`Op::Flash`]), under the menus' and the top
 /// bars' (0-23).
@@ -262,12 +261,10 @@ const LINK_UNDERLINE_SPRITES: std::ops::Range<u32> = MENU_SPRITES.start..MENU_SP
 const LINK_VISITED: &str = "conv_link_visited";
 /// How many link targets there can be.
 const LINK_TARGETS: usize = 200;
-/// Global flags the player unlocks, kept by name (`defarr ...,global`),
-/// with the numbers builds before the names kept them at.
+/// Global flags the player unlocks, kept by name (`defarr ...,global`).
 pub(crate) struct Flags {
     name: &'static str,
     size: u32,
-    old_base: u32,
 }
 impl Flags {
     /// Flag `n`.
@@ -275,17 +272,15 @@ impl Flags {
         assert!(n < self.size, "{} has {} flags, not {n}", self.name, self.size);
         format!("?{}[{n}]", self.name)
     }
-    /// The declaration, and the copy of an older gloval.sav's flags.
+    /// The declaration.
     fn define(&self) -> String {
-        let (name, last, base) = (self.name, self.size - 1, self.old_base);
-        // shortcut: copies the flags from where builds before the unlock names kept them; drop once no such gloval.sav is played
-        format!("defarr {name},{},global\nfor %0 = 0 to {last}\nmov %1,{base}+%0\nif %%1 != 0 mov ?{name}[%0],%%1\nnext", self.size)
+        format!("defarr {},{},global", self.name, self.size)
     }
 }
 /// Scene n of the scene replay is unlocked.
-const SCENE_UNLOCKED: Flags = Flags { name: "conv_scene_unlocked", size: 600, old_base: 3000 };
+const SCENE_UNLOCKED: Flags = Flags { name: "conv_scene_unlocked", size: 600 };
 /// Progress flag n ([`Op::Progress`]) is set.
-const PROGRESS: Flags = Flags { name: "conv_progress", size: 32, old_base: 3600 };
+const PROGRESS: Flags = Flags { name: "conv_progress", size: 32 };
 /// Option n of an [`Op::RuntimeChoice`] whose text is known only at run
 /// time: its text and its x on a plate ([`names_define`] declares them).
 fn runtime_option(n: usize) -> (String, String) {
@@ -311,7 +306,7 @@ const ROOT_RESUME: &str = "%119";
 /// [`ROOT_RESUME`] point.
 const UNWIND: &str = "conv_unwind";
 /// CG n ([`Op::CgSeen`], up to 9 × 64) was seen.
-const CG_SEEN: Flags = Flags { name: "conv_cg_seen", size: 576, old_base: 2200 };
+const CG_SEEN: Flags = Flags { name: "conv_cg_seen", size: 576 };
 const TEXT_COLOR: &str = "#FFFFFF";
 
 /// Renders the script as NScripter source text (use [`encode`] for the
@@ -426,8 +421,6 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     }
     if script.ops.iter().any(|op| matches!(op, Op::Text { links, .. } if links.iter().any(|l| l.target.is_some()))) {
         writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
-        // shortcut: copies the visited links from %2000-%2199, where builds before the link names kept them; drop once no such gloval.sav is played
-        writeln!(out, "for %0 = 0 to {}\nmov %1,2000+%0\nif %%1 == 1 mov ?{LINK_VISITED}[%0],1\nnext", LINK_TARGETS - 1).unwrap();
     }
     for flags in [&CG_SEEN, &movies::SEEN, &SCENE_UNLOCKED, &PROGRESS, &replay::REPLAYED] {
         writeln!(out, "{}", flags.define()).unwrap();
@@ -647,8 +640,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     let ops::Emitter { mut out, effects, eased, needs_click_wait, strings, .. } = e;
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     writeln!(out, "end").unwrap();
-    // shortcut: clears the name plate's old sprites 49/50 from saves made before #222, and the link words' 51-58 from before the link names; drop once no such saves are played
-    writeln!(out, "*{LOAD_CLEAR}\n{}", (49..=58).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":")).unwrap();
+    writeln!(out, "*{LOAD_CLEAR}").unwrap();
     match &after_load {
         Some(label) => writeln!(out, "goto *{label}").unwrap(),
         None => writeln!(out, "return").unwrap(),

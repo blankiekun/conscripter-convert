@@ -8,7 +8,7 @@ use crate::{music, path, Flags, BUTTON_VAR};
 
 pub(crate) const MOVIES: &str = "conv_movies";
 /// Movie n of the room was played.
-pub(crate) const SEEN: Flags = Flags { name: "conv_movie_seen", size: MAX_MOVIES as u32, old_base: 2800 };
+pub(crate) const SEEN: Flags = Flags { name: "conv_movie_seen", size: MAX_MOVIES as u32 };
 pub(crate) const MAX_MOVIES: usize = 32;
 
 /// What playing `file` sets: its seen flag, when the room has it.

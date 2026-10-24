@@ -178,10 +178,10 @@ mod screen_tests {
             hold: Some((4, (512, 288))),
             engine_screen: true,
         };
-        let lua = lua_file(&r, 4000);
-        assert!(lua.contains("if var(\"%4003\") ~= 0 then\n  add({\"image\", file=\"t/a.jpg\", opaque=true, x=672, y=38})\n  add({\"button\", file=\"sys/cursor.png\", cells=2, x=672, y=38, action={\"close\", 1, hold=true}})\nelse"), "{lua}");
+        let lua = lua_file(&r, 2960);
+        assert!(lua.contains("if var(\"%2963\") ~= 0 then\n  add({\"image\", file=\"t/a.jpg\", opaque=true, x=672, y=38})\n  add({\"button\", file=\"sys/cursor.png\", cells=2, x=672, y=38, action={\"close\", 1, hold=true}})\nelse"), "{lua}");
         let mut out = String::new();
-        emit(&mut out, &r, 4000, None);
+        emit(&mut out, &r, 2960, None);
         for part in ["*conv_prp_wait\ncsp -1:screen \"replay\",%9\nif %9 == 0 goto *conv_pextras_draw\nif %9 == 1 goto *conv_prp_s0\n", "spgrab 999,-2\nscreenzoom 4,", "mov %132,500:goto *conv_prp_wait\n"] {
             assert!(out.contains(part), "missing {part:?} in\n{out}");
         }
