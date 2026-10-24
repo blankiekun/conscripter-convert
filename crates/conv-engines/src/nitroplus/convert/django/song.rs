@@ -12,9 +12,9 @@ use super::super::{Compiler, Kind, StripObject, Value};
 
 /// The time a letter takes at game speed NORMAL: the dot's 100 ms and
 /// the interval 30 × 500 ÷ 1000.
-// src: Django.exe layout_create_text 004608f0 ('.' adds 100), 004605b0 ($SYSTEM_text_interval 30),
-// 00461e40 (interval × text speed ÷ 1000), reset_system_defaults 0045cb30 (text speed 500)
-const LETTER_MS: u32 = 100 + 30 * 500 / 1000; // src: exe 004608f0, 00461e40
+// src: Django.exe layout_create_text 004608f0 ('.' adds 100), screens.rs letter_ms (00461e40 004625de-004625f9:
+// 30 × text speed × 0.001, 15 at 500 under Unicorn), reset_system_defaults 0045cb30 (005293d0 = 0.5)
+const LETTER_MS: u32 = 100 + 30 * 500 / 1000; // src: exe 004608f0, 004625f3
 
 /// Where a line's letters wait for its `Enter`.
 fn key(name: &str) -> String {
