@@ -652,6 +652,14 @@ pub enum Op {
     /// sets `$SYSTEM_text_auto` false or `$SYSTEM_menu_lock`, before the
     /// ending roll).
     StopAutoSkip,
+    /// The player's modes the script locks (`on`) or frees: `mask` bit 1
+    /// skip, 2 auto mode (`modelock`). Nitroplus's `$SYSTEM_skip_lock` and
+    /// `$SYSTEM_text_auto_lock`.
+    ModeLock { mask: u8, on: bool },
+    /// The story runs at the normal speed whatever the game speed setting
+    /// (`true`) or at the setting's again: Nitroplus's
+    /// `#SYSTEM_play_speed` 3 (装甲悪鬼村正's ending roll). Kept in the save.
+    NormalSpeed(bool),
     /// Adds `text` to the text history as a page of its own, without
     /// showing it; `voice` (a sound file) is played from the history,
     /// `character` its [`Voice::character`] for the voice switches. Lines

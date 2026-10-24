@@ -279,3 +279,38 @@ function LensMove()
     assert_eq!(offsets.iter().map(|o| o.1).min(), Some(-22));
     assert!(c.notes.keys().all(|n| !n.contains("Lens")), "{:?}", c.notes);
 }
+
+#[test]
+fn mode_locks_and_speeds_are_set_where_they_change() {
+    // 装甲悪鬼村正: each page writes text_auto_lock false; the ending roll
+    // locks auto mode and runs at the normal speed; the text interval and
+    // waitkey are left alone.
+    let story = r#"
+scene a.nss
+{
+	$SYSTEM_text_interval = 48;
+	$SYSTEM_text_auto_lock = false;
+	$SYSTEM_text_auto_lock = false;
+	$SYSTEM_text_auto_lock = true;
+	$SYSTEM_text_waitkey = false;
+	$SYSTEM_text_interval = 128;
+	#SYSTEM_play_speed = 3;
+	$SYSTEM_text_waitkey = true;
+	#SYSTEM_play_speed = 1;
+	$SYSTEM_skip_lock = true;
+	$SYSTEM_skip_lock = true;
+}
+"#;
+    let c = compile(story, LIBRARY);
+    let set: Vec<&Op> = c.ops.iter().filter(|op| matches!(op, Op::ModeLock { .. } | Op::NormalSpeed(_))).collect();
+    assert_eq!(
+        set,
+        [
+            &Op::ModeLock { mask: 2, on: false },
+            &Op::ModeLock { mask: 2, on: true },
+            &Op::NormalSpeed(true),
+            &Op::NormalSpeed(false),
+            &Op::ModeLock { mask: 1, on: true },
+        ]
+    );
+}
