@@ -48,12 +48,6 @@ Known bugs:
     `en-mc01-at-cut-pg36`.
   - Prologue pg 233: text over black with no window or name plate; frame `no-window-pg233`
     (may be intended).
-  - `rain_streak.png` given to `particle` while only `system/strip/rain_streak.webp` exists:
-    no rain ("particle: can't find"; 0.txt lines 240204, 241496, 242508, 304630, 306851);
-    seen in mb01, md01, en-mc01; frame `jp-md01-rain-streak-png`.
-  - md05 pg 580-1062 HUD counter digits `cg\cp\mura|ave\自機カウンター\0N.webp` (0.txt
-    562417-566022): "can't find" (~380) although the files are in `out/muramasa-web` and
-    `cons_index.json`; digits not drawn; frame `jp-md05-hud-counter-digits`.
   - md01 pg 2220 (0.txt 304728, battle): text page with no text and no window (suspect);
     frame: see `out/play/jp-md01/bugs.txt`.
 - Web runs (1800 s real time, auto-play, random choices; `cons_trace_check` "missing"
