@@ -49,6 +49,21 @@ Paused 2026-10-20.
    (`conv-cons/src/ops.rs`: the eboot's BgmFullForVoice reader).
 8. Wave transition (InOut_Act 1): the amplitude unit is in fragment GXP
    0x8115f63c (literals read). Route left: gxp2glsl (rebuild Vita3K).
+9. Static checks (2026-10-24; partial, HANDOFF.md on `checks/oretsuba`):
+   - Every sprite draw (0x81087114, 0x8108815a, 0x81088c16) sets
+     fragment GXP 0x81160e58's Floor (sprite +0x50), Ceil (+0x60), Gamma
+     (+0x70), Grayscale (+0x4c); identity defaults from 0x81086982
+     (0, 255, 1.0, off). Scripts write Grayscale 667, Gamma 188,
+     Floor/Ceil 42 each, Color 8,553: not yet checked that ours matches.
+   - Album cards: endings_menu_init 0x81066564 opens a card only when
+     its ending's global flag (0, 1, 15, 3, 2, 16, 17) is set
+     (0x8106687c); ours opens every tab.
+   - Movies go through a YUV pass (fragment GXP 0x811608c8,
+     diffuseMapY/U/V): matrix and range not read.
+   - Shaders without gxp2glsl: the shader maths (identity levels) are
+     unread; 0x8115e000/0x8115e150 (main loop 0x8104ffe4) unread.
+   - Per-save flag operations go through a signed byte (task_run
+     0x81021070, 0x81128168): flags wrap past 127 (scripts reach 5).
 
 ## Scope
 
