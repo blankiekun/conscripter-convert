@@ -97,13 +97,13 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
     let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), format!("{}.{ext}", w.name))).collect::<HashMap<_, _>>();
     let sounds = stream_names(romfs, bfsar::sound_names(&bfsar)?)?;
     let pic_ext = if opts.webp.is_some() { "webp" } else { "png" }; // as `typemoon media` writes them
-    let game = Game { scripts, scenes: exe.scenes()?, lines, textures: textures(romfs, &pictures)?, pictures, sounds, waves, pic_ext, motions: exe.motions()?, movies: exe.movies()? };
+    let game = Game { scripts, scenes: exe.scenes()?, lines, textures: textures(romfs, &pictures)?, pictures, sounds, waves, pic_ext, motions: exe.motions()?, movies: exe.movies()?, shaders: exe.shaders()? };
     let en_source = english.map(Source::read).transpose()?;
     let own = english.map(|en| own_pictures(romfs, en)).transpose()?.unwrap_or_default();
     let mut compiled = match (english, &en_source) {
         (Some(en_dir), Some(en)) => {
             let (scripts, lines) = en.scripts()?;
-            let en_game = Game { scripts, lines, textures: textures(en_dir, &game.pictures)?, pictures: game.pictures.clone(), scenes: game.scenes.clone(), sounds: game.sounds.clone(), waves: game.waves.clone(), motions: game.motions.clone(), movies: en_movies(romfs, en_dir, &game.movies)?, pic_ext };
+            let en_game = Game { scripts, lines, textures: textures(en_dir, &game.pictures)?, pictures: game.pictures.clone(), scenes: game.scenes.clone(), sounds: game.sounds.clone(), waves: game.waves.clone(), motions: game.motions.clone(), movies: en_movies(romfs, en_dir, &game.movies)?, shaders: game.shaders.clone(), pic_ext };
             super::language::compile(&game, &en_game, &own, text_window(false), text_window(true))
         }
         _ => convert::compile(&game),

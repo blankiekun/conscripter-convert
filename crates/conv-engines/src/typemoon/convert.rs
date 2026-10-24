@@ -10,7 +10,7 @@
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, ScreenEffect, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
+use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, ScreenEffect, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
 use super::exe::{Key, Motion, Picture};
 use super::script::Command;
@@ -108,6 +108,9 @@ pub struct Game<'a> {
     /// The exe's movie table ([`super::exe::Exe::movies`]), the English
     /// copy's as `movie/en/<name>` where the fan patch has its own.
     pub movies: Vec<String>,
+    /// Each `_STBR` byte's shader ([`super::exe::Exe::shaders`]); none:
+    /// the normal one.
+    pub shaders: Vec<i32>,
 }
 
 pub struct Compiled {
@@ -157,7 +160,7 @@ struct Layer {
     /// Turned by this many 1/100 degrees, counter-clockwise (`_STRT`,
     /// `_STCH` argument 19).
     angle: i32,
-    /// `_STBR`: the shader it is drawn with (0 or 255: the normal one).
+    /// `_STBR`'s byte: its blend id, so its shader ([`Game::shaders`]).
     shader: u8,
     /// `_STEC(layer, effect, colour)`: the effect (1-82) and its colour.
     effect: Option<(i32, u32)>,
@@ -170,13 +173,12 @@ struct Layer {
 /// CONscripter's `spblend` screen mode (lighten, never past white).
 const BLEND_SCREEN: u8 = 4;
 
-/// How a `_STBR` shader is drawn here: an `spblend` mode and a filter.
-/// The shader numbers are the exe's shader table's (`FUN_00132d20`
-/// maps the layer's byte through a table at 0x44DD70, the same number
-/// for 1–39; the shaders are listed at 0xBD2308, 16 bytes each).
-// src: exe 0x44DD70 (the shader table), 0xBD2308 (its names)
+/// How a shader is drawn here: an `spblend` mode and a filter. The
+/// numbers index the exe's shader names at 0xBD2308 (16 bytes each); a
+/// `_STBR` byte reaches one through two tables ([`super::exe::Exe::shaders`]).
+// src: exe 0xBD2308 (the shader names)
 // shortcut: darken, burn and lighten, dodge are drawn as multiply and screen; overlay, soft and hard light and the rest as normal.
-fn shader(n: u8) -> (u8, Option<SpriteFilter>) {
+fn shader(n: i32) -> (u8, Option<SpriteFilter>) {
     let filter = |kind, p: i32| Some(SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(FILTER_BLEND_COPY), strength: Operand::Const(256), params: [Operand::Const(p); 3] });
     match n {
         3 | 18 | 25 | 27 => (BLEND_ADD, None),
@@ -185,8 +187,6 @@ fn shader(n: u8) -> (u8, Option<SpriteFilter>) {
         20 | 23 | 24 | 30 | 34 | 35 | 37 => (BLEND_SCREEN, None),
         7 => (BLEND_NORMAL, filter(FILTER_GREYSCALE, 0)),
         8 => (BLEND_NORMAL, filter(FILTER_NEGATIVE, 0)),
-        // guess: gauss's radius; the exe's is in the compiled shader (BNSH), not its code
-        11 => (BLEND_NORMAL, filter(FILTER_BLUR, 8)),
         _ => (BLEND_NORMAL, None),
     }
 }
@@ -1071,7 +1071,7 @@ impl Lowering<'_, '_> {
                     }
                 }
             }
-            // `_STBR(layer, n)` (`FUN_00162490`): the shader (0: the normal one).
+            // `_STBR(layer, n)` (`FUN_00162490`): the blend id (0: the normal one).
             "_STBR" => {
                 let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
                 l.shader = number(arg(1)).unwrap_or(0).clamp(0, 255) as u8;
@@ -1691,7 +1691,7 @@ impl Lowering<'_, '_> {
         if l.alpha < 255 {
             self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: l.alpha * 256 / 255 });
         }
-        let (blend, filter) = shader(l.shader);
+        let (blend, filter) = shader(self.g.shaders.get(l.shader as usize).copied().unwrap_or(0));
         // spblend stays through lsp and goes with csp.
         if blend != self.blends[layer as usize] {
             self.ops.push(Op::SpriteBlend { layer, mode: blend });
@@ -1963,7 +1963,7 @@ mod tests {
 
     /// A game with one script and nothing else; tests override fields with `..game(src)`.
     fn game(src: &str) -> Game<'_> {
-        Game { scripts: scripts(src), scenes: vec![], lines: vec![], pictures: HashMap::new(), textures: HashMap::new(), sounds: vec![], waves: HashMap::new(), pic_ext: "webp", motions: vec![], movies: vec![] }
+        Game { scripts: scripts(src), scenes: vec![], lines: vec![], pictures: HashMap::new(), textures: HashMap::new(), sounds: vec![], waves: HashMap::new(), pic_ext: "webp", motions: vec![], movies: vec![], shaders: vec![] }
     }
 
     #[test]
@@ -2147,6 +2147,7 @@ mod tests {
             pic_ext: "webp",
             motions: vec![Motion { mask: u64::MAX, length_ms: 1500, keys: keys.clone(), loop_from }],
             movies: vec![],
+            shaders: vec![],
         };
         // (None: a stop; `_STMA(n, 0)` stops it where it is, an empty Keep)
         let ends = |ops: &[Op]| ops.iter().filter_map(|o| match o {
@@ -2334,10 +2335,12 @@ mod tests {
 
     #[test]
     fn turn_shader_and_tint() {
-        let src = "_STCH(1,img1,240,136);_STRT(1,-9000,-9000,0,0);_STBR(1,18);_STEC(1,1,0xFF8000);_FADS(1,0,0);_STCH(1,img1,240,136);_FADS(1,0,0);";
+        let src = "_STCH(1,img1,240,136);_STRT(1,-9000,-9000,0,0);_STBR(1,1);_STEC(1,1,0xFF8000);_FADS(1,0,0);_STCH(1,img1,240,136);_FADS(1,0,0);";
         let g = Game {
             pictures: [picture("img1", 1280.0, 724.0)].into(),
             textures: [("img1".into(), (2560, 1440))].into(),
+            // `_STBR` 1: blend id 1, shader 27 (ps_add)
+            shaders: vec![0, 27],
             ..game(src)
         };
         let c = compile(&g);
