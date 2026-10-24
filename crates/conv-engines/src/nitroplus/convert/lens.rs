@@ -50,7 +50,7 @@ impl Compiler<'_, '_> {
                 diameter: o.w as i32,
                 curvature: l.curvature as i32,
                 distance: l.distance as i32,
-                // 0-1000 to 0-255 (500: 128)
+                // ours: the effect's 0-1000 opacity as the engine's 0-255 (500 gives 128)
                 opacity: ((o.opacity.min(1000) * 255 + 500) / 1000) as u32,
                 interval_ms: FRAME_MS,
                 looped: !offsets.is_empty(),
