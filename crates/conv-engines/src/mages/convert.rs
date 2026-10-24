@@ -26,6 +26,7 @@ use conv_core::ir::{
     MotionEnd, MotionKey, Placed, SpritePlacement, Switch, TextStyle, TextWindow, TransitionStyle, Var, Voice,
 };
 
+use super::quake::Quake;
 use super::tasks::{Block, Scene, Val, parse};
 
 // src: the Vita's screen (SystemData's 960×544 pictures)
@@ -82,6 +83,32 @@ fn opened(t: &Block) -> Vec<&Block> {
 /// (a second picture of one character, as the cut-ins in S03_02A).
 fn chara_key(c: &Block, number: i64) -> String {
     format!("c{}", number + c.int("Copy").unwrap_or(0) * 1000)
+}
+
+/// The eboot's update period: one update per frame it queues, each shown
+/// for two vblanks (0x81050620 passes 2 to the display-queue entry
+/// 0x81000898; its callback 0x810009b4 waits with
+/// sceDisplayWaitSetFrameBufMulti(2)): 30 updates a second.
+const UPDATE_MS: u32 = 33; // src: exe 0x81050620, 0x810009b4
+
+/// The screen-effect slot of a looped quake's passes after the first.
+const QUAKE_TAIL_SLOT: u32 = 4; // ours: a slot no other effect uses
+
+/// The updates a looped quake's offsets repeat after: the swing's period
+/// (`time`) and the path's (its counter steps 6 tenths of a segment an
+/// update over a 10-segment table: 50 updates), which runs on across the
+/// swing's wrap.
+fn quake_period(q: &Quake) -> usize {
+    let gcd = |mut a: usize, mut b: usize| {
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        a
+    };
+    // src: exe 0x81008a3c (the path), 0x81032e2a (the swing over `time`)
+    let path = if q.param[0] != 0.0 || q.param[1] != 0.0 { 50 } else { 1 };
+    let swing = if q.param[4] > 0.0 || q.param[5] > 0.0 { q.time.max(1) as usize } else { 1 }; // exe 0x81008a3c
+    path * swing / gcd(path, swing)
 }
 
 /// Frames (60 fps) to milliseconds.
@@ -523,6 +550,8 @@ struct Lowering<'a> {
     /// shows (`SpriteBG`, `SpriteBS`, or a `Sprite` in 2 scenes) removes
     /// them all.
     inherited: bool,
+    /// A looped quake's later passes run in [`QUAKE_TAIL_SLOT`].
+    quake_tail: bool,
     /// No message yet: the scene's opening, which the scripts write once
     /// per branch (skipped or not), each after a `Tag`.
     opening: bool,
@@ -531,6 +560,13 @@ struct Lowering<'a> {
 }
 
 impl Lowering<'_> {
+    /// Clears a looped quake's tail slot, if one runs.
+    fn stop_quake_tail(&mut self) {
+        if std::mem::take(&mut self.quake_tail) {
+            self.out.ops.push(Op::ScreenEffect { slot: QUAKE_TAIL_SLOT, effect: None });
+        }
+    }
+
     fn note(&mut self, what: impl Into<String>) {
         let what = what.into();
         self.out.metrics.note(&what);
@@ -1308,50 +1344,65 @@ impl Lowering<'_> {
                 }
             }
             "EffectQuake" => {
-                // src: exe 0x8112a26c (`:Param` 0 by default: no shake)
-                let ax = sx(t.int_at("Param", 0).unwrap_or(0));
-                let ay = sy(t.int_at("Param", 1).unwrap_or(0));
-                // scene_load case 99 (0x8102840a; defaults from 0x8112a26c:
-                // `:Time` 60 of our frames, `:Fade` 0, `:Wait` 1): a negative
-                // `:Time` or `:Loop 1` shakes at full size until
-                // EffectQuakeEnd, `:Fade` and `:Wait` unread; else for
-                // `:Time` frames, dying down with `:Fade 1`, at full size
-                // with 0, then stops. `:Time 0` without a loop stops the
-                // shake (0x810089a4). A `:Loop` key, read after `:Time`,
-                // overrides the negative time's loop flag either way (case
-                // 99 sets +0x3a from it); no script has both.
-                let time = t.int("Time").unwrap_or(60);
-                let looped = t.int("Loop").map_or(time < 0, |l| l == 1);
-                let time = time.abs();
+                // src: exe 0x8102840a case 99 (0x81032de0; defaults 0x8112a26c:
+                // `:Time` 60 fps frames, `:Fade` 0, `:Wait` 1, `:Param` 0),
+                // run as time × 30 / 60 updates (0x81032e2a); a negative
+                // `:Time` or `:Loop 1` shakes until EffectQuakeEnd, `:Fade`
+                // and `:Wait` unread (a `:Loop` key, read after `:Time`,
+                // overrides the negative time's flag either way; no script
+                // has both); else for `:Time`, dying down with `:Fade 1`.
+                // `:Time 0` without a loop stops the shake (0x810089a4).
+                let frames = t.int("Time").unwrap_or(60);
+                let looped = t.int("Loop").map_or(frames < 0, |l| l == 1);
+                let time = (frames * 30 / 60).abs() as i32; // src: exe 0x81032e2a
+                // The sizes in script pixels: `:Param` 0-3 are 1280×720 ones
+                // (read before a stop returns, which has no use for them).
+                // src: exe 0x8112a26c (`:Param` 0 by default)
+                let p = |i: usize| t.at("Param", i).and_then(Val::float).unwrap_or(0.0) as f32;
+                let (kx, ky) = (0.75, 544.0 / 720.0); // ours: 1280×720 to the screen
+                let param = [p(0) * kx, p(1) * ky, p(2) * kx, p(3) * ky, p(4), p(5)]; // exe 0x81008a3c: sizes 0-3, half-waves 4, 5
+                // A new quake replaces the running one (0x810089a4 restarts
+                // the record).
+                self.stop_quake_tail();
                 if time == 0 && !looped {
                     self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None });
                     return;
                 }
-                let (end, end_ms) = if looped {
-                    ((ax, ay), 0)
-                } else if t.int("Fade") == Some(1) {
-                    ((0, 0), ms(time))
-                } else {
-                    ((ax, ay), ms(time))
-                };
-                // ours: the shake's interval and speed. Without `:Param` 0,
-                // 1, the swing (2-5): a sine of its half-waves over `:Time`.
-                let (speed, (ax, ay), end) = match (ax, ay) {
-                    (0, 0) => match swing(t) {
-                        Some(((sx_, hx), (sy_, hy))) => {
-                            let turn = |h: i64| (32768 * h / i64::from(ms(time).max(1))) as i32;
-                            // dying down with `:Fade 1` (the end above)
-                            let end = if !looped && t.int("Fade") == Some(1) { (0, 0) } else { (sx_, sy_) };
-                            ((turn(hx), turn(hy)), (sx_, sy_), end)
-                        }
-                        None => ((2200, 2900), (ax, ay), end),
-                    },
-                    _ => ((2200, 2900), (ax, ay), end),
-                };
-                let shake = ScreenEffect::Shake { delay_ms: 0, time_ms: ms(time).max(1), interval_ms: 16, path: false, speed, range: [(ax, ay), end], end_ms };
+                let fade = if !looped && t.int("Fade") == Some(1) { time } else { 0 };
+                let quake = Quake { time, fade, looped, param };
+                if looped {
+                    // One period loops; the scenes' loops repeat after 50 or
+                    // 150 updates. The first pass differs when the swing's
+                    // first update (frame 1) differs from a later pass's
+                    // (frame time + 1, read before the wrap) or its rise is
+                    // eased in: then it runs once in slot 1 and the later
+                    // passes loop in the tail slot from its end. Every
+                    // looped quake ends with an EffectQuakeEnd in its scene.
+                    let period = quake_period(&quake);
+                    let first = time.max(1) as usize;
+                    let all = quake.frames(first + 2 * period);
+                    if (0..all.len()).all(|i| all[i] == all[i % period]) {
+                        let shake = ScreenEffect::ShakeList { interval_ms: UPDATE_MS, offsets: all[..period].to_vec(), looped, delay_ms: 0 };
+                        self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
+                    } else {
+                        let head = ScreenEffect::ShakeList { interval_ms: UPDATE_MS, offsets: all[..first].to_vec(), looped: false, delay_ms: 0 };
+                        let tail = ScreenEffect::ShakeList { interval_ms: UPDATE_MS, offsets: all[first..first + period].to_vec(), looped, delay_ms: first as u32 * UPDATE_MS };
+                        self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(head) });
+                        self.out.ops.push(Op::ScreenEffect { slot: QUAKE_TAIL_SLOT, effect: Some(tail) });
+                        self.quake_tail = true;
+                    }
+                    return;
+                }
+                let offsets = quake.frames(usize::MAX);
+                if offsets.is_empty() {
+                    self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None });
+                    return;
+                }
+                let n = offsets.len() as u32;
+                let shake = ScreenEffect::ShakeList { interval_ms: UPDATE_MS, offsets, looped, delay_ms: 0 };
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
-                if !looped && t.int("Wait").unwrap_or(1) != 0 {
-                    self.out.ops.push(Op::Wait { ms: ms(time) });
+                if t.int("Wait").unwrap_or(1) != 0 {
+                    self.out.ops.push(Op::Wait { ms: n * UPDATE_MS });
                 }
             }
             "SpritePriority" | "CharacterPriority" => {
@@ -1363,7 +1414,10 @@ impl Lowering<'_> {
                 };
                 self.reprioritize(&key, t.int("Priority").unwrap_or(5));
             }
-            "EffectQuakeEnd" => self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None }),
+            "EffectQuakeEnd" => {
+                self.stop_quake_tail();
+                self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None });
+            }
             "SpriteMove" => {
                 let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
                 let Some(key) = self.shown.iter().find(|(_, s)| s.tex == tex).map(|(k, _)| k.clone()) else {
@@ -1943,7 +1997,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, quake_tail: false, opening: false, messages: 0 }; // ours: scale 100 %
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
@@ -2209,7 +2263,7 @@ mod tests {
         let scene = Scene { title: None, tasks: vec![] };
         let game = Game { scenes: BTreeMap::from([("s01".to_string(), scene)]), characters: HashMap::new(), flags: vec![], global_flags: vec![], names: HashMap::new(), actions: HashMap::new(), gallery: vec![], start: "s01".into() };
         let mut assets = DialogOnly;
-        let mut l = Lowering { game: &game, assets: &mut assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+        let mut l = Lowering { game: &game, assets: &mut assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, quake_tail: false, opening: false, messages: 0 };
         let dialog = &parse("[Task1]\n{\n:Tasktype \"SceneJumpDialog\"\n:NextTag \"a\"\n:JumpNextTag \"b\"\n}\n").unwrap()[0];
         l.scene_jump("s01", dialog);
         l.scene_jump("s01", dialog);
@@ -2223,7 +2277,7 @@ mod tests {
         let scene = Scene { title: None, tasks: vec![] };
         let game = Game { scenes: BTreeMap::from([("s01".to_string(), scene)]), characters: HashMap::new(), flags: vec![], global_flags: vec![], names: HashMap::new(), actions: HashMap::new(), gallery: vec![], start: "s01".into() };
         let mut assets = DialogOnly;
-        let mut l = Lowering { game: &game, assets: &mut assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+        let mut l = Lowering { game: &game, assets: &mut assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, quake_tail: false, opening: false, messages: 0 };
         l.out.ops.push(Op::Text { speaker: None, text: "「あいう」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
         let q = &parse("[Task1]\n{\n:Tasktype \"MessageSwitch_Tag\"\n:AnswerMax 0\n:Text \"「あ\\nいう」\"\n}\n").unwrap()[0];
         l.choice("s01", q);

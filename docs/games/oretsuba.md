@@ -36,17 +36,13 @@ Paused 2026-10-20.
    drawn apart at (176, 373) in NameFontScale 0.8125 (0x8112ce0c),
    ours stays in the message; letter advance 23 (conv-cons adds 1 px
    for every game) vs the eboot's 22.
-6. EffectQuake: `mages::quake` reproduces the eboot's offsets (checked
-   under exe_call), but 0.txt still uses screenshake's sine: the
-   eboot's 10-point path needs an engine mode taking a path, or keyed
-   screen motion.
-7. Particles (EffectStart 51/52/54): count from the eboot; motion ours.
+6. Particles (EffectStart 51/52/54): count from the eboot; motion ours.
    The eboot's is a rand()-driven 200-particle step every frame (snow
    0x81047dfa, light balls 0x81043c8a, confetti 0x81043464) that never
    loops; our 16-frame strip can't hold it. Routes tried: ctors, :Param
    readers, update and draw read. Needs a longer strip or an engine
    particle mode (ask first).
-8. Wave transition (InOut_Act 1): :Param defaults from the eboot; the
+7. Wave transition (InOut_Act 1): :Param defaults from the eboot; the
    amplitude unit is in fragment GXP 0x8115f63c (literals read, no
    screen-size factor). Route left: decode it with gxp2glsl (rebuild
    its Vita3K checkout).

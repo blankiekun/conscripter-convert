@@ -67,6 +67,12 @@ pub fn animated_ms(source: &str, lines: &[(usize, Option<SourceLoc>)], is_scene:
                     let keys = (args.len() - first) / 8;
                     if keys == 0 { 0 } else { int(first + (keys - 1) * 8).unwrap_or(0).max(0) as u64 }
                 }
+                // mode 3: one pass of its "x,y ..." list, an offset per interval
+                "screenshake" if int(3) == Some(3) => {
+                    let list = cmd.split('"').nth(1).unwrap_or("");
+                    let n = list.split(|c: char| !(c.is_ascii_digit() || c == '-')).filter(|s| !s.is_empty()).count() / 2;
+                    n as u64 * int(2).unwrap_or(0).max(0) as u64
+                }
                 "screenshake" | "screenpulse" | "screenzoom" => int(1).unwrap_or(0).max(0) as u64,
                 "screenripple" => int(2).unwrap_or(0).max(0) as u64,
                 _ => continue,
@@ -124,13 +130,14 @@ mod tests {
                    print 10,500 ; a comment: print 11\n\
                    screenshake 1,500,16,0,1300,1700,10,10,10,10,500\n\
                    if %1 == 1 print 11\n\
-                   bg black,11\n";
+                   bg black,11\n\
+                   screenshake 4,0,33,3,\"1,0 -2,3 0,0\",1,0,66\n";
         // line 3 in a function file the scene calls into; 7 no source
-        let lines = vec![(1, None), (2, at("s.nss")), (3, at("function.nss")), (5, at("t.nss")), (8, None)];
+        let lines = vec![(1, None), (2, at("s.nss")), (3, at("function.nss")), (5, at("t.nss")), (8, None), (9, at("t.nss"))];
         let scene = |f: &str| f != "function.nss";
         let per = animated_ms(src, &lines, scene, true);
         assert_eq!(per.get("s.nss"), Some(&(2000 + 16000)));
-        assert_eq!(per.get("t.nss"), Some(&(500 + 500)));
+        assert_eq!(per.get("t.nss"), Some(&(500 + 500 + 99)));
         assert_eq!(animated_ms(src, &lines, scene, false).get("s.nss"), Some(&(1000 + 16000)));
     }
 }

@@ -2,8 +2,8 @@
 "game": "oretsuba",
 "engine": "mages",
 "engine_doc": "mages",
-"commit": "1480a08f",
-"commit_date": "2026-10-19",
+"commit": "93347dd1",
+"commit_date": "2026-10-24",
 "totals": {"calls": 120318, "full": 119370, "gaps": 948, "weighted": 119873.6, "credit": 119866.7, "score": {"total": 98.68, "as_original": 98.61, "channels": {"text": 100.00, "sound": 100.00, "picture": 99.89, "motion": 97.98, "timing": 100.00, "movie": 79.00}, "unmeasured": [], "parity_complete": false}},
 "kinds": {
 "SceneJumpDialogEnd": {"calls": 531, "gaps": 531, "reasons": [["user dropped: SceneJumpDialogEnd :Fade ignored (tempo)", 531]], "weighted": 265.5, "credit": 371.7, "channel": "text"},
@@ -60,6 +60,6 @@
 "CharacterStop": {"calls": 2, "gaps": 0, "reasons": [], "weighted": 2.0, "credit": 2.0, "channel": "motion"}
 },
 "outside_calls": [],
-"parity": {"source_ms": 2755280, "ours_ms": 12818013, "short_ms": 0, "scenes_short": 0},
+"parity": {"source_ms": 2755280, "ours_ms": 12927867, "short_ms": 0, "scenes_short": 0},
 "parity_worst": []
 }
