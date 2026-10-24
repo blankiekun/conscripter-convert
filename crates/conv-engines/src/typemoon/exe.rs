@@ -33,6 +33,13 @@ const VOICE_MASKS: usize = 0xBE_04D8;
 /// The movie table (`FUN_001017c0`): 0x30 bytes an entry, the file's
 /// path first (`movie/titlebg1.mp4`), up to a null path.
 const MOVIES: usize = 0x50_B890;
+/// `FUN_00132d20`: a layer's `_STBR` byte (0–98; else 0) to its blend id,
+/// 99 ints (0–39 the same, 94–98 → 32, 33, 39, 37, 31, the rest 0).
+const BLEND_IDS: usize = 0x44_DD70;
+/// `FUN_001a2790`: blend id 1–44 (else 0) to the shader drawn with,
+/// `BLEND_SHADERS[id − 1]`, an index into the 56 names at 0xBD2308; −1
+/// draws no shader (ids 3, 27).
+const BLEND_SHADERS: usize = 0x4C_9698;
 
 /// A picture `_STCH` can name: the name's archive entry is `<name>.NXGZ`
 /// in `allpac`.
@@ -424,6 +431,19 @@ impl Exe {
         (0..).map(|i| self.pointer(MOVIES + 0x30 * i)).take_while(|&p| p != 0).map(|p| self.string(p)).collect()
     }
 
+    /// Each `_STBR` byte's shader (`FUN_00137f50` hands the blend id to
+    /// `FUN_00136520`, which draws with `FUN_001a2790(id)`); 256 entries.
+    pub fn shaders(&self) -> Result<Vec<i32>, FormatError> {
+        (0..256)
+            .map(|n| {
+                // src: exe FUN_00132d20 (`cmp w0,#0x62`: bytes 0-98)
+                let id = if n < 99 { self.i32(BLEND_IDS + 4 * n)? } else { 0 };
+                // src: exe FUN_001a2790 (`cmp w8,#0x2b`: ids 1-44)
+                Ok(if (1..=44).contains(&id) { self.i32(BLEND_SHADERS + 4 * (id as usize - 1))? } else { 0 })
+            })
+            .collect()
+    }
+
     /// Each script's scene number, in `allscr` order: `_JUMP(n)` goes to
     /// the script whose number is `n`.
     pub fn scenes(&self) -> Result<Vec<i16>, FormatError> {
@@ -526,6 +546,25 @@ fn run_switch(image: &[u8], mut pc: usize, arg: u64) -> Result<u32, FormatError>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stbr_bytes_reach_shaders_through_blend_ids() {
+        // A few entries of 1.0.2's two tables: (byte, blend id) at 0x44DD70, (id, shader) at 0x4C9698.
+        let mut image = vec![0; BLEND_SHADERS + 4 * 44 - BASE];
+        let mut put = |at: usize, v: i32| image[at - BASE..at - BASE + 4].copy_from_slice(&v.to_le_bytes());
+        for (byte, id) in [(1, 1), (3, 3), (7, 7), (11, 11), (18, 18), (98, 31)] {
+            put(BLEND_IDS + 4 * byte, id);
+        }
+        for (id, shader) in [(1, 27), (3, -1), (7, 29), (11, 27), (18, 41), (31, 7)] {
+            put(BLEND_SHADERS + 4 * (id - 1), shader);
+        }
+        let shaders = Exe { image, pointers: Default::default() }.shaders().unwrap();
+        assert_eq!(shaders.len(), 256);
+        // 7 is ps_mul and 18 exclusion, not monotone and add; 98 is monotone (7).
+        assert_eq!([1, 3, 7, 11, 18, 98].map(|n| shaders[n]), [27, -1, 29, 27, 41, 7]);
+        // Past the tables (99 bytes) and id 0: the default shader.
+        assert_eq!([0, 2, 99, 255].map(|n| shaders[n]), [0; 4]);
+    }
 
     #[test]
     fn mode_1_is_the_exes_spline() {

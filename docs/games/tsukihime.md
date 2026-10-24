@@ -33,8 +33,7 @@ Paused 2026-10-20.
    route picture and chapter labels.
 5. The first launch's prologue (ours goes straight to the title).
 6. Guesses the exe doesn't give without runtime state (exe-values pass,
-   parked): gauss blur radius (in the compiled BNSH shader; the
-   uniform write not found yet); the menu's and Config's ground: not
+   parked): the menu's and Config's ground: not
    part 0x52 (FUN_0013b9a0's FUN_001b7f00(0xe, 0, 0x52, ...): its
    callback FUN_0013c510 draws only the screen-wide white and black
    fades and the loading icon; not tried yet: the menu's own widgets
@@ -175,9 +174,14 @@ picture's record against its texture, prints a motion's keys.
     0xA2, the zoom goes only to the shaders (inferred: for blurs).
   - `_STRT(layer, from, to, ms, e, cx, cy)` turns in 1/100° clockwise,
     timed like `_STZ4`; `_STCF` bit 4 waits for it, not for a zoom. `_STBR(layer, n)`
-    (`FUN_00162490`) picks a pixel shader via table 0x44DD70 into the
-    56 names at 0xBD2308 (0 default, 7 monotone, 8 negative, 11 gauss,
-    18 add, 19 multi, 23 lighten, 24 screen, 31 overlay, …).
+    (`FUN_00162490`) sets the layer's blend id: n through the table at
+    0x44DD70 (`FUN_00132d20`; 0–39 the same, 94–98 → 32, 33, 39, 37,
+    31, else 0); `FUN_00137f50` hands it to `FUN_00136520` (struct +0x20),
+    which draws with shader `FUN_001a2790(id)` = 0x4C9698[id − 1] (ids
+    1–44), an index into the 56 names at 0xBD2308 (0 default, 7
+    monotone, 8 negative, 11 gauss, 18 add, 27 ps_add, 29 ps_mul, 41
+    exclusion, …). No id gives gauss (11), whose scale floats
+    (TextureParam 12, 13) only the haze path (`FUN_001b0810`) sets. Shaders spblend cannot draw get the nearest engine mode (31, 32 multiply; 33 screen; 39, 40 subtract; 41 add) until real modes exist.
     `_STEC` effect 1 tints (multiplied), 0 ends it.
   - `_STMA(layer, m, mode, p)` (`FUN_00199620`): motion m (0 stops).
     `mode` 1 hides the text window until the next text; 2 hides it
