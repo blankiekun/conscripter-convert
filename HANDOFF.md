@@ -1,4 +1,36 @@
-# Handoff: Oretsuba live particles (context cap, second agent)
+# Handoff: Oretsuba live particles
+
+## Fourth agent (2026-10-23), stopped at the context cap
+- Done, pushed: engine pointer at master 27988f5 (#191 merged); IR
+  `Op::Particles` (conv-core ir/mod.rs, end of Op); conv-cons
+  `particles.rs` (setlayer 1,16,"particle"; handle %conv_particles under
+  the animation; $conv_particles_message restarts it after csp -1 and in
+  *conv_load_clear); mages `particles.rs` (keys per kind with eboot
+  addresses, 0.05-class speed tables), assets.rs strip/PARTICLE_FRAMES/LCG
+  deleted. Builds; `cargo test -p conv-engines mages` 15 ok. Dry-run full
+  build: 41 starts (lightball 34, 23 with warm=600; paper n=40 x6 vy=1.5;
+  snow n=30 x1).
+- Deviations (ours, to report): confetti first side birth at -64/1344
+  (eboot -32); speed tables in 0.05-class buckets (midpoint), steep near
+  snow c=4.5 (c=4.4: table 5.5 vs eboot 4.125); link scenes don't save
+  the particles (Oretsuba has none).
+- Next: step 3 numeric check. One-scene loose builds exist:
+  out/ore-S03C_15A (snow), out/ore-S02_03G (paper), out/ore-S01_04N
+  (light). Harness per kind: dir with `system` symlinked to the build's,
+  0.txt = `;$S960,544,value200,V8192` / *define / setlayer 1,16,"particle"
+  / game / *start / mov $9,"<message from the build's 0.txt>" /
+  layermessage 1,$9 / lsp 1,"*1",0,0 / print 1 / loop: delay,
+  layermessage 1,"t":getret %2, "p":getret $2; run a renamed copy of
+  /home/saya/Projects/conscripter-engine-particles/build/conscripter
+  (tree == master) with SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+  --trace t.jsonl --save-dir <scratch>; trace "var" records hold $2.
+  Match particles across dumps by class c; compare dy/tick with 2·v(c),
+  x/y ranges and alpha with particles_exe.txt.
+- Then steps 4-5 of the brief: source_lint, `cargo test -p conv-engines
+  mages`, cargo test + clippy (shared code), tests/snapshot.sh (only
+  oretsuba), Status item 7, PR (none yet), delete HANDOFF.md and
+  /home/saya/Projects/conscripter-engine-particles/build/ptest.
+
 
 ## Second agent (2026-10-23), stopped at the 100k cap
 - Engine: src/cons/builtin_dll/layer_particle.cpp written (engine
