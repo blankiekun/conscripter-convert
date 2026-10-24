@@ -1929,7 +1929,7 @@ fn act_style(t: &Block) -> TransitionStyle {
         Some(2) => TransitionStyle::Mosaic,
         Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
         Some(1) => {
-            let param = |i: usize| -> f64 { t.at("Param", i).and_then(Val::float).filter(|&v| v != 0.0).unwrap_or([0.0, 1.5, 2.0][i]) };
+            let param = |i: usize| -> f64 { t.at("Param", i).and_then(Val::float).filter(|&v| v != 0.0).unwrap_or([0.0, 1.5, 2.0][i]) }; // defaults: 0x8104ce66
             TransitionStyle::Wave { direction: direction as u8, amplitude: (param(1) * 100.0).round() as u32, waves: (param(2) * 10.0).round() as u32 }
         }
         Some(6) => TransitionStyle::Blur {
