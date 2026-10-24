@@ -815,6 +815,20 @@ pub enum Op {
     /// `Move`). Eased as [`Op::SpriteMotion2`] is ([`Op::MoveEase`], each
     /// key's own); no keys: stop it, with [`MotionEnd::Keep`] where it is.
     SpriteMotionAdd { layer: u32, keys: Vec<MotionKey>, end: MotionEnd },
+    /// Start (or with `None` stop) live particles over the sprites, under
+    /// the text window: CONscripter's `"particle"` layer (COMMANDS.md
+    /// `setlayer`) with sheet `image` and the layer's other `keys`
+    /// (`n=200,steps=2,...`). Like [`Op::Animation`] it stays when the
+    /// background changes or the sprites are cleared, and a load starts it
+    /// again. Shown at once unless a transition is open.
+    Particles(Option<Particles>),
+}
+
+/// [`Op::Particles`]' sheet and keys.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Particles {
+    pub image: String,
+    pub keys: String,
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

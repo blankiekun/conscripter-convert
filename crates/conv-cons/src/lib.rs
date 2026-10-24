@@ -38,6 +38,7 @@ mod menu;
 mod motion;
 mod movies;
 mod music;
+mod particles;
 mod notice;
 pub mod parity;
 pub mod nsa;
@@ -153,19 +154,22 @@ const NOISE_SPRITE: &str = "%conv_noise";
 const OVERLAY_SPRITE: &str = "%conv_overlay";
 /// Their declarations, with their state below, for the features the
 /// script uses (an [`Op::SpriteInFront`] goes over the overlay's handle).
-fn overlays_define(animation: bool, noise: bool, overlay: bool) -> String {
+fn overlays_define(animation: bool, particles: bool, noise: bool, overlay: bool) -> String {
     let mut lines = Vec::new();
     if animation {
-        lines.push("defvar conv_animation\ndefvar conv_animation_alpha\ndefstr conv_animation_image\nspnew %conv_animation");
+        lines.push("defvar conv_animation\ndefvar conv_animation_alpha\ndefstr conv_animation_image\nspnew %conv_animation".to_string());
+    }
+    if particles {
+        lines.push(particles::define());
     }
     if noise {
-        lines.push("defvar conv_noise\ndefvar conv_noise_alpha\ndefstr conv_noise_image\nspnew %conv_noise");
+        lines.push("defvar conv_noise\ndefvar conv_noise_alpha\ndefstr conv_noise_image\nspnew %conv_noise".to_string());
     }
     if overlay {
-        lines.push("defvar conv_overlay\ndefvar conv_overlay_slot\ndefstr conv_overlay_image\nspnew %conv_overlay");
+        lines.push("defvar conv_overlay\ndefvar conv_overlay_slot\ndefstr conv_overlay_image\nspnew %conv_overlay".to_string());
     }
     if animation || noise || overlay {
-        lines.push("defvar conv_overlay_depth");
+        lines.push("defvar conv_overlay_depth".to_string());
     }
     lines.join("\n")
 }
@@ -336,6 +340,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     let has_noise = script.ops.iter().any(|op| matches!(op, Op::Noise(_)));
     let has_chapters = script.button_bar.as_ref().and_then(|b| b.top.as_ref()).is_some_and(|t| t.chapter_history.is_some());
     let has_animation = script.ops.iter().any(|op| matches!(op, Op::Animation(_)));
+    let has_particles = script.ops.iter().any(|op| matches!(op, Op::Particles(_)));
     // What removes a fade to a colour, after `csp -1` and `popscreen`.
     let clear_fade = if script.ops.iter().any(|op| matches!(op, Op::ScreenFade { .. })) {
         format!(":csp2 {FADE_SPRITE2}")
@@ -378,6 +383,9 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     if has_animation {
         writeln!(restore_overlay, "if {ANIMATION_ALPHA} != 0 lsp {ANIMATION_SPRITE},{ANIMATION_IMAGE},0,0,{ANIMATION_ALPHA}").unwrap();
     }
+    if has_particles {
+        restore_overlay.push_str(&particles::restore());
+    }
     let mut out = String::new();
 
     let border = script.global_border.unwrap_or(GLOBAL_VAR_BASE);
@@ -416,8 +424,8 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     if script.system_menu.is_some() {
         writeln!(out, "{}", system_menu::DEFINE).unwrap();
     }
-    if has_overlay || has_noise || has_animation || in_front {
-        writeln!(out, "{}", overlays_define(has_animation, has_noise, has_overlay || in_front)).unwrap();
+    if has_overlay || has_noise || has_animation || has_particles || in_front {
+        writeln!(out, "{}", overlays_define(has_animation, has_particles, has_noise, has_overlay || in_front)).unwrap();
     }
     if script.ops.iter().any(|op| matches!(op, Op::Text { links, .. } if links.iter().any(|l| l.target.is_some()))) {
         writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
@@ -641,6 +649,9 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     writeln!(out, "end").unwrap();
     writeln!(out, "*{LOAD_CLEAR}").unwrap();
+    if has_particles {
+        writeln!(out, "{}", particles::after_load()).unwrap();
+    }
     match &after_load {
         Some(label) => writeln!(out, "goto *{label}").unwrap(),
         None => writeln!(out, "return").unwrap(),

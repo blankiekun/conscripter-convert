@@ -23,9 +23,10 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
     Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_MONOTONE, FILTER_NEGATIVE, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
-    MotionEnd, MotionKey, Placed, SpritePlacement, Switch, TextStyle, TextWindow, TransitionStyle, Var, Voice,
+    MotionEnd, MotionKey, Particles, Placed, SpritePlacement, Switch, TextStyle, TextWindow, TransitionStyle, Var, Voice,
 };
 
+use super::particles::{self, Kind};
 use super::quake::Quake;
 use super::tasks::{Block, Scene, Val, parse};
 
@@ -137,17 +138,6 @@ fn sy(y: i64) -> i32 {
     (y * 544 / 720) as i32
 }
 
-/// Particle effects drawn as looping animations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Particles {
-    /// 光玉: floating, twinkling balls of light.
-    LightBalls,
-    /// 雪: falling snow.
-    Snow,
-    /// 紙吹雪: falling paper.
-    Confetti,
-}
-
 /// The game's files, by archive ID.
 pub trait Assets {
     /// A CG.cpk picture: output path, width, height.
@@ -182,9 +172,8 @@ pub trait Assets {
     /// and below until they meet (`closing`), or sliding away from the
     /// whole picture.
     fn shutters(&mut self, n: u32, closing: bool, frames: u32) -> Option<String>;
-    /// `count` particles of `kind` over the screen: a strip of
-    /// [`super::assets::PARTICLE_FRAMES`] screens that loops.
-    fn particles(&mut self, kind: Particles, count: u32) -> Option<String>;
+    /// The sheet of particle effect `kind`.
+    fn particle_sheet(&mut self, kind: Kind) -> Option<String>;
     /// A picture of one colour (0xRRGGBB) as large as the screen.
     fn colour(&mut self, rgb: u32) -> String;
     /// The text window's picture (SystemData's `meswin.png`, scaled to the
@@ -1628,32 +1617,17 @@ impl Lowering<'_> {
                         self.out.ops.push(Op::ScreenEffect { slot: 3, effect });
                     }
                     51 | 52 | 54 => {
-                        let kind = match n {
-                            51 => Particles::Snow,
-                            52 => Particles::LightBalls,
-                            _ => Particles::Confetti,
-                        };
-                        // The count is :Param 0 (missing: 0, cfg_number 8108c8a8);
-                        // the effects' :Param readers turn 0, a negative count or
-                        // one over the pool into the pool: 200 (snow 0x81047ccc,
-                        // light balls 0x81043902), 100 (confetti 0x81042f66).
-                        // ours: frames of 125 ms (the eboot steps every frame).
-                        let cap = if n == 54 { 100 } else { 200 };
-                        let count = t.int_at("Param", 0).filter(|&c| c > 0 && c <= cap).unwrap_or(cap) as u32;
-                        let animation = if start {
-                            self.assets.particles(kind, count).map(|image| Animation {
-                                image,
-                                frame_ms: vec![125; super::assets::PARTICLE_FRAMES as usize],
-                                looped: true,
-                                opacity: 256,
-                            })
+                        let kind = Kind::of(n).expect("particle effect");
+                        let particles = if start {
+                            let keys = particles::keys(kind, |i| t.at("Param", i).and_then(Val::float));
+                            self.assets.particle_sheet(kind).map(|image| Particles { image, keys })
                         } else {
                             None
                         };
-                        if start && animation.is_none() {
+                        if start && particles.is_none() {
                             self.note(format!("{ty} {n}: no particle picture"));
                         } else {
-                            self.out.ops.push(Op::Animation(animation));
+                            self.out.ops.push(Op::Particles(particles));
                         }
                     }
                     _ => self.note(format!("{ty} {n}")),
@@ -2247,7 +2221,7 @@ mod tests {
         fn wave_map(&mut self, _: u32) -> String { String::new() }
         fn chapter_card(&mut self, _: u32, _: u32, _: i32) -> Option<String> { None }
         fn shutters(&mut self, _: u32, _: bool, _: u32) -> Option<String> { None }
-        fn particles(&mut self, _: Particles, _: u32) -> Option<String> { None }
+        fn particle_sheet(&mut self, _: Kind) -> Option<String> { None }
         fn colour(&mut self, _: u32) -> String { String::new() }
         fn window(&mut self) -> Option<(String, u32, u32)> { None }
         fn skip_dialog(&mut self, _: &[i64], _: &[i64], _: &str, _: &str) -> Option<(Vec<Placed>, [Placed; 2])> {

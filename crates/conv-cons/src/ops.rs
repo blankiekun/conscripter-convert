@@ -452,6 +452,12 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::Particles(particles) => {
+            particles::emit(out, particles);
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::ScreenEffect { slot, effect } => {
             match effect {
                 None => writeln!(out, "screenshake {slot}").unwrap(),

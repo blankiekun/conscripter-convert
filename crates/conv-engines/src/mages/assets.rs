@@ -16,7 +16,8 @@ use image::{Rgba, RgbaImage, imageops};
 
 use conv_core::ir::Placed;
 
-use super::convert::{Assets, Particles, SCREEN_H, SCREEN_W};
+use super::convert::{Assets, SCREEN_H, SCREEN_W};
+use super::particles::Kind;
 use super::menus::Labels;
 use super::cpk::Archive;
 use crate::output::{Output, image_size};
@@ -241,10 +242,6 @@ impl ArchiveAssets<'_> {
     }
 }
 
-/// Frames of a particle animation ([`ArchiveAssets::particles`]): 16
-/// screens side by side stay under the 16,384-pixel texture limit (ours).
-pub const PARTICLE_FRAMES: u32 = 16;
-
 impl Assets for ArchiveAssets<'_> {
     fn cg(&mut self, id: u32) -> Option<(String, u32, u32)> {
         self.picture(0, id)
@@ -412,66 +409,15 @@ impl Assets for ArchiveAssets<'_> {
         Some(path)
     }
 
-    fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
-        let (file, cell, falls) = match kind {
-            // src: ETC.cpk sheets (32×32 cells, measured). ours: the motion
-            // below loops in PARTICLE_FRAMES; the eboot's is rand()-driven
-            // each frame and never loops (snow: update 0x81047dfa, draw
-            // 0x8104839c; docs/games/oretsuba.md Status).
-            Particles::LightBalls => ("lightball.png", (32, 32), false),
-            Particles::Snow => ("snow.png", (32, 32), true),
-            Particles::Confetti => ("paper.png", (32, 32), true),
-        };
-        let count = count.clamp(1, 300);
-        let path = format!("system/particles_{}_{count}.png", file.trim_end_matches(".png"));
-        let key = (5, (kind as u32) << 16 | count);
-        if self.images.contains_key(&key) {
-            return Some(path);
+    fn particle_sheet(&mut self, kind: Kind) -> Option<String> {
+        // src: ETC.cpk, 32-px cells (measured), written as they are.
+        let path = format!("system/{}", kind.sheet());
+        let key = (5, kind as u32); // ours: the image cache's key
+        if !self.images.contains_key(&key) {
+            let img = image::load_from_memory(self.etc.by_name(kind.sheet())?).ok()?.to_rgba8();
+            self.out.write_png(&path, &img);
+            self.images.insert(key, None);
         }
-        let sheet = image::load_from_memory(self.etc.by_name(file)?).ok()?.to_rgba8();
-        let cells: Vec<RgbaImage> = (0..sheet.height() / cell.1)
-            .flat_map(|r| (0..sheet.width() / cell.0).map(move |c| (c, r)))
-            .map(|(c, r)| imageops::crop_imm(&sheet, c * cell.0, r * cell.1, cell.0, cell.1).to_image())
-            .collect();
-        let (w, h, n) = (SCREEN_W as u32, SCREEN_H as u32, PARTICLE_FRAMES);
-        let mut strip = RgbaImage::new(w * n, h);
-        // A fixed LCG: the same particles on every build.
-        let mut seed: u32 = 0x9e37_79b9;
-        let mut rnd = |m: u32| {
-            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-            (seed >> 8) % m.max(1)
-        };
-        let tau = std::f32::consts::TAU;
-        for _ in 0..count {
-            let (x0, y0) = (rnd(w) as f32, rnd(h) as f32);
-            let cell = &cells[rnd(cells.len() as u32) as usize];
-            let phase = rnd(1000) as f32 / 1000.0;
-            let sway = 4.0 + rnd(12) as f32;
-            for f in 0..n {
-                let t = f as f32 / n as f32;
-                let a = tau * (t + phase);
-                // Falling: one screen height per loop, swaying; floating:
-                // a small circle in place, twinkling. Both loop seamlessly.
-                let (x, y, alpha) = if falls {
-                    (x0 + sway * a.sin(), (y0 + t * h as f32) % h as f32, 1.0)
-                } else {
-                    (x0 + sway * a.cos(), y0 + sway * a.sin(), 0.55 + 0.45 * a.sin())
-                };
-                let mut p = cell.clone();
-                if alpha < 1.0 {
-                    for px in p.pixels_mut() {
-                        px.0[3] = (px.0[3] as f32 * alpha) as u8;
-                    }
-                }
-                let (px, py) = (f as i64 * w as i64 + x as i64 - cell.width() as i64 / 2, y as i64 - cell.height() as i64 / 2);
-                // Keep each frame's particles inside their own frame.
-                if px >= f as i64 * w as i64 && px + (cell.width() as i64) <= (f as i64 + 1) * w as i64 {
-                    imageops::overlay(&mut strip, &p, px, py);
-                }
-            }
-        }
-        self.out.write_png(&path, &strip);
-        self.images.insert(key, None);
         Some(path)
     }
 
