@@ -58,6 +58,8 @@ pub(crate) struct Emitter<'a> {
     pub text_goes_on: bool,
     /// Where text goes: inline or in the text table.
     pub strings: crate::strtab::Strings,
+    /// The `spshake` offset lists' `stralias` numbers ([`shake_pool`]).
+    pub shake_lists: HashMap<String, usize>,
 }
 
 impl<'a> Emitter<'a> {
@@ -66,7 +68,7 @@ impl<'a> Emitter<'a> {
         if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMotionAdd { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. } | Op::MoveNoWait | Op::MoveArc { .. }) {
             self.fading.clear();
         }
-        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, ref mut text_goes_on, ref mut strings, fading: ref mut fading_slots } = self;
+        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, ref mut text_goes_on, ref mut strings, fading: ref mut fading_slots, ref shake_lists } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| format!("?{LINK_VISITED}[{}]", link_targets.iter().position(|&t| t == target).unwrap());
     if let Op::Text { .. } = op {
@@ -248,7 +250,7 @@ impl<'a> Emitter<'a> {
         Op::SpriteShake { layer, slot, effect } => {
             match effect {
                 None => writeln!(out, "spshake {},{slot}", SPRITE_BASE + layer).unwrap(),
-                Some(e) => writeln!(out, "spshake {},{slot},{}", SPRITE_BASE + layer, shake_args(e, eased)).unwrap(),
+                Some(e) => writeln!(out, "spshake {},{slot},{}", SPRITE_BASE + layer, shake_args(e, eased, Some(shake_lists))).unwrap(),
             }
             if transition.is_none() {
                 writeln!(out, "print 1").unwrap();
@@ -471,7 +473,7 @@ impl<'a> Emitter<'a> {
             match effect {
                 None => writeln!(out, "screenshake {slot}").unwrap(),
                 Some(e @ (ScreenEffect::Shake { .. } | ScreenEffect::ShakeList { .. } | ScreenEffect::Jolt { .. })) => {
-                    writeln!(out, "screenshake {slot},{}", shake_args(e, eased)).unwrap();
+                    writeln!(out, "screenshake {slot},{}", shake_args(e, eased, None)).unwrap();
                 }
                 Some(ScreenEffect::Ripple { map, time_ms, interval_ms, opacity, amplitude, angle, angle_step, phase_step, multiply, phase }) => {
                     writeln!(
@@ -1093,8 +1095,36 @@ impl<'a> Emitter<'a> {
 /// straight).
 /// The condition that keeps a wait to normal play when an [`Op::AutoWait`]
 /// right before it waits in auto mode.
-/// `screenshake`'s (and `spshake`'s) arguments after the slot for a shake.
-fn shake_args(effect: &ScreenEffect, eased: &mut BTreeMap<(u8, u32), u32>) -> String {
+/// The offset list of a [`ScreenEffect::ShakeList`], as the engine reads it.
+fn shake_list(offsets: &[(i32, i32)]) -> String {
+    offsets.iter().map(|(x, y)| format!("{x},{y}")).collect::<Vec<_>>().join(" ")
+}
+
+/// The distinct `spshake` offset lists, first use first: each goes in the
+/// define section once, as `stralias conv_shake<n>` ([`shake_alias`]).
+// ours: list pool, size (a quake-heavy script repeats its lists thousands of times)
+pub(crate) fn shake_pool(script: &Script) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut pool = Vec::new();
+    for op in &script.ops {
+        if let Op::SpriteShake { effect: Some(ScreenEffect::ShakeList { offsets, .. }), .. } = op {
+            let list = shake_list(offsets);
+            if seen.insert(list.clone()) {
+                pool.push(list);
+            }
+        }
+    }
+    pool
+}
+
+/// The `stralias` name of list `n` of [`shake_pool`].
+pub(crate) fn shake_alias(n: usize) -> String {
+    format!("conv_shake{n}")
+}
+
+/// `screenshake`'s (and `spshake`'s) arguments after the slot for a shake;
+/// a list in `pool` by its `stralias`.
+fn shake_args(effect: &ScreenEffect, eased: &mut BTreeMap<(u8, u32), u32>, pool: Option<&HashMap<String, usize>>) -> String {
     match effect {
         ScreenEffect::Shake { time_ms, interval_ms, path, speed, range: [(x0, y0), (x1, y1)], end_ms, delay_ms } => format!(
             "{time_ms},{interval_ms},{},{},{},{x0},{y0},{x1},{y1}{}",
@@ -1108,13 +1138,17 @@ fn shake_args(effect: &ScreenEffect, eased: &mut BTreeMap<(u8, u32), u32>) -> St
             }
         ),
         ScreenEffect::ShakeList { interval_ms, offsets, looped, delay_ms } => {
-            let list: Vec<String> = offsets.iter().map(|(x, y)| format!("{x},{y}")).collect();
+            let list = shake_list(offsets);
+            let list = match pool.and_then(|p| p.get(&list)) {
+                Some(&n) => shake_alias(n),
+                None => format!("\"{list}\""),
+            };
             let tail = match (*looped, *delay_ms) {
                 (false, 0) => String::new(),
                 (l, 0) => format!(",{}", u8::from(l)),
                 (l, d) => format!(",{},0,{d}", u8::from(l)),
             };
-            format!("0,{interval_ms},3,\"{}\"{tail}", list.join(" "))
+            format!("0,{interval_ms},3,{list}{tail}")
         }
         ScreenEffect::Jolt { time_ms, interval_ms, range: [(x0, y0), (x1, y1)], ease, end_ms } => {
             format!("{time_ms},{interval_ms},2,0,0,{x0},{y0},{x1},{y1},{end_ms},{}", ease::curve(*ease, eased))

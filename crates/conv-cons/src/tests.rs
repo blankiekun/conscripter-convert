@@ -1449,8 +1449,11 @@ fn screen_effects() {
 #[test]
 fn sprite_shakes() {
     let list = ScreenEffect::ShakeList { interval_ms: 50, offsets: vec![(1, -2), (0, 3)], looped: true, delay_ms: 100 };
-    let out = emit(&script(vec![Op::SpriteShake { layer: 3, slot: 2, effect: Some(list) }, Op::SpriteShake { layer: 3, slot: 2, effect: None }]));
-    assert!(out.contains("spshake 65,2,0,50,3,\"1,-2 0,3\",1,0,100\nprint 1\nspshake 65,2\nprint 1\n"), "{out}");
+    let out = emit(&script(vec![Op::SpriteShake { layer: 3, slot: 2, effect: Some(list.clone()) }, Op::SpriteShake { layer: 3, slot: 2, effect: None }, Op::SpriteShake { layer: 4, slot: 1, effect: Some(list) }]));
+    // The list once, in the define section.
+    assert_eq!(out.matches("1,-2 0,3").count(), 1, "{out}");
+    assert!(out.contains("stralias conv_shake0,\"1,-2 0,3\"\n"), "{out}");
+    assert!(out.contains("spshake 65,2,0,50,3,conv_shake0,1,0,100\nprint 1\nspshake 65,2\nprint 1\nspshake 66,1,0,50,3,conv_shake0,1,0,100\n"), "{out}");
 }
 
 #[test]

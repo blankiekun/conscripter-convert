@@ -37,7 +37,7 @@ pub(super) struct Quake {
 
 /// The exe's frames for `ms` (`ms * 3 / 50`, 0x163520).
 pub(super) fn frames(ms: i32) -> u32 {
-    (ms.max(0) * 3 / 50) as u32
+    (ms.max(0) * 3 / 50) as u32  // src: exe 0x163520
 }
 
 /// A quake's length: `ms` < 0 runs for ever (0xffff), and so does one of
@@ -45,6 +45,15 @@ pub(super) fn frames(ms: i32) -> u32 {
 /// more, 0x13c970).
 pub(super) fn length(ms: i32) -> Option<u32> {
     Some(frames(ms)).filter(|&f| ms >= 0 && f > 0)
+}
+
+/// The random seed of `quake` on a layer of `variant` (0-3): the same
+/// arguments give the same list (not its delay, which isn't in it).
+// ours: list pool, size: a seed per argument set, 4 variants (layer mod 4) so layers shaking together differ
+pub(super) fn seed(quake: &Quake, variant: u32) -> u32 {
+    let key = format!("{:?} {:?}", quake.kind, quake.frames);
+    let hash = key.bytes().fold(0x811c_9dc5_u32, |h, b| (h ^ u32::from(b)).wrapping_mul(0x0100_0193)); // FNV-1a
+    hash.wrapping_add(variant % 4)  // ours: 4 variants
 }
 
 // ours: the exe's RNG (the object at *0xbe0190+0x50, libc rand()) can't be replayed: a seeded xorshift.
@@ -140,11 +149,11 @@ fn offsets(quake: &Quake, total: u32, seed: u32) -> Vec<(i32, i32)> {
                         let env = if t < fade_in {
                             f64::from(t) / f64::from(fade_in)
                         } else if fall > 0 && t > dur - fall {
-                            1.0 - f64::from(t - (dur - fall)) / f64::from(fall)
+                            1.0 - f64::from(t - (dur - fall)) / f64::from(fall)  // src: exe FUN_0013c970 envelope
                         } else {
-                            1.0
+                            1.0  // src: exe FUN_0013c970
                         };
-                        let mut u = || rng.unit() * 2.0 - 1.0;
+                        let mut u = || rng.unit() * 2.0 - 1.0;  // src: exe FUN_0013c970 (uniform in -1..1)
                         now = (px(f64::from(x) * env * u()), px(f64::from(y) * env * u()));
                     }
                     now
@@ -163,8 +172,8 @@ fn offsets(quake: &Quake, total: u32, seed: u32) -> Vec<(i32, i32)> {
                 if flicker > 1 {
                     v /= f64::from(flicker);
                     // src: exe FUN_001b5290 (rand() % 5)
-                    if rng.next() % 5 != 0 {
-                        v = 0.0;
+                    if !rng.next().is_multiple_of(5) {
+                        v = 0.0;  // src: exe FUN_001b5290
                     }
                 }
                 (px(v * f64::from(x)), px(v * f64::from(y)))
@@ -182,7 +191,7 @@ fn offsets(quake: &Quake, total: u32, seed: u32) -> Vec<(i32, i32)> {
 /// draws counter 0..=length; `looped`: the turns' lengths scaled to end
 /// on the last frame, so the loop starts over at 0.
 fn drift(rng: &mut Rng, amp: (i32, i32), period: (u32, u32), gain: i32, total: u32, looped: bool) -> Vec<f64> {
-    let sign = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
+    let sign = if rng.unit() < 0.5 { 1.0 } else { -1.0 };  // src: exe FUN_0013c970 (sign once)
     let mut turns = Vec::new();
     let mut sum = 0;
     while sum < total {

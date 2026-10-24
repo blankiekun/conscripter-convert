@@ -554,7 +554,7 @@ struct Lowering<'g, 'a> {
     quakes: Vec<[Option<Placed>; 2]>,
     /// The quake (its id) each IR layer's `spshake` slots 1, 2 run.
     shaking: Vec<[Option<u32>; 2]>,
-    /// The last quake's id (its random seed).
+    /// The last quake's id.
     quake_id: u32,
 }
 
@@ -732,7 +732,7 @@ impl Lowering<'_, '_> {
                 let kind = match c.opcode() {
                     "_SQK2" => 1,
                     "_SHK2" => 2,
-                    _ => 3,
+                    _ => 3,  // src: exe cmd_SSW2 0x191cf0
                 };
                 return self.quake_start(kind, n);
             }
@@ -1637,25 +1637,25 @@ impl Lowering<'_, '_> {
     /// skipping too (the exe's `_SQK2` doesn't, FUN_0015afb0).
     fn quake_start(&mut self, kind: u8, n: impl Fn(usize, i32) -> Option<i32>) -> bool {
         let Some(layer) = n(0, 0) else { return false };
-        if layer >= LAYERS as i32 || (kind == 3 && layer < 0) {
+        if layer >= LAYERS as i32 || (kind == 3 && layer < 0) {  // src: exe 0x191540, 0x191cf0 (40 layers)
             return true; // src: exe 0x191540, 0x191cf0 return
         }
         let (slot, quake, follow) = match kind {
             1 => {
-                let (Some(x), Some(y), Some(hold), Some(ms), Some(delay), Some(follow), Some(fade_in)) = (n(1, 15), n(2, 15), n(3, 0), n(4, -1), n(5, 0), n(6, 0), n(7, 0)) else { return false };
+                let (Some(x), Some(y), Some(hold), Some(ms), Some(delay), Some(follow), Some(fade_in)) = (n(1, 15), n(2, 15), n(3, 0), n(4, -1), n(5, 0), n(6, 0), n(7, 0)) else { return false };  // src: exe cmd_SQK2 0x191540 defaults
                 // src: exe 0x191540: hold ms < 0: 1 frame, < 17: 2, else ms*3/50 + 1
                 let hold = if hold < 0 { 1 } else if hold < 17 { 2 } else { quake::frames(hold) + 1 };
                 let q = (x != 0 || y != 0).then(|| Quake { kind: Kind::Quake { x, y, hold, fade_in: quake::frames(fade_in) }, frames: quake::length(ms), delay: quake::frames(delay) });
                 (0, q, follow != 0)
             }
             2 => {
-                let (Some(x), Some(y), Some(period), Some(ms), Some(delay), Some(decay), Some(fade_in), Some(flicker)) = (n(1, 0), n(2, 15), n(3, 300), n(4, -1), n(5, 0), n(6, 0), n(7, 0), n(8, 1)) else { return false };
+                let (Some(x), Some(y), Some(period), Some(ms), Some(delay), Some(decay), Some(fade_in), Some(flicker)) = (n(1, 0), n(2, 15), n(3, 300), n(4, -1), n(5, 0), n(6, 0), n(7, 0), n(8, 1)) else { return false };  // src: exe cmd_SHK2 0x191900 defaults
                 let period = Some(quake::frames(period)).filter(|&p| p > 0).unwrap_or(60); // src: exe 0x13c970 (period 0: 60 frames)
                 let kind = Kind::Sway { x, y, period, decay: decay != 0, fade_in: quake::frames(fade_in), flicker };
                 (1, (x != 0 || y != 0).then(|| Quake { kind, frames: quake::length(ms), delay: quake::frames(delay) }), false)
             }
             _ => {
-                let (Some(amin), Some(amax), Some(pmin), Some(pmax), Some(gain), Some(ms), Some(delay)) = (n(1, 7), n(2, 15), n(3, 1000), n(4, 2000), n(5, 1), n(6, -1), n(7, 0)) else { return false };
+                let (Some(amin), Some(amax), Some(pmin), Some(pmax), Some(gain), Some(ms), Some(delay)) = (n(1, 7), n(2, 15), n(3, 1000), n(4, 2000), n(5, 1), n(6, -1), n(7, 0)) else { return false };  // src: exe cmd_SSW2 0x191cf0 defaults
                 let kind = Kind::Drift { amp: (amin, amax), period: (quake::frames(pmin), quake::frames(pmax)), gain };
                 (1, (amax != 0 && gain != 0).then(|| Quake { kind, frames: quake::length(ms), delay: quake::frames(delay) }), false)
             }
@@ -1666,7 +1666,7 @@ impl Lowering<'_, '_> {
             self.quakes[i][slot] = quake.as_ref().map(|q| {
                 self.quake_id += 1;
                 let id = self.quake_id;
-                Placed { id, effect: quake::effect(q, id), forever: q.frames.is_none(), follow: follow && i >= 2 }
+                Placed { id, effect: quake::effect(q, quake::seed(q, i as u32)), forever: q.frames.is_none(), follow: follow && i >= 2 }
             });
         }
         self.sync_quakes(first);
@@ -2396,7 +2396,7 @@ mod tests {
             Some(ScreenEffect::ShakeList { delay_ms, looped, .. }) => Some((*delay_ms, *looped)),
             _ => None,
         };
-        let at: Vec<(u32, u32, Option<(u32, bool)>)> = shakes.iter().map(|(l, s, e)| (*l, *s, delay(e))).collect();
+        let at: Vec<_> = shakes.iter().map(|(l, s, e)| (*l, *s, delay(e))).collect();
         assert_eq!(
             at,
             [

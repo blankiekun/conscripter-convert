@@ -518,6 +518,11 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     if script.click_skips_effects {
         writeln!(out, "clickskip").unwrap();
     }
+    let shake_pool = ops::shake_pool(script);
+    for (n, list) in shake_pool.iter().enumerate() {
+        writeln!(out, "stralias {},\"{list}\"", ops::shake_alias(n)).unwrap();
+    }
+    let shake_lists: HashMap<String, usize> = shake_pool.into_iter().enumerate().map(|(n, l)| (l, n)).collect();
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
     // The text speed is a setting when there is a settings menu.
@@ -630,7 +635,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, text_goes_on: false, fading, strings };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, text_goes_on: false, fading, strings, shake_lists };
     // (byte offset in out, source), up to the end of the ops' lines
     let mut starts: Vec<(usize, Option<&SourceLoc>)> = Vec::new();
     let mut map = script.source_map.iter().peekable();
