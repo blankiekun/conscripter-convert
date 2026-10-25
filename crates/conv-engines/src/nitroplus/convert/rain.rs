@@ -92,8 +92,9 @@ impl Compiler<'_, '_> {
         let vy: Vec<String> = (0..12).map(|i| per_tick(BASE[i] + speed.map_or(0, |s| (COEF[i] * s as f64) as i64))).collect();
         let cscale: Vec<String> = (0..12).map(|i| SCALE[i / 3].to_string()).collect();
         let mut keys = format!("cw={cw},ch={ch},n={n},hz={TICKS},cls=12:0:1,vy={},cscale={},x=0:{w},y=0:{},dx=-127:127,ey={},tex={w}:{h}:0:0", vy.join(":"), cscale.join(":"), -(h / 2), h + 2 * i64::from(ch));
-        // ours: swing: the layer's S curve progresses by y, the exe's
-        // Bezier (`FUN_00414260`) by a point count the decompile lost
+        // swing: the exe's Bezier `00414260` (n = ey - y0 points, one a
+        // row; control y ey/4 and 3ey/4; research/nitroplus/drop_bezier_exe.py)
+        // is the layer's; ours: the mirrored half by index, the exe's by seed
         if let Some(s) = self.setting("$SYSTEM_effect_drop_swing").filter(|&s| s != 0) {
             keys += &format!(",swing={s}");
         }
