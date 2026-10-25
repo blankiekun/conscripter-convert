@@ -8,7 +8,8 @@ docs/new-game.md, step 12. Only lines added since BASE are checked; values
 already on main get a source when they are touched.
 Usage: python3 -I research/tools/source_lint.py [BASE]   (default origin/main)
 Heuristic: format parsing, tests and 0/1/2 are skipped; a flag is a prompt
-to add a source, not a failure. Tune the regexes below."""
+to add a source, not a failure.
+A file-level `//! src: <where>` comment covers the whole file (a port). Tune the regexes below."""
 import re, subprocess, sys
 
 NUM = re.compile(r"(?<![\w.])-?(\d+\.\d+|\d{1,6})(?![\w.])")
@@ -22,6 +23,8 @@ PARSE = re.compile(r"read_|u(8|16|32|64)::from|\[\s*\d+\s*\.\.|\.\.\d|offset|byt
 def flagged(lines, added):
     """Line numbers (1-based) in `added` holding an unsourced behaviour number."""
     out = []
+    if any(l.startswith("//! src:") for l in lines):
+        return out  # a whole-file port names its source once
     for i, line in enumerate(lines, 1):
         s = line.strip()
         if s.startswith("#[cfg(test)]"):
@@ -58,4 +61,5 @@ def main():
 
 if __name__ == "__main__":
     assert flagged(["let x = 473;", "// exe 0x469850", "let y = 581;", "let z = 2;"], {1, 3, 4}) == [1]
+    assert flagged(["//! src: eboot", "let x = 473;"], {2}) == []
     sys.exit(1 if main() else 0)

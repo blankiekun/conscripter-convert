@@ -7,7 +7,7 @@ usage: sync_check.py [REF [HEAD]]   (default origin/main HEAD; run from the bran
 Composition bugs (an unwaited action across a sync, a 0 ms action on one
 in flight) live in the code that decides what is still running when the
 script waits. A change there needs a test of the composed output
-(docs/new-game-reference.md, "Timing and overlap"). Prints one line per engine whose sync code
+(docs/tools.md, "Matching the original"). Prints one line per engine whose sync code
 changed with no test change: "sync changed, no composition test".
 Never fails: the reviewer decides (tests/pr-report.sh shows the line).
 """

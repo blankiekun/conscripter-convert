@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Django.exe 1.01 (unpacked) adapter for research/tools/sched_harness.py,
-and the overlap cases of docs/new-game-reference.md, "Timing and overlap", run on it.
+and the overlap cases of docs/tools.md, "Matching the original", run on it.
 
     research/tools/.venv/bin/python -I research/nitroplus/sched_django.py <Django.exe> <dumps dir>
 
 The dumps are ntrace.sh's for research/nitroplus/sched_probe.nss
-(docs/games/django.md, "Memory snapshots"). Each case starts from a dump,
+(docs/games/django.md, "Testing"). Each case starts from a dump,
 queues actions with the exe's own job code (job_for_objects 0x437040, the
 callbacks timed_steps 0x437980 and cb_00438fb0), runs its per-frame
 stepper (step_objects 0x436040) and prints x, y, alpha per frame where it

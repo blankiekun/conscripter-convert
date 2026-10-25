@@ -7,7 +7,7 @@
 #
 # SPEED=N runs the game N times as fast (its clock and waits scaled by
 # research/tools/trace_speed.h; "ms" and "f" stay in game time, so the
-# trace diff's times hold: docs/new-game-reference.md, "Trace speeds").
+# trace diff's times hold: docs/tools.md, "Matching the original").
 #
 # GAME = the install folder (required). XTRACE_HOME (default out/xtrace in
 # the repo) keeps the wine prefix between runs (prepared on the first run,
@@ -18,7 +18,7 @@
 # saves the screen at the end. --route takes the links in a set order
 # (label=1 take, label=0 leave; each used up by the next page offering
 # that label; xtrace.c XTRACE_ROUTE): the whole game's heroine links are
-# in docs/games/saihate-no-ima.md, "Reference trace". Unless --no-cover, research/xuse/cover.py
+# in docs/games/saihate-no-ima.md, "Running the original under wine". Unless --no-cover, research/xuse/cover.py
 # addrs arms one-shot breakpoints ("hit" records; cover.py mark turns them
 # into the findings table's marks). --frames: an "obj" record per changed
 # object each frame (xtrace.c XTRACE_FRAMES). Records: research/xuse/tracedll/xtrace.c.

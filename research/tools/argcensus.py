@@ -13,7 +13,7 @@ top values, and flags:
             -32768), or -1 in more than 30% of the calls
   OUTLIER   |value| > 10x --screen
 Compare each flagged value with the exe's comparisons against constants
-(docs/new-game-reference.md, "Mapping the whole exe"). Variables (%N), strings and labels
+(docs/new-game-reference.md, "Decompiling the exe"). Variables (%N), strings and labels
 are skipped; commands seen fewer than --min times are not listed.
 """
 import re, sys, collections

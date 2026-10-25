@@ -132,7 +132,7 @@ user folders, own Xvfb, `ja_JP.UTF-8`, the null ALSA sink of
   format") and load it from the title's load (670, 262): slot rows at
   y 90, 165, 255, then load (652, 544) and はい (370, 320). Extras need
   a cleared system save; title → option (660, 315).
-- **Reference trace** (`docs/new-game-reference.md`, "Trace DLL"):
+- **Reference trace** (`docs/tools.md`, "Matching the original"):
   `GAME=<install>
   research/xuse/tracedll/xtrace.sh -o t.jsonl [--save slot.bin]
   [--choices 12,34|none] [--pages N] [--frames] [--no-cover]` (hooks and
@@ -143,7 +143,7 @@ user folders, own Xvfb, `ja_JP.UTF-8`, the null ALSA sink of
 - **Breakpoint trace:** `winedbg --gdb --no-start` plus
   `research/tools/wine_bptrace.py research/xuse/names.tsv <names>`;
   break on handlers and their per-frame callbacks (not `frame_loop`). Detaching crashes the game; end it with `wineserver -k`.
-- **Trace diff** (`docs/new-game-reference.md`, "Trace diff") against a dry run with
+- **Trace diff** (`docs/tools.md`, "Matching the original") against a dry run with
   the same choices:
 
   ```sh

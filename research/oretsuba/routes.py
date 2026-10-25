@@ -1,4 +1,4 @@
-"""Plays the route map's eight paths (docs/games/oretsuba.md, "Route check")
+"""Plays the route map's eight paths (docs/games/oretsuba.md, "Story structure and walkthrough")
 in the engine, one after another in one save folder so the global clears
 carry over, each with the debug trace. --auto-choice untaken is steered by a
 --taken file that marks every option but the path's "avoid" (choices the

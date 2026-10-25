@@ -6,7 +6,9 @@
 //!
 //! Free for games: %10-%20, %29-%99, %116-%117 and %180-%181 (locals), %196-%899 (%290 up in a
 //! script with a tile puzzle, [`PUZZLE`]), %1111-%1999,
-//! %5096 up (to the script's 8,192). Engines today: Xuse %10-%12 and its
+//! %2000-%4095 (a game's own flags, e.g. the scene replay's from %3000 and gallery
+//! unlocks such as %4001 and %4020, which conv-cons only reads; its own are the
+//! %2900-%2999 and %3640-%3647 ranges in the table), %5096 up (to the script's 8,192). Engines today: Xuse %10-%12 and its
 //! presets from %40, globals %200 up; Nitroplus fork variables %50-%80 and its `Random` pick %81,
 //! story locals from %300, `#` globals %800-%899 then %5200 up; MAGES
 //! locals %60-%92, globals %410-%439, scene-read flags %1200 up;

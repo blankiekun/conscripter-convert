@@ -43,8 +43,9 @@ Setup and dispatch: `docs/lead-new-game.md`, sections 3-4.
    built-ins by use, work from the top, resolve every index space a jump uses. Decompile with
    `research/tools/ghidra/ghidra_export.sh`, each identified name in `research/<engine>/names.tsv`; tables and
    self-contained functions are lifted, not read by hand. Each struct field a reading relies on gets its
-   writers listed (xrefs): a field written by another command than ours is a wrong reading. Done: every
-   script parses, every jump target exists.
+   writers listed (xrefs): a field written by another command than ours is a wrong reading. Done: the dump
+   reports decoded bytes / total bytes per file at 100 % (an unknown opcode prints raw bytes and stops that
+   file; where possible dump -> assemble is byte-identical), every jump target exists.
    Detail: reference, "Decompiling the exe", "Lifting from the exe".
 7. **Convert what the corpus uses**, most-used opcodes first. Two lists beside the opcodes: the script
    variables the exe reads itself (the scripts' API, crossed with the scripts' writes) and the shaders or
@@ -69,6 +70,9 @@ Setup and dispatch: `docs/lead-new-game.md`, sections 3-4.
 12. **Pictures, sound, transitions** with real durations; sprite references checked against asset names. For an
     effect ONScripter can't draw, try existing commands first (masks, `effect` numbers, `spfilter`), then step
     13. Done: no missing files in the trace, transitions timed from the code.
+    Frame-counted waits become ms from the original's frame rate (a 120 Hz browser must not run them faster).
+    Each image format: premultiplied or straight alpha, top-down or bottom-up rows, from the loader.
+    A random effect that must match the original ports the exe's generator and seed (often MSVC `rand()`).
     Every number that copies the original's behaviour (place, duration, colour, size, curve) names its source on its
     line or the comment above: an exe address, a data file, or `// ours: <reason>`. `tests/pr-report.sh` flags added
     ones without (`research/tools/source_lint.py`); values already on main get a source when touched.
