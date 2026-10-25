@@ -1,0 +1,11 @@
+[package]
+name = "jpeg_loss"
+version = "0.1.0"
+edition = "2021"
+
+# Standalone: not a member of the converter's workspace.
+[workspace]
+
+[dependencies]
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg"] }
+jpeg-encoder = "0.6"

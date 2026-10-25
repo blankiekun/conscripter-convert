@@ -60,7 +60,11 @@ every-frame passes); the script locks and roll speed are done, what is left:
 - JPEG decode: the exe's libjpeg 6b (defaults, ISLOW; jpeg_exe.py runs it under Unicorn) and
   the native engine's SDL2_image + libjpeg-turbo are bit-exact on 3 CGs; the web build's IJG 9f
   differs by 1 level in 4 of 3.5M pixels (research/nitroplus/jpeg_parity.tsv). Sources pass
-  through unchanged; open: the loss of the q90 re-encoded copies (982 zoom, 80 mirror).
+  through unchanged. Open (lead's call): the q90 re-encoded copies (982 zoom, 80 mirror, 1
+  overlay at q92) are up to 29 levels off, mean up to 1.8 (6 samples; q100 max 9, q100 4:4:4
+  max 5; PNG max 3, mean 0.01, from image-rs's decode; research/nitroplus/jpeg_loss.tsv). PNG
+  copies cost +1487 MB (3782 to 5269 MB, `--loose`) and lose the `.jpg` opaque rules
+  (sync.rs cover, `:c;`); WIP on branch `nitroplus/jpeg-png-copies`.
 - Fine: no gamma ramp, no pixel shaders, software composition into the locked texture, no
   blending at present; `+0x9d4` (8 writers; CreateChoice's 00442a70, 00442bb0 only in 0_boot
   and prutestselect, which we replace), `+0x11f4` (4), speed index 005dcaf0 (1).
