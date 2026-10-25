@@ -39,7 +39,6 @@ Known bugs:
   left out (md05_027a's `@mbgm15`; pictures are placed anew).
 - `--original-archives` (`docs/original-archives.md`) fails with
   `--english`.
-- One engine segfault on `end` after a `dwave` voice, Ctrl held.
 - `layer\uncensored\` unchecked on a censored CG.
 - Left out: `$SYSTEM_text_interval` 128 and `$SYSTEM_text_waitkey` false: the
   scripts set them only around the 6 staff rolls, pictures with no text page.
