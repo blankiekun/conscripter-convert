@@ -191,7 +191,7 @@ impl Compiler<'_, '_> {
                 // wildcard): draws nothing; its children multiplied by the
                 // picture, colour and alpha, nothing outside it or where
                 // it is clear. `true` lets a wildcard reach the children (the flag at
-                // +0x9d4, left 0 otherwise; 00443800 for both).
+                // +0x9d4, left 0 otherwise; Stencil 00409fa0, Mask 00443800).
                 // src: exe 00457e80 (a mask's clear pixels → 0), 00416860 (its picture into a screen-sized buffer cleared to 0), 00419210 (a child's pixel × the buffer's, per byte)
                 let mask = name == "CreateMask";
                 if mask && self.file == "function_select.nss" {
@@ -594,7 +594,9 @@ impl Compiler<'_, '_> {
             "SetAlias" => {
                 let (obj, alias) = (self.object_name(&arg(0)), self.var_string(&arg(1)));
                 // src: Django.exe 00432da0, Muramasa.exe 004475b0: one alias slot
-                // per object (+0x100), which the new alias overwrites.
+                // per object (+0x100, 0x80 bytes), which the new alias overwrites
+                // (004475b0 walks the objects twice with the callback 00451dc0,
+                // which clears the slot and copies the request's +0x148 into it).
                 self.aliases.retain(|_, o| *o != obj);
                 if obj != alias {
                     self.aliases.insert(alias, obj);
@@ -605,8 +607,9 @@ impl Compiler<'_, '_> {
                 let (ms, turn_x, turn_y, turn_z, wait) = (arg(1).int(), arg(2), arg(3), arg(4), arg(6));
                 let targets = self.matching(&arg(0));
                 let mut flipped = Vec::new();
-                // src: Muramasa.exe FUN_00446010 keeps the tempo (+0xa0) and the
-                // turn's step FUN_0044f620 eases each angle by it (apply_tempo).
+                // src: Muramasa.exe FUN_00446010 passes the tempo in its request
+                // (+0xa0); the per-object callback FUN_0044f620 eases each angle by
+                // it (FUN_00449f40 picks the curve; apply_tempo) and keeps it at +0xafc.
                 let ease = tempo(&arg(5));
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
