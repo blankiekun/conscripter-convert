@@ -884,7 +884,9 @@ impl Compiler<'_, '_> {
                 animated.extend(ops);
                 now.engine.moved = true;
             }
-            let redraw = self.redraw.contains(&name);
+            // (Not while its motion runs: an lsp would end the motion at
+            // its last key; mc01_021vsaaa's Move of 絵演立絵 made again.)
+            let redraw = self.redraw.contains(&name) && !self.motion_until.contains_key(&name);
             match self.shown.get(&name) {
                 Some(old) if !redraw && *old == Shown { engine: old.engine, ..now.clone() } => continue,
                 Some(old) if !redraw && old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.fade == now.fade && old.over == now.over => {
