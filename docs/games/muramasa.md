@@ -57,12 +57,10 @@ every-frame passes); the script locks and roll speed are done, what is left:
   no -0.5 texel offset, LINEAR, CLAMP (0048af60, quad 0048c6e0): a 0.5/r px shift and blur, up
   to ~128 levels at r=1 on hard edges (flat areas 0); then `Present` 48b308 stretches it to the
   window (driver filter); ours: one linear scale, identity at 1024x576.
-- Unconfirmed: no write found to `+0xa0` (tempo) in 00446010 or `+0x100` (alias) in 004475b0,
-  where builtin.rs cites them (pointer forms; needs Ghidra xrefs). `CreateStencil` clears `+0x9d4`
-  in 00409fa0, not 00443800; `CreateChoice` clears it too (00442a70, 00442bb0; only in 0_boot and
-  prutestselect, which we replace). JPEG (libjpeg 6b) decode options not read.
+- Unconfirmed: JPEG (libjpeg 6b) decode options not read.
 - Fine: no gamma ramp, no pixel shaders, software composition into the locked texture, no
-  blending at present; `+0x9d4` (8 writers), `+0x11f4` (4), speed index 005dcaf0 (1).
+  blending at present; `+0x9d4` (8 writers; CreateChoice's 00442a70, 00442bb0 only in 0_boot
+  and prutestselect, which we replace), `+0x11f4` (4), speed index 005dcaf0 (1).
 - PNG gamma: libpng reads `gAMA` (0049b9d0, 004a4730) but no 2.2 screen gamma is in the decomp;
   the 353 PNGs in a `cg` sample all carry 0.45454 (identity); the rest of the PNGs unchecked.
 
