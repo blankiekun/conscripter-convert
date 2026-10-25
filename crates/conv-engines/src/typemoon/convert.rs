@@ -124,6 +124,8 @@ pub struct Compiled {
     /// ([`conv_core::ir::Script::source_map`]); the command is its index
     /// in the script's [`script::parse`] list, the malformed one left out.
     pub source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
+    /// The `F` and `C` words' variables, as `numalias` names (`f1104`).
+    pub var_names: Vec<(String, Var)>,
 }
 
 /// How a layer is drawn: the image, its middle on the screen, its zoom (%).
@@ -1943,6 +1945,15 @@ pub(super) fn variables(g: &Game) -> HashMap<String, Var> {
         .collect()
 }
 
+/// The `F` and `C` words of `vars` as lower-case names, sorted (the
+/// `G` words are the exe's globals, `_STCG` keys aren't words).
+// ours
+fn var_names(vars: &HashMap<String, Var>) -> Vec<(String, Var)> {
+    let mut out: Vec<(String, Var)> = vars.iter().filter(|(n, _)| n.starts_with(['F', 'C'])).map(|(n, &v)| (n.to_lowercase(), v)).collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
 /// `_SELR` option `i`'s bit in the choice mask: offered, or shown greyed
 /// (16 up; options are 0-15).
 fn choice_bit(i: i32, grey: bool) -> i32 {
@@ -2025,7 +2036,7 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
             l.metrics.call(c.opcode(), c.args.iter().filter(|a| !a.trim().is_empty()).count(), reasons);
         }
     }
-    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics, starts, source_map: l.source_map }
+    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics, starts, source_map: l.source_map, var_names: var_names(&l.vars) }
 }
 
 #[cfg(test)]

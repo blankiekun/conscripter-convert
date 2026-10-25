@@ -1093,4 +1093,8 @@ pub struct Script {
     /// What the game shows at every launch before the title (brand logos,
     /// a movie), in order; empty: straight to the title.
     pub boot: Vec<BootStep>,
+    /// Names for game variables (`numalias`, lower-case), so traces and
+    /// `--vars` files can name the source's flags; the script itself
+    /// still writes the numbers.
+    pub var_names: Vec<(String, Var)>,
 }

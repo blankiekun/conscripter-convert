@@ -266,7 +266,7 @@ pub fn compile(ja: &Game, en: &Game, own: &HashSet<String>, ja_window: TextWindo
     for op in &mut ops {
         variant(op);
     }
-    Compiled { ops, notes: a.notes, metrics: a.metrics, starts: Vec::new(), source_map: Vec::new() }
+    Compiled { ops, notes: a.notes, metrics: a.metrics, starts: Vec::new(), source_map: Vec::new(), var_names: a.var_names }
 }
 
 /// The English copy under the engine's label variants (COMMANDS.md, "Label
