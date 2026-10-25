@@ -25,13 +25,13 @@ Active.
 | System screens (title, menu, save/load, log, settings with 各キャラ voices, yes/no) | ✅ headless, compared under wine |
 | Extras (CG, sound, recollection) | ✅ headless |
 | Save round trips | ✅ `--roundtrip-every` |
-| Web build | 🟡 title and story pages play in a browser; saves, sound, touch, the log's scrolling unchecked there |
+| Web build | ✅ headless Chromium (`research/nitroplus/web_play/drive_run.sh`): story with sound, save/reload/load, log, bad end 01 and back, extras; touch unchecked |
 | Progression (`#Clear` flags to title and extras, congratulations) | ✅ headless chain: 11/11 routes set their flag (good #ClearG only), persist 11/11; gallery 123 slots/379 pictures, 122 open with #ClearG, おめでとう with #ClearAll; 11 recollections, EXTRA and LINER NOTES only with #ClearG; congratulations once, after the 11th |
 | `CreateEffect` Sepia (the only `CreateEffect`, dja038) | ✅ crk.exe 0042db00's tint, the black under the pictures too; frame-checked |
 
 Next:
-1. Play the web build through (saves from the screens, sound, the log, a
-   bad end and back, the extras); fix what blocks or shows wrong.
+1. A loaded save restarts looping `spmotion`s at t=0 (native and web):
+   dja001's flashing background shows at another phase after a load.
 2. Release.
 
 Static checks (`docs/new-game.md` steps 6-7; 14 fields, 52 names the exe reads, 5
