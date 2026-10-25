@@ -336,6 +336,10 @@ impl<'a> Compiler<'a, '_> {
             }
             self.restore(leaves[0].state.clone());
             let mut first = leaves[0].state.clone();
+            for k in super::PLAYER_LOCKS.into_iter().filter(|k| differ(k)) {
+                self.vars.remove(k);
+                first.vars.remove(k);
+            }
             // The code after the fork runs on every branch: story flags the
             // branches set differently are tested at run time, and so are
             // names of scenes or files they set differently (the code after
@@ -378,6 +382,9 @@ impl<'a> Compiler<'a, '_> {
             return;
         }
         let mut merged = leaves[0].state.clone();
+        for k in super::PLAYER_LOCKS.into_iter().filter(|k| differ(k)) {
+            merged.vars.remove(k);
+        }
         let keys: std::collections::BTreeSet<String> = leaves.iter().flat_map(|l| l.state.vars.keys().cloned()).collect();
         let mut inserts = Vec::new();
         for k in keys.iter().filter(|k| differ(k)) {

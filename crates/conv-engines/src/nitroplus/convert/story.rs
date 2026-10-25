@@ -230,6 +230,10 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.dynamic_values.clear();
         c.next_dynamic = dynamic_base;
         c.vars.remove(GAME_NAME_SET);
+        // Other paths reach the file with other locks: it sets them anew.
+        for k in super::PLAYER_LOCKS {
+            c.vars.remove(k);
+        }
         c.forks_in_file = 0;
         // Other paths jump to the file's label with another window up
         // (a vertical choice's): its first page sets its own.

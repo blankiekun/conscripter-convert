@@ -147,12 +147,41 @@ pub fn translated(rows: &[Row], other: &[Row]) -> (String, usize) {
                 kept += 1;
                 r.text.clone()
             }
-            Some(o) if r.kind == TEXT && r.k + 1 == count[&key] && o.len() > r.k => o[r.k..].concat(),
+            Some(o) if r.kind == TEXT && r.k + 1 == count[&key] && o.len() > r.k => join_text_lines(&o[r.k..]),
             Some(o) => o.get(r.k).map_or(String::new(), |s| s.to_string()),
         };
         writeln!(out, "{}\t{text}", r.id).unwrap();
     }
     (out, kept)
+}
+
+/// Text lines as one line, shown as the lines one by one would be
+/// (checked in the engine: each string's end makes the break its line's
+/// end made). A single-byte line (`` `text ``) is closed, else the next
+/// one's backquote would close it and its text be read as a command, and
+/// the next follows after `:`; an empty one (`` ` ``, two breaks) becomes
+/// `br:br`; after a `` `/ `` the next one's text goes on in the same
+/// string. Two-byte lines run to the line's end (`:` would be text): they
+/// join as they are.
+fn join_text_lines(lines: &[&str]) -> String {
+    let mut out = String::new();
+    let mut single = false; // `out` ends in a single-byte line
+    for l in lines {
+        if single && out.ends_with("`/") && l.starts_with('`') {
+            out.truncate(out.len() - 2);
+            out.push_str(&l[1..]);
+            continue;
+        }
+        if single {
+            if out.matches('`').count() % 2 == 1 {
+                out.push('`');
+            }
+            out.push(':');
+        }
+        single = l.starts_with('`');
+        out.push_str(if *l == "`" { "br:br" } else { l });
+    }
+    out
 }
 
 /// One edition's emitted script for [`merge`]: the script, its line map
@@ -498,6 +527,12 @@ fn fill_from(script: &str, t: &HashMap<&str, &str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn single_byte_lines_join_closed() {
+        assert_eq!(join_text_lines(&["`!cWhere there are demons,", "`I slay them.\\", "`", "`Next@", "`F`/", "`go\\"]), "`!cWhere there are demons,`:`I slay them.\\`:br:br:`Next@`:`Fgo\\");
+        assert_eq!(join_text_lines(&["一@", "二\\"]), "一@二\\");
+    }
 
     #[test]
     fn ids_by_place_and_translation() {

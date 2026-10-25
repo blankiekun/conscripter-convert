@@ -41,6 +41,11 @@ pub(super) struct OneShot {
     opacity: i64,
     /// The process deleted it (`Delete`, `Request(…, Disused)`).
     deleted: bool,
+    /// The process that moves it.
+    process: String,
+    /// Where it was before (x, y, zoom x, zoom y, turn, opacity): a
+    /// `Stop` before the motion started leaves it there.
+    from: [i64; 6],
 }
 
 /// Whether `f` runs once with only what this module plays on paper (no
@@ -166,6 +171,7 @@ impl<'a> Compiler<'a, '_> {
             let deleted = gone.contains_key(&t);
             let keys = pass.keys_to_end(len, top.max(1.0));
             let Some(o) = self.objects.get_mut(&t) else { continue };
+            let from = [o.x, o.y, o.zoom.0, o.zoom.1, o.turn.2, o.opacity];
             (o.x, o.y) = (end[0].round() as i64, end[1].round() as i64);
             o.zoom = (end[2].round() as i64, end[3].round() as i64);
             o.turn.2 = -(end[4].round() as i64);
@@ -184,7 +190,7 @@ impl<'a> Compiler<'a, '_> {
                 continue;
             }
             o.opacity = top.round() as i64;
-            self.one_shots.insert(t, OneShot { keys, end: None, opacity: end[5].round() as i64, deleted });
+            self.one_shots.insert(t, OneShot { keys, end: None, opacity: end[5].round() as i64, deleted, process: name.to_string(), from });
         }
         // A WaitAction on the process waits for all of it.
         self.pending_by.insert(name.to_string(), len);
@@ -296,6 +302,40 @@ impl<'a> Compiler<'a, '_> {
                 self.delete(&k);
             } else if let Some(o) = self.objects.get_mut(&k) {
                 o.opacity = s.opacity;
+            }
+        }
+    }
+
+    /// `Request(process, Stop)`: the motions of `process` not started yet
+    /// are dropped, their pictures left where they were; one running stops
+    /// where it is; one ended leaves its picture at its last opacity
+    /// (装甲悪鬼村正's Cockpit_AllFade0 stops the trust counter
+    /// `MyTr_Count`'s digit flips in mb02_026vs, then fades the digits out:
+    /// none shows, the fade not undone at the next sync). The process may
+    /// be gone already (`Disused` right after `Start`), its motions not.
+    pub(super) fn stop_one_shots(&mut self, process: &str) {
+        let now = self.sound_clock();
+        let stopped: Vec<String> = self.one_shots.iter().filter(|(_, s)| s.process == process).map(|(k, _)| k.clone()).collect();
+        for k in stopped {
+            let s = self.one_shots.remove(&k).unwrap();
+            match s.end {
+                None => {
+                    if let Some(o) = self.objects.get_mut(&k) {
+                        let [x, y, zx, zy, turn, opacity] = s.from;
+                        (o.x, o.y, o.zoom, o.turn.2, o.opacity) = (x, y, (zx, zy), turn, opacity);
+                    }
+                }
+                Some(end) if end > now => {
+                    if let Some(shown) = self.shown.get(&k) {
+                        self.ops.push(Op::SpriteMotion2 { layer: shown.layer, keys: Vec::new(), end: MotionEnd::Keep });
+                    }
+                }
+                Some(_) if s.deleted => self.delete(&k),
+                Some(_) => {
+                    if let Some(o) = self.objects.get_mut(&k) {
+                        o.opacity = s.opacity;
+                    }
+                }
             }
         }
     }

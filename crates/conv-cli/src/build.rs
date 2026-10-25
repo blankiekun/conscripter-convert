@@ -570,23 +570,41 @@ pub fn dir_files(dir: &Path) -> Result<BTreeSet<String>> {
 }
 
 /// Lints `dir/0.txt` ([`conv_cons::lint`]), its text filled from the
-/// table of its first language when it has one. With `files`, also checks that
+/// table of its first language when it has one; the other languages'
+/// tables' text lines too ([`conv_cons::lint::text_resumes`]). With `files`, also checks that
 /// the files it names are among them: [`dir_files`] after a build, or the
 /// names a dry run would have written ([`conv_engines::output::written`]).
 pub fn lint_dir(dir: &Path, files: Option<&BTreeSet<String>>) -> Result<conv_cons::lint::Report> {
     let path = dir.join("0.txt");
     let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
-    let mut script = conv_cons::decode(&bytes);
-    let lang = conv_cons::strtab::first_language(&script).unwrap_or_default().to_string();
-    if let Ok(table) = fs::read(dir.join(format!("text.{lang}.txt"))) {
-        script = conv_cons::strtab::fill(&script, &conv_cons::decode(&table));
-    }
+    let raw = conv_cons::decode(&bytes);
+    let lang = conv_cons::strtab::first_language(&raw).unwrap_or_default().to_string();
+    let script = match fs::read(dir.join(format!("text.{lang}.txt"))) {
+        Ok(table) => conv_cons::strtab::fill(&raw, &conv_cons::decode(&table)),
+        Err(_) => raw.clone(),
+    };
     // a file of the language's layer counts too (the engine reads it first)
     let layer = format!("{LAYERS}\\{lang}\\");
-    Ok(conv_cons::lint::lint(&script, &|n| {
+    let mut report = conv_cons::lint::lint(&script, &|n| {
         let n = n.replace('/', "\\").to_lowercase();
         files.is_none_or(|f| f.contains(&n) || f.contains(&format!("{layer}{n}")))
-    }))
+    });
+    // the other languages' text lines (each table holds a language's text)
+    let mut others: Vec<_> = fs::read_dir(dir)?.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    others.sort();
+    for name in others {
+        let Some(other) = name.strip_prefix("text.").and_then(|n| n.strip_suffix(".txt")) else { continue };
+        if other == lang {
+            continue;
+        }
+        let table = conv_cons::decode(&fs::read(dir.join(&name))?);
+        for (i, line) in conv_cons::strtab::fill(&raw, &table).lines().enumerate() {
+            if line.starts_with(|c: char| !c.is_ascii() || c == '`') {
+                conv_cons::lint::text_resumes(&mut report, i, line);
+            }
+        }
+    }
+    Ok(report)
 }
 
 #[cfg(test)]

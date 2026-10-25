@@ -185,6 +185,13 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::StopAutoSkip => writeln!(out, "skipoff:autooff").unwrap(),
+        Op::ModeLock { mask, on } => writeln!(out, "modelock {},{mask}", if *on { *mask } else { 0 }).unwrap(),
+        Op::NormalSpeed(on) => {
+            if script.picture_settings.as_ref().is_some_and(crate::picture_settings::has_game_speed) {
+                let speed = if *on { "100" } else { crate::picture_settings::GAME_SPEED };
+                writeln!(out, "mov {},{}:consset \"gamespeed\",{speed}", crate::picture_settings::NORMAL_SPEED, u8::from(*on)).unwrap();
+            }
+        }
         Op::BacklogLine { text, voice, character } => match (voice, character) {
             (Some(v), Some(c)) if voice_switches && crate::line_log_screen::engine_log(script).is_some() => {
                 writeln!(out, "logadd \"{}\",\"{}\",{c}", strings.string(LOG, escape(text)), path(v)).unwrap()
@@ -594,8 +601,11 @@ impl<'a> Emitter<'a> {
                 Some(page)
             };
             let plate = window.as_ref().and_then(|w| w.name_plate.as_ref());
-            let body = if script.single_byte_text { single_byte_text(text, styles) } else { with_markup(text, links, ruby, styles) }
-                .replace(conv_core::ir::CLICK_WAIT_MARK, "@");
+            let body = if script.single_byte_text {
+                crate::single_byte_waits(&single_byte_text(text, styles))
+            } else {
+                with_markup(text, links, ruby, styles).replace(conv_core::ir::CLICK_WAIT_MARK, "@")
+            };
             let mut body = crate::wait_tags(&body);
             // Sprite changes only show after a print, so print when the
             // plate appears, changes or goes away.

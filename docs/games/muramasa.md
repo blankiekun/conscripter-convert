@@ -29,40 +29,40 @@ Known bugs:
 
 - Trace diff: pages the original shows and ours lacks (`ma03_015`…;
   lead's lane R).
-- Scene-start check (640 of 865 scenes clean): the battle HUD
-  (`cg/cp/*`) shows on the first page of 17 battle scenes, the
-  original's later; `md05_027a`/`b`… (8) open black, missing
+- Scene-start check (640 of 865 scenes clean, before
+  `scene_objects.py` read containers' children: rerun it):
+  `mc01_010vs`'s lock-on mark is not a bug (`CP_LockOn` is
+  top-level, not under `CPW`, so `Cockpit_AllFade0` leaves it; it
+  sits behind the full-screen `ev946`, as in the original);
+  `md05_027a`/`b`… (8) open black, missing
   `ev253_飢餓虚空の内側.jpg`; `mc04_014vsa`… (7) miss
   `ev187_銘伏の妖剣_i.jpg`.
 - `--original-archives` (`docs/original-archives.md`) fails with
   `--english`.
 - One engine segfault on `end` after a `dwave` voice, Ctrl held.
 - `layer\uncensored\` unchecked on a censored CG.
-- Web play (`out/muramasa-web`, loose; frames in `out/play-bugs/`):
-  - `f_mb01_002` (pg 117, 0.txt line 234638, `if %981 == 0 dwave 0,"voice\mb01\0020100a12.ogg"`):
-    auto-play stops "20000 waits without a new page" after the dwave (`--at mb01_001`
-    stalled; the 1800 s mb01 run passed it); frame `stall-mb01_002`.
-  - English `@` cut: text after `@ ` is run as a command (`what`, `and`, `then`: "unknown
-    command") and never shown; 227 `text.en` entries have `@ word`; prologue pg 100,
-    en-mc01 pg 32 (0.txt line 234895) and pg 213 (236008); frames `en-text-dropped-pg100`,
-    `en-mc01-at-cut-pg36`.
-  - Prologue pg 233: text over black with no window or name plate; frame `no-window-pg233`
-    (may be intended).
-  - `rain_streak.png` given to `particle` while only `system/strip/rain_streak.webp` exists:
-    no rain ("particle: can't find"; 0.txt lines 240204, 241496, 242508, 304630, 306851);
-    seen in mb01, md01, en-mc01; frame `jp-md01-rain-streak-png`.
-  - md05 pg 580-1062 HUD counter digits `cg\cp\mura|ave\自機カウンター\0N.webp` (0.txt
-    562417-566022): "can't find" (~380) although the files are in `out/muramasa-web` and
-    `cons_index.json`; digits not drawn; frame `jp-md05-hud-counter-digits`.
-  - md01 pg 2220 (0.txt 304728, battle): text page with no text and no window (suspect);
-    frame: see `out/play/jp-md01/bugs.txt`.
+- A load drew vertical text horizontally (`tateyoko` not saved):
+  fixed in engine PR blankiekun/CONscripter#199; point the submodule
+  at it once merged. Headless runs without `--real-time` show no window
+  after `windowfade 256,150,0,0` (the virtual clock never ends the
+  fade): compare such pages with `--real-time` runs.
+- Script skip and auto locks (`$SYSTEM_skip_lock`, `$SYSTEM_text_auto_lock`)
+  use `modelock` from engine PR blankiekun/CONscripter#200; point the
+  submodule at it once merged. `#SYSTEM_play_speed` 3 (the rolls) runs at
+  100 % whatever the game speed. `$SYSTEM_text_interval` 128 and
+  `$SYSTEM_text_waitkey` false are left out: the scripts set them only
+  around the 6 staff rolls, which are pictures with no text page.
+- A list lens (mc01_020vs) does not restore on a load (whole screen
+  differs; a still lens does).
 - Web runs (1800 s real time, auto-play, random choices; `cons_trace_check` "missing"
   findings are the checker's loose-build lookup, not the game): JP prologue 370 pages;
   JP mb01 3166; mc01 2757; md01 3226; md05 1062 (reached the end); EN mc01 (Kanae route
   `--at mc01_001`) 382 pages (script waits up to 46 s; English text fits the window, no
-  Japanese in any page).
+  Japanese in any page). A shot's `pgN` is the last page begun: after a
+  `TypeBegin…IO`/`…CIO` page the window is closed (`windowfade 0,150`) as there; the
+  vertical boxes (`TextWindow*.png`) are black, so unseen over black.
 
-Next: (1) fix the web-play bugs above (`muramasa/playable`); (2) the known bugs; (3) release.
+Next: (1) the known bugs above (`muramasa/playable`); (2) release.
 
 ## Scope
 
@@ -219,7 +219,9 @@ research/tools/.venv/bin/python -I research/tools/scene_check.py research/nitrop
 ```
 
 `scene_objects.py` reads a dump's objects, creating calls and render
-records (x, y, alpha; zoom, rotation not compared yet).
+records (x, y, alpha; zoom, rotation not compared yet), with the
+children of names and windows (the battle HUD is under `CPW`; window
+children's x, y not checked against a dump yet).
 
 ## Save format
 

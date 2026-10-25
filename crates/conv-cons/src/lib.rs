@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, ScreenEffect, SliderSetting, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     SourceLoc, TransitionStyle, Var, ZoomStyle, RowControl, SettingValue,
 };
 
@@ -722,7 +722,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
             game_speed: script
                 .picture_settings
                 .as_ref()
-                .filter(|s| s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })))
+                .filter(|s| picture_settings::has_game_speed(s))
                 .map(|_| picture_settings::GAME_SPEED),
             toggles: script.settings.as_ref().is_some_and(|m| menu::has_switch(m, Switch::ClickStopsAuto) || menu::has_switch(m, Switch::ClickStopsSkip))
                 || script.picture_settings.as_ref().is_some_and(|s| s.pairs.iter().any(|p| p.option == conv_core::ir::PairOption::ClickStopsAuto)),
@@ -1622,6 +1622,30 @@ fn escape(text: &str) -> String {
             c => c,
         })
         .collect()
+}
+
+/// A single-byte line's click waits: `@`, and where text goes on after it
+/// on the line, `` @`` `` (the string closes and a new one opens). A
+/// textgosub comes back after the wait with a ` string's rest only when
+/// no space follows the `@` (engine/src/cons/ONScripter_text.cpp
+/// `textgosubReturn`, ScriptHandler.cpp `readToken`: it skips the spaces
+/// before it checks `backquote_resume`), else it reads `@ what` on as the
+/// command `what`; after `` @` `` it goes on at the next token, the new
+/// string.
+pub(crate) fn single_byte_waits(text: &str) -> String {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != conv_core::ir::CLICK_WAIT_MARK {
+            out.push(c);
+            continue;
+        }
+        out.push('@');
+        if chars.peek().is_some_and(|&n| n != '\n' && n != conv_core::ir::CLICK_WAIT_MARK) {
+            out.push_str("``");
+        }
+    }
+    out
 }
 
 /// Each character's colour (`#RRGGBB`) and size (percent) from `styles`;
