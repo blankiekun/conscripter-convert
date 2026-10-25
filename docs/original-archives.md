@@ -6,9 +6,10 @@ mapping file and the few pictures the converter makes. Builds are faster,
 no game data is handed out, an update is a few hundred KB, and saves stay
 valid (`0.txt` is byte-identical either way).
 
-Supported: Django's NPA, Muramasa's zlib NPA (Japanese only: `--english`
-is refused, since the engine looks in the NPAs before `arc.nsa`), 最果て
-のイマ's GAF4/XSA banks, and the web player.
+Supported: Django's NPA, Muramasa's zlib NPA (with `--english` too: the
+English release's own pictures stay in `layer\en\` and
+`layer\uncensored\`, made from its NPKs), 最果てのイマ's GAF4/XSA banks,
+and the web player.
 
 ## What a build holds
 

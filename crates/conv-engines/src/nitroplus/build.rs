@@ -82,11 +82,6 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     if run.original_archives && (opts.webp.is_some() || opts.audio.reencodes()) {
         anyhow::bail!("--original-archives keeps the game's own pictures and sounds: no --webp or audio re-encoding");
     }
-    // The engine looks in the NPAs before arc.nsa, so the Japanese picture
-    // would win over the English one at the same path.
-    if run.original_archives && run.english.is_some() {
-        anyhow::bail!("--original-archives doesn't take --english yet (the Japanese pictures would win)");
-    }
     let mut port = crate::metrics::Metrics::default();
     // with --english, both editions: the Japanese is the base, the English
     // its code and text per language (strtab::merge), its own files in layer\en\
@@ -235,15 +230,24 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         translation = Some(script_of(&mut c, g, &f, true, a));
         base = c;
     }
-    if run.original_archives {
-        original_archives(game, &key, &mut assets, opts.output)?;
-    }
+    // before original_archives: it compares the English CGs with the Japanese ones written out
     if let Some(a) = en_assets.as_mut().filter(|_| !opts.dry_run) {
         let n = a.uncensored(&assets, &opts.output.join(UNCENSORED_LAYER));
         println!("{UNCENSORED_LAYER}: {n} of the English release's CGs that differ from the Japanese");
         // the English text's font: CONscripter draws with it while the language is English
         if let Some(f) = &a.font_en {
             std::fs::write(opts.output.join("default.en.ttf"), f)?;
+        }
+    }
+    if run.original_archives {
+        original_archives(game, &key, &mut assets, opts.output)?;
+        // the English edition's copies of Japanese files in layer/en: without them the
+        // engine reads the base path, in the NPA (the English release's own pictures stay)
+        if let Some(a) = en_assets.as_mut().filter(|_| !opts.dry_run) {
+            let root = opts.output.join(EN_LAYER);
+            for rel in a.copied.drain(..) {
+                let _ = fs::remove_file(root.join(&rel));
+            }
         }
     }
     for e in assets.out.errors.iter().chain(en_assets.iter().flat_map(|a| &a.out.errors)) {
