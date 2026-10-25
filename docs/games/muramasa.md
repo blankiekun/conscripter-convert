@@ -57,7 +57,11 @@ every-frame passes); the script locks and roll speed are done, what is left:
   no -0.5 texel offset, LINEAR, CLAMP (0048af60, quad 0048c6e0): a 0.5/r px shift and blur, up
   to ~128 levels at r=1 on hard edges (flat areas 0); then `Present` 48b308 stretches it to the
   window (driver filter); ours: one linear scale, identity at 1024x576.
-- Unconfirmed: JPEG (libjpeg 6b) decode options not read.
+- Unconfirmed: JPEG vs ours. The exe (libjpeg 6b, boolean a byte) keeps the defaults: its
+  loader 00466d60 sets nothing between jpeg_read_header 0048ffb0 and jpeg_start_decompress
+  00490200; default_decompress_parms (48ff63..48ff98): dct_method ISLOW, fancy upsampling on,
+  no colour quantizing, out RGB. Open: the converter's pass-through (assets.rs; zoomed copies
+  re-encoded at 229) and the engine's (SDL_image) decoder options, levels on one CG.
 - Fine: no gamma ramp, no pixel shaders, software composition into the locked texture, no
   blending at present; `+0x9d4` (8 writers; CreateChoice's 00442a70, 00442bb0 only in 0_boot
   and prutestselect, which we replace), `+0x11f4` (4), speed index 005dcaf0 (1).
