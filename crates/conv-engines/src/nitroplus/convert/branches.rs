@@ -422,6 +422,15 @@ impl<'a> Compiler<'a, '_> {
             self.note("branches of a runtime if end with different pictures");
             reconcile_shown(&mut merged.shown, &leaves);
         }
+        // Music one branch left playing and another not (a fast skip's
+        // `SoundStop` and the read path's music): its next `Play` starts it
+        // only if it isn't playing ([`Op::BgmKeep`]).
+        for (name, o) in &leaves[0].state.objects {
+            let playing = |s: &State| matches!(s.objects.get(name).map(|o| &o.kind), Some(Kind::Sound(t)) if t.bgm && t.playing.is_some());
+            if matches!(&o.kind, Kind::Sound(s) if s.bgm) && leaves.iter().any(|l| playing(&l.state) != playing(&leaves[0].state)) {
+                merged.entry_music.insert(name.clone());
+            }
+        }
         self.restore(merged);
     }
 

@@ -1007,7 +1007,8 @@ struct Compiler<'a, 'b> {
     redraw: std::collections::BTreeSet<String>,
     /// The music playing as a story file began (as `entry_shown`): its
     /// `Play` there starts it, though the first path had it playing
-    /// (md05_027a's `SoundPlay("@mbgm15")` after md05_027b).
+    /// (md05_027a's `SoundPlay("@mbgm15")` after md05_027b); also music
+    /// the branches of a runtime `if` left playing on one path only.
     entry_music: std::collections::BTreeSet<String>,
     /// The particle layers running ([`Kind::Particles`]), as last synced.
     particle_layers: BTreeMap<u32, conv_core::ir::Particles>,

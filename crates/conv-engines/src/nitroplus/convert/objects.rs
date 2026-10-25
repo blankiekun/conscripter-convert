@@ -300,10 +300,11 @@ impl<'a> Compiler<'a, '_> {
                 // Nor is a disused one-shot still playing (kept only for
                 // `WaitPlay`; `MusicStart("SE01*")` in ma04_013vs). Music
                 // playing as the file began starts unless it is playing
-                // ([`Op::BgmKeep`]): other paths reach it without (`entry_music`).
+                // ([`Op::BgmKeep`]): other paths reach it without (`entry_music`),
+                // as do branches that stopped it.
                 if let Kind::Sound(s) = &mut o.kind {
                     let goes_on = s.playing.is_some() && (s.looped || s.disused);
-                    s.keep = goes_on && s.bgm && self.entry_music.remove(name);
+                    s.keep = s.bgm && self.entry_music.remove(name);
                     if !goes_on || s.keep {
                         s.starting = true;
                         s.fade_ms = 0;
