@@ -52,11 +52,10 @@ Open:
   boxes, particles, ignored port arguments.
 - Static checks (`docs/new-game.md` steps 6-7) on `muramasa_en.exe` + `Mware.dll`, where the
   port differs; 8 fields, 2 exe-read settings, 4 every-frame shaders read. Gaps:
-  - Shake on text, camera and models: `CEffectShake` is also built by the text path (0x4b4ed0 …
-    0x4b8a80; `sqText_randomShake` 0x4ff390), `sqCamera_shake` 0x509080 and 0x474820; ours: the
-    sprite path only (`sqSprite_shake` 0x4eb3f0); `randomShake` in 0 scene files, `shake` in 1.
-  - Mask transition: `+0x4f4`'s one writer FUN_00435760 is reached from `sqSprite_transition`
-    0x4eb320 and `sqSpriteMask_transition` 0x4f40d0; ours: the sprite one; mask path unchecked.
+  - Shake on text: scenes reach `CEffectShake` only through `Shake` (1303 nut + 37 other
+    calls; `RandomShake` 1, `Shake3D`/`RandomShake3D`/`ShakeCharacter`/`ShakeRuby` 0), which
+    calls each named object's `shake`; no site names a `CreateText` object of its own file,
+    but 270 sites name objects made elsewhere and 33 build the name: those unchecked.
   - Not done: writers of the `FwInfo` places, `CTextEnglish_layout` 0x4a7f60 metrics and
     backlog fields; the globals the exe reads from the VM by name (sq_get not identified among
     0055c5f0, 0055bca0, 0055bbe0); the sprite layers' render-target format (DXGI table at
@@ -67,6 +66,12 @@ Open:
     SRC_ALPHA/INV_SRC_ALPHA (Mware 1000bff0, FUN_10057410); standing-picture tint
     (`StSetColorBase`) only `その他` = 1000/1000/1000 (0 of 1653 `St()` calls pass a tag); cg
     pictures are WebP (882 of 882).
+  - Fine: camera and model shake unreached (`CNutCamera`/`CNutModel` define only `shake3D`,
+    0 script callers). `sqSpriteMask_transition` 0x4f40d0 = `sqSprite_transition` without its
+    `+0xc4` guard (same 0x4354d0 rule, 0x435760 interpolator); 0 of 1349 `Transition` calls
+    reach a `CreateMask` object; its other user, `SQSpriteRenderTarget`, takes 4 (`CreateSurface`
+    for the NSS's `Rain` `CreateEffect`, mc01_021vsaba, mc04_022vs, md01_029vs ×2: 0 ms, to
+    300-600, as ours converts the NSS `DrawTransition`).
   - Fine: scene typing time 800 ms = the exe's default (0x4ffc50 → 5.3125, as 0x4ad32f);
     voice-synced typing needs `sync_voice_and_text` 1 (`sys_val.nut` 0, not in ours);
     `TypeForce` 1 only in `PreEndRoll`, 0 callers; `GoreFilenameReplaceTable` `{}` (`val.nut`).
