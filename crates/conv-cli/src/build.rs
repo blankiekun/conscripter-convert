@@ -158,7 +158,8 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     // the other edition's own pictures, in its layer
     let layer_dirs: Vec<String> = translation.iter().flat_map(|t| picture_dirs.iter().map(move |d| format!("{LAYERS}/{}/{d}", t.language))).collect();
     let all_dirs: Vec<&str> = picture_dirs.iter().copied().chain(layer_dirs.iter().map(String::as_str)).collect();
-    let joined = webp_tree(&output, &all_dirs, webp, dry_run, joined)?;
+    let retarget = webp_tree(&output, &all_dirs, webp, dry_run)?;
+    let joined = retarget.apply(&joined);
     let mut parts = joined.split('\0').map(str::to_string);
     let source = parts.next().unwrap_or_default();
     tables.iter_mut().zip(parts).for_each(|(t, p)| t.1 = p);
@@ -176,17 +177,13 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     }
     let media = version::media(webp, opts.audio);
     let lost = write_game(&output, &ir, &source, &tables, (!dry_run).then_some(&*font), package.as_deref(), &media)?;
+    write_screens(&output, "", conv_cons::screen_files(&ir), &retarget)?;
     if let Some(t) = &translation {
         let layer = output.join(LAYERS).join(&t.language);
         // its menus, where they differ
         let base: BTreeMap<String, String> = conv_cons::screen_files(&ir).into_iter().collect();
-        for (name, lua) in conv_cons::screen_files(t) {
-            if base.get(&name) != Some(&lua) {
-                record(&format!("{LAYERS}/{}/{SCREENS}/{name}", t.language));
-                fs::create_dir_all(layer.join(SCREENS))?;
-                fs::write(layer.join(SCREENS).join(name), lua)?;
-            }
-        }
+        let own = conv_cons::screen_files(t).into_iter().filter(|(name, lua)| base.get(name) != Some(lua)).collect();
+        write_screens(&output, &format!("{LAYERS}/{}", t.language), own, &retarget)?;
         if !dry_run {
             let n = dedupe_layer(&output, &layer)?;
             println!("  {LAYERS}/{}: {n} files the same as the base left out", t.language);
@@ -312,15 +309,38 @@ fn dry_run_files(picture_dirs: &[&str], webp: bool) -> BTreeSet<String> {
     files.into_iter().map(|f| conv_cons::webp::retarget_dirs(&format!("\"{f}\""), picture_dirs).trim_matches('"').to_string()).collect()
 }
 
+/// How a build names its pictures in what it writes (0.txt, the text
+/// tables, the screens): [`webp_tree`].
+pub enum Retarget {
+    /// No WebP: names stay as they are.
+    Png,
+    /// A dry run with WebP: every picture under these folders is `.webp`.
+    Dirs(Vec<String>),
+    /// These pictures (as [`conv_cons::webp::key`] writes them) became `.webp`.
+    Names(std::collections::HashSet<String>),
+}
+
+impl Retarget {
+    /// `text` (a script, a table or a screen) naming the `.webp` files.
+    pub fn apply(&self, text: &str) -> String {
+        match self {
+            Retarget::Png => text.to_string(),
+            Retarget::Dirs(dirs) => conv_cons::webp::retarget_dirs(text, &dirs.iter().map(String::as_str).collect::<Vec<_>>()),
+            Retarget::Names(names) => conv_cons::webp::retarget_names(text, names),
+        }
+    }
+}
+
 /// With `webp` (Some: the lossy quality, if any), re-encodes the pictures
-/// under `dirs` in `output` (subfolders included) as WebP and points the
-/// script `source` at them. Pictures too large for WebP stay PNG.
-pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, dry_run: bool, source: String) -> Result<String> {
+/// under `dirs` in `output` (subfolders included) as WebP; what the build
+/// writes is pointed at them with the returned [`Retarget`]. Pictures too
+/// large for WebP stay PNG.
+pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, dry_run: bool) -> Result<Retarget> {
     let Some(quality) = webp else {
-        return Ok(source);
+        return Ok(Retarget::Png);
     };
     if dry_run {
-        return Ok(conv_cons::webp::retarget_dirs(&source, dirs));
+        return Ok(Retarget::Dirs(dirs.iter().map(|d| d.to_string()).collect()));
     }
     let mut t = conv_cons::webp::convert_tree(output, dirs, quality).context("converting images to WebP")?;
     // a language layer's pictures go by the base's names: the script names `system\a.png` for `layer/en/system/a.png`
@@ -333,7 +353,7 @@ pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, dry_run
         t.totals.png_bytes as f64 / 1e6,
         t.too_large
     );
-    Ok(conv_cons::webp::retarget_names(&source, &t.names))
+    Ok(Retarget::Names(t.names))
 }
 
 /// Re-encodes the voices and sound effects under `dirs` (in `output`) as
@@ -399,6 +419,20 @@ pub fn needs_fallback(font: &[u8]) -> bool {
     ab_glyph::FontRef::try_from_slice(font).map_or(true, |f| "、。「」あア日本".chars().any(|c| f.glyph_id(c).0 == 0))
 }
 
+/// Writes `files` ([`conv_cons::screen_files`]: the menus the engine draws,
+/// UTF-8, packed with the pictures) into `dir`'s [`SCREENS`] folder (`dir`
+/// relative to `output`, "" for the base), naming the pictures as
+/// `retarget` names them in the script.
+pub fn write_screens(output: &Path, dir: &str, files: Vec<(String, String)>, retarget: &Retarget) -> Result<()> {
+    let rel = if dir.is_empty() { SCREENS.to_string() } else { format!("{dir}/{SCREENS}") };
+    for (name, lua) in files {
+        record(&format!("{rel}/{name}"));
+        fs::create_dir_all(output.join(&rel))?;
+        fs::write(output.join(&rel).join(name), retarget.apply(&lua))?;
+    }
+    Ok(())
+}
+
 /// Writes the game into `output`: `0.txt` from `source` (the emitted
 /// script), `text.<code>.txt` from `tables` (language code, table), `system.lua` when the script has Lua, `version.txt` (with
 /// `package`, the source's own version, when known, and `media`, the
@@ -422,12 +456,6 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, tables: &[(String, S
     if let Some(lua) = conv_cons::system_lua(ir) {
         record("system.lua");
         fs::write(output.join("system.lua"), conv_cons::encode(&lua).0)?;
-    }
-    // Menus the engine draws, UTF-8 (packed with the pictures)
-    for (name, lua) in conv_cons::screen_files(ir) {
-        record(&format!("{SCREENS}/{name}"));
-        fs::create_dir_all(output.join(SCREENS))?;
-        fs::write(output.join(SCREENS).join(name), lua)?;
     }
     if let Some(v) = &ir.version {
         version::write(output, &ir.title, v, package, media)?;
@@ -609,6 +637,14 @@ pub fn lint_dir(dir: &Path, files: Option<&BTreeSet<String>>) -> Result<conv_con
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn screens_name_the_webp_files() {
+        let names = ["system/strip/a.png".to_string()].into_iter().collect();
+        let lua = r#"{ file="system/strip/a.png" }, { file="system/big.png" }"#;
+        let out = super::Retarget::Names(names).apply(lua);
+        assert_eq!(out, r#"{ file="system/strip/a.webp" }, { file="system/big.png" }"#);
+    }
+
     #[test]
     fn dry_run_lint_finds_a_file_not_written() {
         let dir = std::env::temp_dir().join(format!("conv-lint-test-{}", std::process::id()));

@@ -342,9 +342,11 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names, &mut Vec::new()).with_context(|| format!("converting {file}"))?;
     let ir = Script { title: title.to_string(), width: SCREEN.0, height: SCREEN.1, window: Some(window), ops, version: Some(version::line()), language: "ja".into(), ..Default::default() };
 
-    let source = build::webp_tree(output, PICTURE_DIRS, webp, false, conv_cons::emit(&ir))?;
+    let retarget = build::webp_tree(output, PICTURE_DIRS, webp, false)?;
+    let source = retarget.apply(&conv_cons::emit(&ir));
     build::reencode_audio(output, AUDIO_DIRS, audio)?;
     let lost = build::write_game(output, &ir, &source, &[], Some(&build::read_font(font)?), None, &version::media(webp, audio))?;
+    build::write_screens(output, "", conv_cons::screen_files(&ir), &retarget)?;
     println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
     build::summary(output, &ir, lost, Default::default(), None)
 }
