@@ -794,7 +794,10 @@ impl Compiler<'_, '_> {
                 // showed (src: Muramasa.exe transition_start 0044fe00), its
                 // opacity left (a later `Fade` multiplies the mask's table,
                 // as fire01's in function_process.nss).
-                let (pictures, others): (Vec<_>, Vec<_>) = targets.iter().cloned().partition(|t| matches!(self.objects[t].kind, Kind::Image { .. } | Kind::Strip(_)));
+                // A Rain/Drop layer too: the exe draws it into the object's
+                // own texture (00435e60, 004365d0) with the plain draw
+                // 00415da0, which 0044fe00 swaps for the masked 004161c0.
+                let (pictures, others): (Vec<_>, Vec<_>) = targets.iter().cloned().partition(|t| matches!(self.objects[t].kind, Kind::Image { .. } | Kind::Strip(_) | Kind::Particles(_)));
                 let until = self.sound_clock() + arg(1).int().max(0) as u64;
                 for t in &pictures {
                     let o = self.objects.get_mut(t).unwrap();
