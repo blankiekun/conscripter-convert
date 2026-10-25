@@ -12,10 +12,14 @@ opcodes the corpus uses convert and agree with the exe (84,710 of
 
 Open bugs:
 - The launch warning's visitor counter ("あなたは N 人目のお客様です")
-  isn't drawn (the user: only worth a one-line fix; data at `0x51eb50`,
-  `digit.png` at (492, 173), `0x488f30`).
-- Hide (button and right-click) also hides the link words, bars and
-  name plate.
+  isn't drawn (the user: only worth a one-line fix; it isn't one). The
+  exe (`0x44f150`, `0x44f400`, `ImageDigit` `0x488dd0`/`0x488f30`): N is
+  the system data's `0x51eb50`, set at first run to the low dword of
+  the local time's FILETIME (`0x45fe80`), plus `rand() % 10000` at every
+  launch, saved; drawn in base 10 from `Entrance.004` #1 (13×16 cells,
+  table `0x4fe320`, rect `0x4fe398`), right-aligned to x 492, top 173
+  (+0xcc 1, +0xd0 0). Ours would need a global variable, a random add
+  and a digit-sprite loop in `boot.rs` (about 40 lines).
 - Value still not from the exe: the chapter history greys entries
   from a runtime index (`+0x19c`, `0x4682a0`; ours all white).
 - System screens darken the blurred scene by 20 a channel too
