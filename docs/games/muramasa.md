@@ -34,11 +34,6 @@ Known bugs:
   `mc01_010vs`'s lock-on mark is not a bug (`CP_LockOn` is
   top-level, not under `CPW`, so `Cockpit_AllFade0` leaves it; it
   sits behind the full-screen `ev946`, as in the original).
-- A file reached by a path other than the first compiled one gets
-  that path's music: `SoundPlay` of the BGM already playing is
-  left out (md05_027a's `@mbgm15`). Emitting it restarts the song on
-  the first path (184 places): needs a `bgm` that keeps the same
-  music playing (engine, as `popscreen`'s) or a run-time check.
 - `layer\uncensored\` unchecked on a censored CG.
 - Left out: `$SYSTEM_text_interval` 128 and `$SYSTEM_text_waitkey` false: the
   scripts set them only around the 6 staff rolls, pictures with no text page.
