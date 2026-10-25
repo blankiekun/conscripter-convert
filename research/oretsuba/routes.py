@@ -17,6 +17,10 @@ import json
 import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "engine", "tools"))
+import cons_trace_check  # noqa: E402
 
 ROUTES = [
     ("明日香", "S01_02C:2,S01_02E:2,S01_03B:1,S01_04E:1,S01_04L:2,S01_08C0:1,S01_08D4:2,S01_09C0:1", "mg_s01_16a"),
@@ -89,10 +93,13 @@ def main():
         taken = os.path.join(out, f"taken{n}.txt")
         open(taken, "w").write("\n".join(lines) + "\n")
         trace = os.path.join(out, f"route{n}.jsonl")
+        # the variables the checker's engine-var rule looks at (cons_trace_check.json's "engine_vars")
+        watch = cons_trace_check.trace_vars_of(os.path.join(os.path.dirname(os.path.abspath(__file__)), "cons_trace_check.json"))
         env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
         p = subprocess.run(["timeout", "-k", "5", "7200", engine, "--root", ".", "--save-dir", saves, "--trace", trace,
                             "--trace-ignore", "34-48", "--auto-play", "0", "--auto-choice", "untaken", "--taken", taken,
-                            "--roundtrip-every", "1000"], cwd=game, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            "--roundtrip-every", "1000",
+                            *(["--trace-vars", watch] if watch else [])], cwd=game, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         reached = None
         for line in open(trace):
             if '"t":"page"' in line and f"*{ending}" in line:

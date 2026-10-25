@@ -3,5 +3,62 @@
  "script": "0.txt",
  "ignore": "6-48",
  "coverage_skip": "^conv_",
- "known": []
+ "known": [],
+ "_engine_vars": "engine_vars: script F words the exe reads that our conversion ignores (docs/games/tsukihime.md, research/typemoon/engine_vars.tsv); the numbers are 0.txt's: the converter numbers the F words in name order, so a new F word in a script shifts them (check: grep -c '%237\\b' 0.txt gives 411, F1104's _WKST count)",
+ "engine_vars": [
+  {
+   "var": 237,
+   "name": "F1104",
+   "when": "!=0",
+   "note": "the original drops the novel window's plate (FUN_001391a0); we draw it"
+  },
+  {
+   "var": 238,
+   "name": "F1105",
+   "when": "3-32",
+   "note": "the original draws the Ciel-sensei bubble window (QA_*); we draw one window"
+  },
+  {
+   "var": 238,
+   "name": "F1105",
+   "when": "1-2",
+   "note": "the original draws another full-screen window style; we draw one window"
+  },
+  {
+   "var": 239,
+   "name": "F1106",
+   "when": "!=0",
+   "note": "the bubble's x (with F1105); ours ignores it"
+  },
+  {
+   "var": 240,
+   "name": "F1107",
+   "when": "!=0",
+   "note": "the bubble's y (with F1105); ours ignores it"
+  },
+  {
+   "var": 247,
+   "name": "F1118",
+   "when": "0",
+   "note": "the next _SELA opens the save prompt (FUN_00183b20 mode 3); we drop _SELA"
+  },
+  {
+   "var": 198,
+   "name": "F022",
+   "when": "*",
+   "note": "copied into the save record (FUN_0015a910), likely the save list's chapter; ours doesn't show it"
+  },
+  {
+   "var": 199,
+   "name": "F023",
+   "when": "*",
+   "note": "copied into the save record (FUN_0015a910) with F022; ours doesn't show it"
+  },
+  {
+   "var": 248,
+   "name": "F1123",
+   "when": "1",
+   "note": "the original keeps the voice playing across clicks (FUN_001802c0); ours stops it"
+  }
+ ]
 }

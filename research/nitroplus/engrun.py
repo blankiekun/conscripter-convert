@@ -210,11 +210,16 @@ def engine_run(folder, engine, stall, wrap=()):
     (no Xvfb, no key presses; the menu's and quick bar's sprites, 6-48,
     left out so it never presses them), writing a debug trace (`trace.jsonl`:
     a `crash` or `error` record says where a run died) and recording
-    the story flags (`--trace-vars 300-899`) as they change."""
+    the story flags (`--trace-vars 300-899`, and the variables of
+    cons_trace_check.json's `engine_vars`) as they change."""
     log_path = os.path.join(folder, 'engine.log')
     env = dict(os.environ, SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy')
+    here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.join(here, '..', '..', 'engine', 'tools'))
+    import cons_trace_check
+    watch = ','.join(filter(None, ['300-899', cons_trace_check.trace_vars_of(os.path.join(here, 'cons_trace_check.json'))]))
     cmd = [*wrap, engine, '--root', '.', '--save-dir', 'saves', '--trace', 'trace.jsonl',
-           '--trace-ignore', '6-48,999', '--trace-vars', '300-899', '--auto-play', '0']
+           '--trace-ignore', '6-48,999', '--trace-vars', watch, '--auto-play', '0']
     with open(log_path, 'wb') as log:
         eng = subprocess.Popen(cmd, cwd=folder, env=env, stdout=log, stderr=subprocess.STDOUT)
     last, moved, why = None, time.time(), None

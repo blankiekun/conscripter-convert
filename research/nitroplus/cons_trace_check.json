@@ -15,5 +15,6 @@
    "rule": "sound",
    "match": "se戦闘_"
   }
- ]
+ ],
+ "engine_vars": []
 }

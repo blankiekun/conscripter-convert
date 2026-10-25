@@ -48,7 +48,37 @@ Paused 2026-10-20.
    scene_load 0x8102840a); voice ducking 50/200 ms, 100/400 ms
    (`conv-cons/src/ops.rs`: the eboot's BgmFullForVoice reader).
 8. Wave transition (InOut_Act 1): the amplitude unit is in fragment GXP
-   0x8115f63c (literals read). Route left: gxp2glsl (rebuild Vita3K).
+   0x8115f63c (literals read). Route left: gxp2glsl (item 9).
+9. Static checks (2026-10-24; GXP read with `research/oretsuba/gxp2glsl`,
+   which builds in under a minute and prints the USSE disassembly too),
+   ranked:
+   - Sepia (`:Grayscale 1` + `:Gamma 3.0,1.4,0.6`, 188 tasks): fragment
+     GXP 0x81160e58 raises each channel of the grey to 1/Gamma
+     (0 and 255 stay put); ours adds offsets (75, 28, −47) to the grey,
+     up to 75 levels off (black becomes 75,28,0; white's blue 208). An
+     exact route: FILTER_GREYSCALE then FILTER_LEVELS (gamma 3000,
+     1400, 600). Vita3K's decode feeds red from Gamma[1], green from
+     Gamma[3] (1.0 from 0x81086982), blue from Gamma[2]; unconfirmed.
+   - Album cards: endings_menu_init 0x81066564 opens a card only when
+     its ending's global flag (0, 1, 15, 3, 2, 16, 17) is set
+     (0x8106687c); ours opens every tab.
+   - Movies: GXP 0x811608c8 is BT.601 limited range (1.164, 1.596,
+     0.813, 0.391, 2.018; Y offset 16/256). The USM sources are
+     untagged MPEG-1 and `media.rs` re-encodes untagged: SDL2's native
+     player picks BT.601 at 544 lines (within 1.2 levels); a browser
+     taking BT.709 is up to 51 levels off on saturated colours (0 on
+     greys). The shader's `effect` branch is unread.
+   - Grey (`:Grayscale 1`, 667): weights 0.298912/0.586611/0.114478
+     after the `:Color` tint; ours 77/150/29 >> 8, within 1 level; ours
+     tints after the grey (2 tasks have both).
+   - Floor/Ceil (42, all 255→0): the shader's Floor + c·(Ceil − Floor)
+     is FILTER_NEGATIVE exactly; alpha keeps (Floor.a 0, Ceil.a 255).
+   - No post pass: 0x8115e000/0x8115e150 are created and freed in the
+     main loop 0x8104ffe4 but never bound (an SDK blending sample's
+     leftovers); the colour surface is U8U8U8U8 960×544
+     (sceGxmColorSurfaceInit in 0x810001b0, offscreen 0x81011968).
+   - Per-save flag operations go through a signed byte (task_run
+     0x81021070, 0x81128168): flags wrap past 127 (scripts reach 5).
 
 ## Scope
 
