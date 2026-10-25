@@ -39,10 +39,10 @@
 #
 # SPEED=N runs the game N times as fast (its clock and waits scaled by
 # research/tools/trace_speed.h; "ms" stays in game time, so the trace
-# diff's times hold: docs/new-game-reference.md, "Trace speeds").
+# diff's times hold: docs/tools.md, "Matching the original").
 #
 # Django: its 1.01 Django.exe is packed and asks for the disc: EXE = the
-# unpacked 1.01 exe (docs/games/django.md "The exe"), copied in; the boot
+# unpacked 1.01 exe (docs/games/django.md "Executables"), copied in; the boot
 # skips the logos and the title ($TitleSelect=1) and the start script turns
 # auto mode on where it unlocks the menu (dja000, `$SYSTEM_menu_lock = 0;`);
 # it runs in wine's virtual desktop (windowed; full screen draws twice)

@@ -11,7 +11,7 @@
 # (_ZM, _MSAD), the opening's wait (_TOMW), a script's end (_RTMN, _END_: the
 # title follows) or none is logged yet: the trace's auto mode, leaving timed
 # waits alone. IDLEA may be a fraction (checked every 0.2 s): 0.3 is the fast
-# run (docs/new-game-reference.md, "Trace speeds"). At a choice (_SELD) it moves the
+# run (docs/tools.md, "Matching the original"). At a choice (_SELD) it moves the
 # cursor down to the first option neither greyed nor listed in AVOID (string
 # ids of the options' text, "042614 042606"), then presses A.
 # Setup of the data dir (firmware, keys, update): docs/games/tsukihime.md, "Testing".

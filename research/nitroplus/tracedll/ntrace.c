@@ -13,7 +13,7 @@
  *   +0x1130 + index * 0x158 that file's record (+0x11c its text);
  *   +0xe8c / +0x168c + 4 i a text block's start and end in that text.
  * Django's (research/nitroplus/django-names.tsv; the unpacked 1.01 exe,
- * docs/games/django.md "The exe"): run_statement 0x453c00 calls
+ * docs/games/django.md "Executables"): run_statement 0x453c00 calls
  * dispatch_builtin at 0x453cca (ESI = process, EBX = &pos, EDI = context;
  * the process's +0x1c its file's index, the file record context + 0x22c +
  * index * 0x14c, +0x114 its text). Text blocks are not run where they
