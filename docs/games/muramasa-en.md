@@ -52,10 +52,6 @@ Open:
   boxes, particles, ignored port arguments.
 - Static checks (`docs/new-game.md` steps 6-7) on `muramasa_en.exe` + `Mware.dll`, where the
   port differs; 8 fields, 2 exe-read settings, 4 every-frame shaders read. Gaps:
-  - Shake on text: scenes reach `CEffectShake` only through `Shake` (1303 nut + 37 other
-    calls; `RandomShake` 1, `Shake3D`/`RandomShake3D`/`ShakeCharacter`/`ShakeRuby` 0), which
-    calls each named object's `shake`; no site names a `CreateText` object of its own file,
-    but 270 sites name objects made elsewhere and 33 build the name: those unchecked.
   - Not done: writers of the `FwInfo` places, `CTextEnglish_layout` 0x4a7f60 metrics and
     backlog fields; the globals the exe reads from the VM by name (sq_get not identified among
     0055c5f0, 0055bca0, 0055bbe0); the sprite layers' render-target format (DXGI table at
@@ -66,6 +62,13 @@ Open:
     SRC_ALPHA/INV_SRC_ALPHA (Mware 1000bff0, FUN_10057410); standing-picture tint
     (`StSetColorBase`) only `その他` = 1000/1000/1000 (0 of 1653 `St()` calls pass a tag); cg
     pictures are WebP (882 of 882).
+  - Fine: no `Shake` shakes text (`research/nitroplus/text_shake.py`). Scenes reach
+    `CEffectShake` only through `Shake` (1303 nut + 37 other calls; `RandomShake` 1,
+    `Shake3D`/`RandomShake3D`/`ShakeCharacter`/`ShakeRuby` 0). Of the 1307 literal names one
+    matches a text name of any file: ma01_019 `絵*`, whose `CreateText`s (`絵文字*`, `絵我が`)
+    live in later chapters (mb03, md02, md04) and title, load and back-to-choice `Delete("*")`.
+    The 34 run-time names resolve to pictures (`@Comic0x`, `Shake_Only01-10`, `@絵背景効果線`,
+    the callers' `@絵背景50`, `@自機１`, ...) or have no caller (`ShakeBg`, `PlainShake`, `SSP3/4`).
   - Fine: camera and model shake unreached (`CNutCamera`/`CNutModel` define only `shake3D`,
     0 script callers). `sqSpriteMask_transition` 0x4f40d0 = `sqSprite_transition` without its
     `+0xc4` guard (same 0x4354d0 rule, 0x435760 interpolator); 0 of 1349 `Transition` calls
