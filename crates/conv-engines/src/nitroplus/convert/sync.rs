@@ -359,6 +359,14 @@ impl Compiler<'_, '_> {
             for w in want.iter_mut().filter(|w| w.2 < above) {
                 w.1.tint = Some(f.clone());
             }
+            // src: Django crk.exe 0042db00 (Sepia's draw) tints the whole screen
+            // below it, the black where no picture is too (dja038_03: Sepia over
+            // a bust alone): a black backing, tinted, under everything (dropped
+            // below when an opaque background fills the screen).
+            let (sw, sh) = self.game.screen;
+            let image = self.assets.color(0, sw as u32, sh as u32);
+            let backing = Shown { layer: 0, image, x: 0, y: 0, w: sw, h: sh, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: BLEND_NORMAL, tint: Some(f), over: false, whole: None, fade: None };
+            want.push(("\u{1}tint backing".into(), backing, (i64::MIN, 0)));
         }
         for w in want.iter_mut() {
             let own = self.objects.get(&w.0).map(|o| o.filters(scale(&w.1))).unwrap_or_default();
