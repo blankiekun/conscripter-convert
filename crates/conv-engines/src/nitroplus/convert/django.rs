@@ -37,6 +37,7 @@ pub const DJANGO: Game = Game {
     menus: screens::menus,
     fade_tempo: Some(super::tempo),
     boot_logos: ("boot.nss", BOOT_LOGOS),
+    screen_gamma: Some(crate::nitroplus::png_gamma::DJANGO_SCREEN_GAMMA),
     title_opening: ("TitleSet", extras::CLEARED, "$Logo"), // src: boot.nss main (TitleLogo, then TitleSet)
     ..Game::PLAIN
 };

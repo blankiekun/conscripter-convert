@@ -168,6 +168,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     let g_ja = g;
     let g = if run.english.is_some() && exe_name == "Muramasa.exe" { &convert::MURAMASA_EN } else { g };
     assets.screen = g_ja.screen;
+    assets.screen_gamma = g_ja.screen_gamma;
     if let Some(a) = &mut en_assets {
         a.screen = g.screen;
     }

@@ -8,6 +8,7 @@ pub mod convert;
 pub mod english;
 pub mod npa;
 pub mod npk;
+pub mod png_gamma;
 pub mod nss;
 pub mod refs;
 pub mod route;

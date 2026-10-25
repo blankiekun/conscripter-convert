@@ -38,15 +38,8 @@ Next:
 4. Release.
 
 Static checks (`docs/new-game.md` steps 6-7; 14 fields, 52 names the exe reads, 5
-every-frame passes), gaps ranked by effect:
+every-frame passes), all settled (PNG gamma: `nitroplus/png_gamma.rs`):
 
-- PNG gamma: all 1339 PNGs carry `gAMA`; the loader 0044f910 calls `png_set_gamma(2.2, file)`
-  at 0044fa74 (screen 2.2 at 0x004d5768; colour channels only, a palette's entries). 627 at 0.5
-  (all `cg/sys`, `cg2/sys`, e.g. windowbox.png) gain up to +9 levels; `cg/sys/bar01`-`03` (0.27777)
-  lose up to 46; `cg/data/downr_0_0` (0.45) 1; 708 at 0.45454 are identity; ours: bytes copied,
-  SDL_image ignores `gAMA` (no gamma call in the engine). libpng 1.2.5 (string 004d4e10):
-  png_set_gamma 00480530 sets PNG_GAMMA (0x2000) when |2.2g-1| > 0.05 (0x004ca8f8) **or** the
-  colour type has alpha (bit 4) or is palette (3); gamma and screen stored as f32 (+0x15c, +0x160).
 - Fine, settled 2026-10-24: `#SYSTEM_play_speed` 3 is `Op::NormalSpeed` (the roll at
   `gamespeed` 100, levels from 00529408); `$SYSTEM_menu_lock`: our roll waits (`click`,
   `btnwait`) open no menu, the title and extras are ours, case 8's skip-off is our
