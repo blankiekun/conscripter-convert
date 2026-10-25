@@ -637,7 +637,8 @@ impl Compiler<'_, '_> {
         // black, the text 100 ms later under wine).
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(&t)) = (*layer, fades.get(name)) else { continue };
-            if t <= blocking || !from_zero.contains(name) || self.shown.contains_key(name) || from.contains_key(name) || moved_over.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) || now.cells.is_some() {
+            let particles = self.objects.get(name).is_some_and(|o| matches!(o.kind, Kind::Particles(_)));
+            if t <= blocking || !from_zero.contains(name) || self.shown.contains_key(name) || from.contains_key(name) || moved_over.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) || (now.cells.is_some() && !particles) {
                 continue;
             }
             let now = Shown { layer, ..now.clone() };
