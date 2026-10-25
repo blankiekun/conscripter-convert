@@ -464,6 +464,7 @@ impl<'a> Compiler<'a, '_> {
             rows,
             font_size: font as u32,
             line_gap: (line - font).max(0) as u32,
+            letter_spacing: letter.max(0) as u32, // src: exe FUN_00484d30 (Muramasa), FUN_00462de0 (Django): advance = the glyph's GDI gmCellIncX (the font size for full-width letters) + LoadText's letter space
             vertical,
             name_plate: None,
         }

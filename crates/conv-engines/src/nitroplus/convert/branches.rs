@@ -265,6 +265,7 @@ impl<'a> Compiler<'a, '_> {
             rows: n as u32,
             font_size: FONT as u32,
             line_gap: (PITCH - FONT) as u32,
+            letter_spacing: 0, // vertical: unused
             vertical: true,
             name_plate: None,
         };

@@ -147,6 +147,9 @@ objdump's disassembly (`research/tools/ghidra/`).
   (`text_tokenize_markup` 0x4c3440, `CTextEnglish_layout` 0x4a7f60:
   breaks at spaces and CR/LF, skips `# { }`).
 
+Letter advance: the English text is single-byte, set by the font alone
+(setwindow3 spacing 0, PR #20); the Japanese text as in `muramasa.md`.
+
 ## Files and formats
 
 `<game>/*.npk`: system, script, cg, dx, font, sound, voice, particle,

@@ -19,6 +19,9 @@ pub struct TextWindow {
     pub font_size: u32,
     /// Extra space between lines, in pixels.
     pub line_gap: u32,
+    /// Pixels between the letters of a horizontal line, beyond the font
+    /// size: the original's advance less `font_size`.
+    pub letter_spacing: u32,
     /// Vertical writing (tategaki): `columns` characters run down each
     /// line, the `rows` lines are columns read right to left, and
     /// (`text_x`, `text_y`) is the top-left of the leftmost one.

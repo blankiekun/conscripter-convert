@@ -133,6 +133,7 @@ fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         rows: n as u32,
         font_size: FONT as u32,
         line_gap: (h - FONT) as u32,
+        letter_spacing: 0, // src: exe FUN_00462de0 (each letter: its GDI gmCellIncX + LoadText letter space, 0 here)
         vertical: false,
         name_plate: None,
     };

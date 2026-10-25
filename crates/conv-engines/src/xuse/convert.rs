@@ -875,7 +875,7 @@ impl AssetBank {
             None
         };
         let (text_x, text_y) = (x + offset.0, y + offset.1);
-        Ok(TextWindow { image, x, y, text_x, text_y, columns, rows, font_size, line_gap, vertical: false, name_plate, wait_icon_at: None })
+        Ok(TextWindow { image, x, y, text_x, text_y, columns, rows, font_size, line_gap, letter_spacing: 1, vertical: false, name_plate, wait_icon_at: None })
     }
 
     /// The four PNG layers (message base, frame, name base, frame) of a
@@ -937,6 +937,7 @@ impl AssetBank {
             rows: 3,
             font_size: 24,
             line_gap: 12,
+            letter_spacing: 1, // src: exe 0x4a2001 (`imul ebx,ebx,0x19`: 25 px a letter after the name, FUN_004a1ed0); TextField 0x48bd00 adds field+0xc4 (set at 0x486850) to each glyph width
             vertical: false,
             name_plate: Some(NamePlate { image: plate, x: 32, y: 417, text_x: 56, text_y: 428, font_size: 24 }), // src: exe 0x4a138f, 0x4a0b10 (offsets above)
         })

@@ -255,6 +255,10 @@ What the named functions do and how this engine differs from Muramasa's:
 <export>/decomp` (tags, `Request` actions, constants). Findings of the
 exe mapping: `docs/games/django.findings.tsv`.
 
+Letter advance: font size 18 + LoadText's letter space 0 (`function.nss`
+SetMainText) = 18 px a full-width letter (`FUN_00462de0`: GDI
+gmCellIncX + letter space). Ours: setwindow3 spacing 0 (was 1, 19 px).
+
 ## Files and formats
 
 Screen 800×600, horizontal text.
