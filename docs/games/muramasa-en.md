@@ -52,19 +52,11 @@ Open:
   boxes, particles, ignored port arguments.
 - Static checks (`docs/new-game.md` steps 6-7) on `muramasa_en.exe` + `Mware.dll`, where the
   port differs; 8 fields, 2 exe-read settings, 4 every-frame shaders read. Gaps:
-  - Typing time from the scripts (3 calls): `sqText_setMaxTypingTime` 0x4ffc50 writes `+0x14c`,
-    `setMinTypingTime` 0x4ffc20 `+0x150`, read by `setTypingSpeed` `FUN_004b4510`;
-    `function_textbox.nut` passes 800, the `sys_config.nut` sample 800 + 1.5…; ours: the
-    default curve fixed (`muramasa/screens.rs`), right only while the scripts pass the default.
-  - `TextBox.TypeForce`/`TypeForceSpeed` (`function_textbox.nut` ops 177-185) replace the
-    player's speed; ours: not handled; whether a scene sets it is unchecked.
   - Shake on text, camera and models: `CEffectShake` is also built by the text path (0x4b4ed0 …
     0x4b8a80; `sqText_randomShake` 0x4ff390), `sqCamera_shake` 0x509080 and 0x474820; ours: the
     sprite path only (`sqSprite_shake` 0x4eb3f0); `randomShake` in 0 scene files, `shake` in 1.
   - Mask transition: `+0x4f4`'s one writer FUN_00435760 is reached from `sqSprite_transition`
     0x4eb320 and `sqSpriteMask_transition` 0x4f40d0; ours: the sprite one; mask path unchecked.
-  - `System.disable_gore` (1 write, `val.nut` 0; launcher 0x405f90 via FUN_00405a40):
-    `ReplaceGoreFilename`, `GoreFilenameReplaceTable` looks empty; ours: not handled.
   - Not done: writers of the `FwInfo` places, `CTextEnglish_layout` 0x4a7f60 metrics and
     backlog fields; the globals the exe reads from the VM by name (sq_get not identified among
     0055c5f0, 0055bca0, 0055bbe0); the sprite layers' render-target format (DXGI table at
@@ -75,6 +67,9 @@ Open:
     SRC_ALPHA/INV_SRC_ALPHA (Mware 1000bff0, FUN_10057410); standing-picture tint
     (`StSetColorBase`) only `その他` = 1000/1000/1000 (0 of 1653 `St()` calls pass a tag); cg
     pictures are WebP (882 of 882).
+  - Fine: scene typing time 800 ms = the exe's default (0x4ffc50 → 5.3125, as 0x4ad32f);
+    voice-synced typing needs `sync_voice_and_text` 1 (`sys_val.nut` 0, not in ours);
+    `TypeForce` 1 only in `PreEndRoll`, 0 callers; `GoreFilenameReplaceTable` `{}` (`val.nut`).
 
 Next: the web play-through (`docs/games/muramasa.md`, Status).
 
