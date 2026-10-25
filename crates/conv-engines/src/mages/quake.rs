@@ -1,3 +1,5 @@
+//! src: the eboot's EffectQuake (effect_quake_a 0x810089a4, effect_quake_b 0x81008a3c),
+//! a whole-file port.
 //! The eboot's EffectQuake, update by update: effect_quake_a (0x810089a4)
 //! starts the record, effect_quake_b (0x81008a3c) moves the screen each
 //! update. Checked against the eboot run under exe_call
