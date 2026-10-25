@@ -1,6 +1,6 @@
 """drive.py <outdir> --port p STEP...: drives the page web_run.py opened (over CDP, as
 webshots.py) through STEPs, in order:
-  pg:N         wait until the trace's last page record is N or more (120 s at most)
+  pg:N         wait until the trace's last page record is N or more (600 s at most)
   label:NAME   wait for a "label" record naming NAME (trace, 120 s at most)
   sleep:S      wait S seconds
   key:K        press key K (Playwright names: s, l, b, t, Escape, Enter, PageUp, ...)
@@ -36,7 +36,7 @@ def page_of(b):
     sys.exit('no page')
 
 
-def wait(page, js, arg, limit=120):
+def wait(page, js, arg, limit=600):
     t = time.time()
     while time.time() - t < limit:
         try:
