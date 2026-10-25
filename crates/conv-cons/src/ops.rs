@@ -1129,11 +1129,6 @@ impl<'a> Emitter<'a> {
     }
 }
 
-/// The `chvolfade`/`chfreq` curve of the sound op at `i`: the
-/// [`Op::SoundEase`] right before it, as an `spmotion` curve (`None`
-/// straight).
-/// The condition that keeps a wait to normal play when an [`Op::AutoWait`]
-/// right before it waits in auto mode.
 /// The offset list of a [`ScreenEffect::ShakeList`], as the engine reads it.
 fn shake_list(offsets: &[(i32, i32)]) -> String {
     offsets.iter().map(|(x, y)| format!("{x},{y}")).collect::<Vec<_>>().join(" ")
@@ -1196,6 +1191,8 @@ fn shake_args(effect: &ScreenEffect, eased: &mut BTreeMap<(u8, u32), u32>, pool:
     }
 }
 
+/// The condition that keeps a wait to normal play when an [`Op::AutoWait`]
+/// right before it waits in auto mode.
 fn unless_auto(script: &Script, i: usize) -> String {
     match i.checked_sub(1).and_then(|j| script.ops.get(j)) {
         Some(Op::AutoWait { .. }) => format!("if {} != 2 ", menu::TMP),
@@ -1203,6 +1200,9 @@ fn unless_auto(script: &Script, i: usize) -> String {
     }
 }
 
+/// The `chvolfade`/`chfreq` curve of the sound op at `i`: the
+/// [`Op::SoundEase`] right before it, as an `spmotion` curve (`None`
+/// straight).
 fn sound_curve(script: &Script, i: usize, eased: &mut BTreeMap<(u8, u32), u32>) -> Option<u32> {
     match i.checked_sub(1).and_then(|j| script.ops.get(j)) {
         Some(&Op::SoundEase { ease, exponent }) => Some(crate::ease::curve(Some((ease, exponent)), eased)).filter(|&c| c > 0),
