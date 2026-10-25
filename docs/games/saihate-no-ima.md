@@ -62,7 +62,8 @@ Static checks (`docs/new-game.md` steps 6-7), gaps ranked:
 - No gap: links are dead when their variable is 0 or their target's
   link scene is open (`0x492bb0` case `0xb`, `0x464870`; ours
   `conv_link_open`); no page mixes link variables. PNG gAMA is ignored
-  by the exe (`0x4b6930`) and by SDL_image, native and web.
+  by the exe (`0x4b6930`) and by SDL_image, native and web. Variable
+  tables: as ours, every operand ("Progression variables").
 
 Next: take a bug when the user or a play-through reports one.
 
@@ -245,11 +246,17 @@ comments of `crates/conv-engines/src/xuse/cd.rs` (the records) and
 
 ## Progression variables
 
-Two tables in the exe (`load_svar` `0x46de00`): bit 15 set, kept in
-each slot save (`LocalSave.cpp`); clear, in the system data
-(`GlobalSave.cpp`). The conversion keeps the same border (`script_var`
-in `xuse/convert.rs`): slot ones are locals (n 0-10 → `%10+n`, 11-20 →
-`%18+n`), system ones globals (`%230+n`).
+Two tables in the exe (`load_svar` `0x46de00` sizes and names them):
+bit 15 set, the slot table `0x519554` (150 entries, kept in each slot
+save, `LocalSave.cpp`); clear, the system table `0x519544` (20, in the
+system data, `GlobalSave.cpp`). Every reader (`0x473cb0` for the
+arithmetic and ifs, `0x46e360` for links) indexes the table by the low
+15 bits, ignores bits 16 up, and logs an index past the table. The
+conversion keeps the same border (`script_var` in `xuse/convert.rs`):
+slot ones are locals (n 0-10 → `%10+n`, 11-20 → `%18+n`), system ones
+globals (`%230+n`). `research/xuse/svar_census.py` lists every operand:
+358 (354 with bit 15), 22 codes (slot 0, 3-20; system 1-3), all inside
+the tables and 1:1 into ours.
 
 Slot variables (names from a save's `SVAR`): %10 `rv`, %13 `debug`,
 %14-%17 `us_enable`, `us_disable`, `us_hide`, `href_enable`, %18
