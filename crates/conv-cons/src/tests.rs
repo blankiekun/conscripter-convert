@@ -30,6 +30,7 @@ fn window() -> TextWindow {
         rows: 3,
         font_size: 24,
         line_gap: 13,
+        letter_spacing: 1,
         vertical: false,
         name_plate: Some(NamePlate {
             image: "system/name.png".into(),
@@ -44,7 +45,7 @@ fn window() -> TextWindow {
 
 #[test]
 fn a_choice_of_plates_is_picture_buttons_with_centred_text() {
-    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
+    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, letter_spacing: 1, vertical: false, name_plate: None };
     let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None, vertical: false, chosen_ms: 0 };
     let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
     let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
@@ -62,7 +63,7 @@ fn a_choice_of_plates_is_picture_buttons_with_centred_text() {
 
 #[test]
 fn vertical_plates_step_left_with_column_text_and_a_chosen_cell() {
-    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 20, line_gap: 0, vertical: true, name_plate: None };
+    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 20, line_gap: 0, letter_spacing: 1, vertical: true, name_plate: None };
     let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 562, y: 68, step: 100, text_x: 577, text_dy: 40, font_size: 20, colour: "#000000".into(), fade_ms: 500, shot: None, vertical: true, chosen_ms: 1000 };
     let options = vec![("はい".to_string(), "a".to_string()), ("いいえ".to_string(), "b".to_string())];
     let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
@@ -86,7 +87,7 @@ fn a_runtime_choice_sets_its_option_texts_from_a_variable() {
         assert!(text.contains(part), "missing {part:?} in\n{text}");
     }
     // On plates: the text and its centred x, set together.
-    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
+    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, letter_spacing: 1, vertical: false, name_plate: None };
     let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None, vertical: false, chosen_ms: 0 };
     let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
     let text = emit(&script(vec![Op::RuntimeChoice { options, texts: vec![None, Some(rt)], style }]));
@@ -99,7 +100,7 @@ fn a_runtime_choice_sets_its_option_texts_from_a_variable() {
 
 #[test]
 fn a_shot_plate_gets_its_hole_and_tips_over_about_its_bottom() {
-    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
+    let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, letter_spacing: 1, vertical: false, name_plate: None };
     let shot = Some(conv_core::ir::ChoiceShot { hole: "system/hole.png".into(), hole_dx: -47, hole_dy: -41, sound: "se/shot.ogg".into() });
     let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot, vertical: false, chosen_ms: 0 };
     let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
@@ -1110,6 +1111,7 @@ fn adv_window_and_name_plate() {
         columns: 25,
         rows: 3,
         font_size: 24,
+        letter_spacing: 1,
         line_gap: 13,
         vertical: false,
         name_plate: Some(NamePlate {

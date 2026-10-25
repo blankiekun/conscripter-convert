@@ -422,6 +422,7 @@ pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
         rows: 4, // the scripts' longest message
         font_size: 22, // exe 0x8104a120
         line_gap: 12, // exe 0x81009c04
+        letter_spacing: 0, // src: exe 0x8104a120 (advance = the 22.0 font cell)
         vertical: false,
         name_plate: None,
     }

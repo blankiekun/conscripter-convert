@@ -322,6 +322,11 @@ research/xuse/names.tsv` (pseudo-C per function, git-ignored).
 addresses the code cites; the exe's findings are in
 `docs/games/saihate-no-ima.findings.tsv`.
 
+Letter advance: 25 px at font 24 (`0x4a2001` `imul ebx,ebx,0x19`, the
+letters after the name; TextField `0x48bd00` adds field+0xc4, set at
+`0x486850`, to each glyph width; the main window's value not traced).
+Ours: 24 + 1 = 25, unchanged.
+
 ## Files and formats
 
 | Files | Format | Contents |

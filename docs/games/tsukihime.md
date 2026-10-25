@@ -316,6 +316,14 @@ picture's record against its texture, prints a motion's keys.
   prologue (scene 0x104).
 
 
+Letter advance: 30.4 px glyph + char space (0 + 4) × 1280 / 1920 =
+2.67 (`FUN_001a7790`; added per letter in `FUN_00245408`) = 33.07 px at
+720p. Ours: font 30 + spacing 3 = 33 (was 31), and 28 columns (928 /
+33.07) instead of 30: 1,265 of 15,711 pages wrap differently, one page
+now needs 12 rows of our 11. English:
+the exe adds 2.67 to each proportional glyph; CONscripter gives a
+half-width letter half the spacing (1.5).
+
 ## Files and formats
 
 The RomFS, 21 GB, 16,729 files:

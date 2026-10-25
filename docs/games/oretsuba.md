@@ -34,8 +34,7 @@ Paused 2026-10-20.
    centre is 514 + level*258/100 while CONscripter's slider has one
    travel (ours rides the fill line 508..776); the speaker's name is
    drawn apart at (176, 373) in NameFontScale 0.8125 (0x8112ce0c),
-   ours stays in the message; letter advance 23 (conv-cons adds 1 px
-   for every game) vs the eboot's 22.
+   ours stays in the message.
 6. Particles (EffectStart 51/52/54): live engine particle layer
    (`mages/particles.rs`, the eboot's law with addresses; under
    exe_call: `research/oretsuba/particles_exe.py`). Ours: the fall is a
@@ -155,6 +154,9 @@ Tables the converter uses:
 - Sound: music alternates channels 4 and 5, each its own CRI AtomEx
   player; BgmPlay cross-fades over `:Div` frames, a channel already
   fading out fades on under the new music (`bgm_start`, `bgm_stop`).
+
+Letter advance: 22 px, the font cell (`0x8104a120`); ours setwindow3
+spacing 0 (was 1, 23 px).
 
 ## Files and formats
 

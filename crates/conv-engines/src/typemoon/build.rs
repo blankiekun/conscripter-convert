@@ -71,10 +71,11 @@ fn text_window(english: bool) -> TextWindow {
         y: 0,
         text_x: if english { 60 } else { 176 },  // src: exe 0x1391a0 (30 or 88, × 2)
         text_y: if english { 88 } else { 104 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448); FUN_001a7790's (x + 4, y + 14) pair is the TextWriter's char/line space (writer +0x40/+0x44), not an origin
-        columns: if english { 41 } else { 30 },  // src: exe 0x1391a0 (584 × 2 = 1168 px / 28, or 928 px / 30.4); the window types ≥ 3 (table 0x44DEFC: 299.8, 405.6, 509.8) are the same in both languages and not drawn
+        columns: if english { 41 } else { 28 },  // src: exe 0x1391a0 (584 × 2 = 1168 px / 28, or 928 px / 33.07, the advance below); the window types ≥ 3 (table 0x44DEFC: 299.8, 405.6, 509.8) are the same in both languages and not drawn
         rows: if english { 13 } else { 11 }, // ours: the exe has 16 line slots (0x1391a0, 0xBFECCC…0xBFED08), the last ones below the screen; these are the slots that fit 720 px
         font_size: if english { 27 } else { 30 }, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4, × 0.9 in English = 27.4)
         line_gap: if english { 23 } else { 24 }, // src: exe 0x1391a0's slot pitch, the TextWriter cursor y after " ^ " ('\n', FUN_00240cc8) = FUN_00245170: line feed 50 × scaleY + line space 16 = 54.0 or 50.2 px (research/typemoon/linefeed_exe.py), less font_size
+        letter_spacing: 3, // src: exe FUN_00245408 (x += char space + scaleX × glyph width), char space (0 + 4) × 1280 / 1920 = 2.67 from FUN_001a7790: 30.4 + 2.67 = 33.07 px a full-width letter (English: 27.4 + 2.67; CONscripter gives a half-width letter half of it, the exe all of it)
         vertical: false,
         name_plate: None,
         wait_icon_at: None,

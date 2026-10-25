@@ -306,6 +306,11 @@ of layers 4-5 filled with numbered tiles. `convert/muramasa/magiccube.rs`
 | %300-%799 | story flags (`$`, saved with each slot), in first-use order |
 | %800 up | `#` flags, `globalon` (header `value800`); past %969 at %5200 |
 
+Letter advance: font size 20 + LoadText's letter space 0 (`function.nss`
+SetTextEXC) = 20 px a full-width letter: the exe's layout `FUN_00484d30`
+adds each glyph's GDI gmCellIncX + the letter space. Ours: setwindow3
+spacing = that letter space (was a flat 1, 21 px).
+
 ### System screens
 
 Each filmed in the original: title, right-click

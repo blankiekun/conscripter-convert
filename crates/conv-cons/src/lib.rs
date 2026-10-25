@@ -1135,10 +1135,10 @@ fn title_button_shown(t: &TitleScreen, b: &conv_core::ir::TitleButton, border: u
 /// `any_vertical`: some window is vertical, so a horizontal one must switch
 /// back.
 /// A [`Script::single_byte_text`] window sets its letters by the font
-/// alone: no spacing (CONscripter adds half of it to each half-width
+/// alone: no [`TextWindow::letter_spacing`] (CONscripter adds half of it to each half-width
 /// letter of a proportional font).
 fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool, script: &Script) -> String {
-    let mut line = setwindow_only(w, speed, ruby, any_vertical, shadow, u32::from(!script.single_byte_text));
+    let mut line = setwindow_only(w, speed, ruby, any_vertical, shadow, if script.single_byte_text { 0 } else { w.letter_spacing });
     // Where the bar's wait routine shows the click-wait icon.
     if let (Some(_), Some((x, y))) = (&script.wait_icon, w.wait_icon_at) {
         line.push_str(&format!("\nmov {},{x}:mov {},{y}", WAIT_ICON_AT[0], WAIT_ICON_AT[1]));
@@ -1194,7 +1194,7 @@ fn lsp(slot: u32, s: &SpritePlacement) -> String {
 }
 
 /// Screen position of character `index` of `text` as the text window draws
-/// it: each character is one cell of font size + 1 pixel pitch, and lines
+/// it: each character is one cell of font size + letter spacing, and lines
 /// starting with ASCII got a full-width space in front. Assumes full-width
 /// characters, which holds for this game's text.
 fn char_position(w: &TextWindow, text: &str, index: usize) -> (i32, i32) {
@@ -1204,7 +1204,7 @@ fn char_position(w: &TextWindow, text: &str, index: usize) -> (i32, i32) {
     if text.split('\n').nth(row).is_some_and(starts_ascii) {
         col += 1;
     }
-    let x = w.text_x + col as i32 * (w.font_size as i32 + 1);
+    let x = w.text_x + col as i32 * (w.font_size + w.letter_spacing) as i32;
     let y = w.text_y + row as i32 * (w.font_size + w.line_gap) as i32;
     (x, y)
 }
