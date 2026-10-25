@@ -42,14 +42,6 @@ Static checks (`docs/new-game.md` steps 6-7), gaps ranked:
   `AnimationInfo.cpp`) is exact. Over every (s, d, a): ours −1 to +2
   levels, +1 or more in 49.7 %, max +2 at (s 192, d 0, a 129); opaque
   pixels lose 1 level in the exe where s > d (255 over 0 gives 254).
-- Link clickability: `0x492bb0` case `0xb` reads each link's variable
-  (record +6) and a list check `0x464870` (list `0x519580`, not
-  decoded); ours (`shown_by`) tests only the page's first link's
-  variable, and not the list (214 link reads; `href_enable` 2 writes,
-  %36 5 writes).
-- PNG gamma: the exe's loader `0x4b6930` applies no gAMA; 951 of the
-  3,004 PNGs carry one (8 at 1/2.39). Matches only if CONscripter's
-  decoder (SDL_image, native and web) also ignores gAMA: unchecked.
 - Fx animation module (`Aom_Animation_Parts` `0x417580`, via `0x8b`)
   writes the object's position (+0x18c/+0x190), scale (+0x1a8/+0x1ac),
   rotation (+0x1b0) and opacity (`0x40f160`) when its flags (+0x20 bits
@@ -63,6 +55,10 @@ Static checks (`docs/new-game.md` steps 6-7), gaps ranked:
   `0x51ea18` also by `0x54`/`0x55` (`0x4222c0`, handled); surfaces take
   the desktop format (32-bit: identity), present `0x4ad120` is a 1:1
   Blt; no gamma ramp, premultiplied alpha or D3D drawing.
+- No gap: links are dead when their variable is 0 or their target's
+  link scene is open (`0x492bb0` case `0xb`, `0x464870`; ours
+  `conv_link_open`); no page mixes link variables. PNG gAMA is ignored
+  by the exe (`0x4b6930`) and by SDL_image, native and web.
 
 Next: take a bug when the user or a play-through reports one.
 
