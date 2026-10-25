@@ -106,7 +106,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         ir.language = "ja".into();
     }
     // A dry run writes the script but no assets (no WebP, no sound).
-    let conv_cons::Emitted { script: mut source, lines, rows } = conv_cons::emit_mapped(&ir, conv_cons::strtab::Strings::tables(translation.is_some()));
+    let conv_cons::Emitted { script: mut source, mut lines, rows } = conv_cons::emit_mapped(&ir, conv_cons::strtab::Strings::tables(translation.is_some()));
     let mut tables = vec![(ir.language.clone(), conv_cons::strtab::table(&rows))];
     let other = translation.as_ref().map(|t| conv_cons::emit_mapped(t, conv_cons::strtab::Strings::tables(true)));
     // the language a first start runs in
@@ -118,11 +118,14 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         let (table, kept) = if lines.is_empty() || other.lines.is_empty() {
             translated(&rows, &other.rows)
         } else {
-            // shortcut: --source-map stays the base's lines before the merge; map the merge's padding when a tool needs it
             let m = merge(Edition { script: &source, lines: &lines, rows: &rows }, Edition { script: &other.script, lines: &other.lines, rows: &other.rows });
             println!("  {} runs of code differ from the {} build: {} lines per language", m.blocks, t.language, m.lines);
             // a build given the other edition starts in it: the edition the player gave
             source = m.script;
+            // the source map, on the merged script's lines (motion_drop.py reads 0.txt by them)
+            for (n, _) in lines.iter_mut() {
+                *n = m.at.get(*n - 1).copied().unwrap_or(*n);
+            }
             first = t.language.clone();
             tables[0].1 = m.tables.0;
             (m.tables.1, m.kept)

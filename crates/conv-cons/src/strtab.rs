@@ -204,6 +204,9 @@ pub struct Merged {
     /// that only one edition has), and their lines, now table lines.
     pub blocks: usize,
     pub lines: usize,
+    /// The merged script's line (1-based) of each base line, by its
+    /// index: the base's `--source-map` lines moved to the merged script.
+    pub at: Vec<usize>,
 }
 
 /// A script's runs of lines by source instruction: (place, lines).
@@ -373,6 +376,8 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
     }
     let mut m = Merged { kept, ..Default::default() };
     let mut seen: HashMap<String, usize> = HashMap::new();
+    // the merged script's lines so far ([`Merged::at`])
+    let mut out = 0;
     // runs that don't pair up, side by side, are one block: the code both
     // have in them stays in the script ([`common_lines`])
     type Group<'s> = (Option<usize>, Option<usize>, Vec<&'s str>, Vec<&'s str>);
@@ -401,8 +406,11 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
             for l in a {
                 if *l == "game" {
                     extra.iter().for_each(|e| writeln!(m.script, "{e}").unwrap());
+                    out += extra.len();
                 }
                 writeln!(m.script, "{l}").unwrap();
+                out += 1;
+                m.at.push(out);
             }
             continue;
         }
@@ -422,6 +430,8 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
             for l in a {
                 m.script.push_str(l);
                 m.script.push('\n');
+                out += 1;
+                m.at.push(out);
             }
             continue;
         }
@@ -452,6 +462,8 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
             // the lines between differ per language.
             let (mut i, mut j) = (0, 0);
             for (ci, cj) in common_lines(part_a, part_b).into_iter().chain([(part_a.len(), part_b.len())]) {
+                // the base's lines i..ci are the block's first rows
+                m.at.extend((1..=ci - i).map(|k| out + k));
                 for k in 0..(ci - i).max(cj - j) {
                     let (la, lb) = (part_a.get(i + k).filter(|_| i + k < ci), part_b.get(j + k).filter(|_| j + k < cj));
                     let (la, lb) = (la.map_or("", |l| l.0.as_str()), lb.map_or("", |l| l.0.as_str()));
@@ -460,14 +472,19 @@ pub fn merge(base: Edition, other: Edition) -> Merged {
                     writeln!(differs.0, "{id}\t{la}").unwrap();
                     writeln!(differs.1, "{id}\t{lb}").unwrap();
                     m.lines += 1;
+                    out += 1;
                 }
                 if let Some(l) = part_a.get(ci) {
                     writeln!(m.script, "{}", l.0).unwrap();
+                    out += 1;
+                    m.at.push(out);
                 }
                 (i, j) = (ci + 1, cj + 1);
             }
             if let Some(l) = after {
                 writeln!(m.script, "{l}").unwrap();
+                out += 1;
+                m.at.push(out);
             }
         }
     }
@@ -590,6 +607,13 @@ mod tests {
         assert_eq!(blank(fill(&m.script, &m.tables.1)).replace("language \"ja\"", "language \"en\""), fill(&en_script, &table(&en.rows)));
         assert!(m.script.contains("language \"ja\"") && m.script.contains("bg 1") && m.script.contains(&t1));
         assert_eq!(m.blocks, 2, "place 2 and place 3");
+        // each Japanese line lands on the merged line that holds it (the source map's lines)
+        let merged: Vec<String> = fill(&m.script, &m.tables.0).lines().map(String::from).collect();
+        let base: Vec<String> = fill(&ja_script, &table(&ja.rows)).lines().map(String::from).collect();
+        assert_eq!(m.at.len(), base.len());
+        for (k, l) in base.iter().enumerate() {
+            assert_eq!(&merged[m.at[k] - 1], l, "line {}", k + 1);
+        }
     }
 
     #[test]
