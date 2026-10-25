@@ -8,7 +8,6 @@ the handoff file. Ask for a missing one before starting; at done or budget, stop
 
 ## Spend where it pays
 
-- Ask the user at session start how much weekly usage is left; size the session to it.
 - A fresh agent costs ~45k tokens before it acts: do in place edits of 10 lines or less, doc-only rebases and
   anything needing what you know; run bare commands with `run_in_background` (~1k tokens).
 - Cheapest agent that fits (`.claude/agents/`; the lead picks the type): `checker` (haiku) for reruns, greps,
