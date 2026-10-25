@@ -995,6 +995,13 @@ struct Compiler<'a, 'b> {
     aliases: HashMap<String, String>,
     seq: u64,
     shown: BTreeMap<String, Shown>,
+    /// What a story file found up as it began: the screen of the first
+    /// path that reached it, not of the others (another choice's, a
+    /// dispatch, a start at its label). One the file makes again goes to
+    /// `redraw`: placed anew at the next sync even when unchanged
+    /// (md05_027a's `CreateTextureSP` of the ev253 md05_027 left up).
+    entry_shown: std::collections::BTreeSet<String>,
+    redraw: std::collections::BTreeSet<String>,
     /// The particle layers running ([`Kind::Particles`]), as last synced.
     particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
     /// The lens drawn ([`Kind::Lens`]), as last synced.
@@ -1209,6 +1216,8 @@ struct State<'a> {
     aliases: HashMap<String, String>,
     seq: u64,
     shown: BTreeMap<String, Shown>,
+    entry_shown: std::collections::BTreeSet<String>,
+    redraw: std::collections::BTreeSet<String>,
     particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
     lens: Option<ScreenEffect>,
     font_size: i64,
@@ -1236,6 +1245,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             aliases: HashMap::new(),
             seq: 0,
             shown: BTreeMap::new(),
+            entry_shown: Default::default(),
+            redraw: Default::default(),
             particle_layers: BTreeMap::new(),
             lens: None,
             pending_ms: 0,

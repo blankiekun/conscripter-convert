@@ -884,9 +884,10 @@ impl Compiler<'_, '_> {
                 animated.extend(ops);
                 now.engine.moved = true;
             }
+            let redraw = self.redraw.contains(&name);
             match self.shown.get(&name) {
-                Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.fade == now.fade && old.over == now.over => {
+                Some(old) if !redraw && *old == Shown { engine: old.engine, ..now.clone() } => continue,
+                Some(old) if !redraw && old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.fade == now.fade && old.over == now.over => {
                     now.engine = old.engine;
                     if old.tint != now.tint {
                         opacity.push(Op::SpriteFilters { layer, filters: now.tint.clone().unwrap_or_default() });
@@ -998,6 +999,7 @@ impl Compiler<'_, '_> {
         changes.retain(|c| unzoom.contains(&c.layer) || !placed.iter().any(|p| p.layer == c.layer));
         changes.extend(placed);
         self.shown.extend(new_shown);
+        self.redraw.clear();
         animated.extend(self.start_one_shots());
         animated.extend(self.lens_op());
         // Loops started during a change that isn't a move: after their lead.

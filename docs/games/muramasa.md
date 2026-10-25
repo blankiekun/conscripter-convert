@@ -33,10 +33,10 @@ Known bugs:
   `scene_objects.py` read containers' children: rerun it):
   `mc01_010vs`'s lock-on mark is not a bug (`CP_LockOn` is
   top-level, not under `CPW`, so `Cockpit_AllFade0` leaves it; it
-  sits behind the full-screen `ev946`, as in the original);
-  `md05_027a`/`b`… (8) open black, missing
-  `ev253_飢餓虚空の内側.jpg`; `mc04_014vsa`… (7) miss
-  `ev187_銘伏の妖剣_i.jpg`.
+  sits behind the full-screen `ev946`, as in the original).
+- A file reached by a path other than the first compiled one gets
+  that path's music: `SoundPlay` of the BGM already playing is
+  left out (md05_027a's `@mbgm15`; pictures are placed anew).
 - `--original-archives` (`docs/original-archives.md`) fails with
   `--english`.
 - One engine segfault on `end` after a `dwave` voice, Ctrl held.
