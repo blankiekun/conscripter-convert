@@ -41,21 +41,22 @@ Static checks (`docs/new-game.md` steps 6-7; 14 fields, 52 names the exe reads, 
 every-frame passes), gaps ranked by effect:
 
 - PNG gamma: all 1339 PNGs carry `gAMA`; the loader 0044f910 calls `png_set_gamma(2.2, file)`
-  at 0044fa74 (screen 2.2 at 0x004d5768; on when |2.2g-1| > 0.05, colour only). 627 at 0.5
+  at 0044fa74 (screen 2.2 at 0x004d5768; colour channels only, a palette's entries). 627 at 0.5
   (all `cg/sys`, `cg2/sys`, e.g. windowbox.png) gain up to +9 levels; `cg/sys/bar01`-`03` (0.27777)
   lose up to 46; `cg/data/downr_0_0` (0.45) 1; 708 at 0.45454 are identity; ours: bytes copied,
-  SDL_image ignores `gAMA` (no gamma call in the engine).
-- `#SYSTEM_play_speed = 3` (11 writes; boot, dja000 ×3, dja056 `SetRoll` ×2): the ending roll at
-  normal speed; exe set_play_speed 0045d550 → DAT_00529390 → factor table 00529408 (0045cb30:
-  0.5 … 32 for levels 1-12); ours: ignored, the roll follows the player's speed.
-- `$SYSTEM_menu_lock` (7 writes; boot, dja000 ×3, dja056 roll, extra_recollection ×2): the system
-  menu is locked (read by 004503b0, 0045d870; case 8 in 0045dac0 also stops skip and text
-  erase, not auto); ours: `StopAutoSkip` only, the menu still opens in the roll.
-- `$SYSTEM_save_lock`, `$SYSTEM_load_lock` (3 writes each, extra_recollection 49-50, 64-65): read
-  by the right-click menu 0045f5a0; ours: neither name handled, recollection save blocking unchecked.
-- `$SYSTEM_show_cursor` (5 writes, function_select, function_count): case 0x1b falls into 0x1c in
-  the decompile and clears DAT_005293c8 (click stops a movie, read by 004515a0); assembly not
-  confirmed; ours: no such setting (one movie, which passes its own flag).
+  SDL_image ignores `gAMA` (no gamma call in the engine). libpng 1.2.5 (string 004d4e10):
+  png_set_gamma 00480530 sets PNG_GAMMA (0x2000) when |2.2g-1| > 0.05 (0x004ca8f8) **or** the
+  colour type has alpha (bit 4) or is palette (3); gamma and screen stored as f32 (+0x15c, +0x160).
+- Fine, settled 2026-10-24: `#SYSTEM_play_speed` 3 is `Op::NormalSpeed` (the roll at
+  `gamespeed` 100, levels from 00529408); `$SYSTEM_menu_lock`: our roll waits (`click`,
+  `btnwait`) open no menu, the title and extras are ours, case 8's skip-off is our
+  `StopAutoSkip` (SetRoll also writes `$SYSTEM_text_auto = 0`); `$SYSTEM_save_lock`/`load_lock`:
+  the full build greys save and load in a replay (%151 from %150); `$SYSTEM_show_cursor`: the
+  fall-through is real (Django crk.exe 0045f327-0045f35f, no jmp after PostMessageA); 005293e8
+  keeps the mouse cursor shown (0044db70, messages 0x40d/0x40e; ours always shows it);
+  005293c8 is `break_play_movie`, read only for `MoviePlay` clicks (004515a0 from WM_LBUTTONDOWN
+  in cb_004502c0, yes/no box string 0x70; MoviePlay's own flag at DAT_00518678, 0044ddb0): every
+  choice turns it off, ours has no such option, so ours is the exe's state after a choice.
 - Fine: `+0x3c8` (relative place) has 5 clearing commands, of which the corpus uses ours; `+0x384`,
   `+0x3ec`-`+0x3f4`, `+0x409` (Fade only), `+0x484`, 005293d0, 005295b0, DAT_00531a40 writers match;
   windowed present is a 1:1 SRCCOPY BitBlt of a 32-bit DIB (cb_00468070); the D3D8 path (00469b30,
