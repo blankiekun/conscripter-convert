@@ -198,10 +198,11 @@ impl<'a> NpaAssets<'a> {
     fn make_scaled(&mut self, image: &str, (iw, ih): (u32, u32), (zx, zy): (i64, i64), (w, h): (u32, u32), clip: Option<(i64, i64, i64, i64)>) -> Option<(String, u32, u32)> {
         let path = Path::new(image);
         let stem = path.file_stem()?.to_string_lossy().into_owned();
-        let jpeg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg"));
         let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
         let part = clip.map_or(String::new(), |(x0, y0, x1, y1)| format!("_{x0}_{y0}_{}x{}", x1 - x0, y1 - y0));
-        let rel = format!("system/zoom/{}/{stem}_{zx}x{zy}{part}.{}", dir.replace('/', "_"), if jpeg { "jpg" } else { "png" });
+        // Always a PNG: a JPEG copy, even at quality 100, is up to 8 levels
+        // off the original (research/nitroplus/jpeg_loss.tsv).
+        let rel = format!("system/zoom/{}/{stem}_{zx}x{zy}{part}.png", dir.replace('/', "_"));
         let (ow, oh) = clip.map_or((w, h), |(x0, y0, x1, y1)| ((x1 - x0) as u32, (y1 - y0) as u32));
         // Its size, for pictures made from it (a dry run has no file).
         self.images.insert(normalize(&rel), Some((rel.clone(), ow, oh)));
@@ -224,13 +225,7 @@ impl<'a> NpaAssets<'a> {
                 part.crop_imm(ox, oy, ow, oh)
             }
         };
-        let mut data = Vec::new();
-        let mut cursor = std::io::Cursor::new(&mut data);
-        if jpeg {
-            scaled.into_rgb8().write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 90)).ok()?;
-        } else {
-            scaled.into_rgba8().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
-        }
+        let data = png_rgba(scaled)?;
         self.out.write(&rel, &data);
         Some((rel, ow, oh))
     }
@@ -421,14 +416,14 @@ impl Assets for NpaAssets<'_> {
         }
         let r = (|| {
             let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
-            let rel = format!("system/mirror/{}/{stem}_{flip}.{ext}", dir.replace('/', "_"));
+            // A JPEG's copy is a PNG too (see `make_scaled`).
+            let rel = format!("system/mirror/{}/{stem}_{flip}.png", dir.replace('/', "_"));
             if self.out.dry_run {
                 let (w, h) = self.size(image)?;
                 crate::output::record(&rel);
                 return Some((rel, w, h));
             }
-            // Read and written as they are: a JPEG keeps its quality, a
-            // PNG (perhaps a strip of cells) is the same size.
+            // A PNG (perhaps a strip of cells) is the same size.
             let mut img = image::open(self.src(image)).ok()?;
             let (w, h) = (img.width(), img.height());
             if x {
@@ -437,13 +432,7 @@ impl Assets for NpaAssets<'_> {
             if y {
                 img = img.flipv();
             }
-            let mut data = Vec::new();
-            let mut cursor = std::io::Cursor::new(&mut data);
-            if ext == "jpg" || ext == "jpeg" {
-                img.into_rgb8().write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 90)).ok()?;
-            } else {
-                img.into_rgba8().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
-            }
+            let data = png_rgba(img)?;
             self.out.write(&rel, &data);
             Some((rel, w, h))
         })();
@@ -594,7 +583,7 @@ impl Assets for NpaAssets<'_> {
         use std::hash::{Hash, Hasher};
         let mut h = crate::nitroplus::NameHasher::default();
         (base, &top, zoom, opacity).hash(&mut h);
-        let rel = format!("system/overlay_{:016x}.jpg", h.finish());
+        let rel = format!("system/overlay_{:016x}.png", h.finish());
         if self.out.have(&rel) {
             return Some(rel);
         }
@@ -618,8 +607,7 @@ impl Assets for NpaAssets<'_> {
                 p.0[c] = ((b + (o - b) * a) * 255.0).round() as u8;
             }
         }
-        let mut data = Vec::new();
-        image::DynamicImage::ImageRgb8(out).write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut std::io::Cursor::new(&mut data), 92)).ok()?;
+        let data = png_rgba(image::DynamicImage::ImageRgb8(out))?;
         self.out.write(&rel, &data);
         Some(rel)
     }
@@ -773,6 +761,14 @@ impl Assets for NpaAssets<'_> {
 
 /// An Ogg Vorbis file's length: its last page's granule position (the
 /// samples so far) over the sample rate of its identification header.
+/// A made picture as an RGBA PNG: lossless, and with an alpha channel, so
+/// the script's `:a;` (every PNG's sprite mode) reads it whole, opaque.
+fn png_rgba(img: image::DynamicImage) -> Option<Vec<u8>> {
+    let mut data = Vec::new();
+    img.into_rgba8().write_to(&mut std::io::Cursor::new(&mut data), image::ImageFormat::Png).ok()?;
+    Some(data)
+}
+
 fn ogg_ms(data: &[u8]) -> Option<u32> {
     let rate = ogg_rate(data)?;
     let last = data.windows(4).rposition(|w| w == b"OggS")?;
