@@ -42,8 +42,11 @@ Known bugs:
 - `layer\uncensored\` unchecked on a censored CG.
 - Left out: `$SYSTEM_text_interval` 128 and `$SYSTEM_text_waitkey` false: the
   scripts set them only around the 6 staff rolls, pictures with no text page.
-- A list lens (mc01_020vs) does not restore on a load (whole screen
-  differs; a still lens does).
+- A load restarts looping `spmotion`s from their start (engine
+  `readMotion`: `motion_start` = now): mc01_020vs's cockpit sway (5
+  sprites: frame, bg201, gauges) differs on the whole screen, loaded vs
+  played 6,059-16,316 px. The list lens restores once engine PR
+  blankiekun/CONscripter#203 is merged and pointed at.
 - Web runs (1800 s real time, auto-play, random choices; `cons_trace_check` "missing"
   findings are the checker's loose-build lookup, not the game): JP prologue 370 pages;
   JP mb01 3166; mc01 2757; md01 3226; md05 1062 (reached the end); EN mc01 (Kanae route
