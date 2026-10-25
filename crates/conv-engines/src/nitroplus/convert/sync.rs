@@ -362,11 +362,15 @@ impl Compiler<'_, '_> {
             // src: Django crk.exe 0042db00 (Sepia's draw) tints the whole screen
             // below it, the black where no picture is too (dja038_03: Sepia over
             // a bust alone): a black backing, tinted, under everything (dropped
-            // below when an opaque background fills the screen).
-            let (sw, sh) = self.game.screen;
-            let image = self.assets.color(0, sw as u32, sh as u32);
-            let backing = Shown { layer: 0, image, x: 0, y: 0, w: sw, h: sh, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: BLEND_NORMAL, tint: Some(f), over: false, whole: None, fade: None };
-            want.push(("\u{1}tint backing".into(), backing, (i64::MIN, 0)));
+            // below when an opaque background fills the screen). Not for a
+            // tint that keeps black black (a grey one, a blur).
+            use conv_core::ir::{FILTER_BLUR, FILTER_GREYSCALE, FILTER_GREY_WEIGHTS};
+            if f.iter().any(|x| !matches!(x.kind, Operand::Const(FILTER_GREYSCALE | FILTER_GREY_WEIGHTS | FILTER_BLUR))) {
+                let (sw, sh) = self.game.screen;
+                let image = self.assets.color(0, sw as u32, sh as u32);
+                let backing = Shown { layer: 0, image, x: 0, y: 0, w: sw, h: sh, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: BLEND_NORMAL, tint: Some(f), over: false, whole: None, fade: None };
+                want.push((TINT_BACKING.into(), backing, (i64::MIN / 2, 0)));
+            }
         }
         for w in want.iter_mut() {
             let own = self.objects.get(&w.0).map(|o| o.filters(scale(&w.1))).unwrap_or_default();
@@ -384,6 +388,7 @@ impl Compiler<'_, '_> {
                 let key = match self.objects.get(n) {
                     Some(o) if o.priority > p => continue,
                     Some(o) => (o.priority, o.seq),
+                    None if n == TINT_BACKING => (i64::MIN / 2, 0),
                     None => (p, 0),
                 };
                 let mut shown = shown.clone();
@@ -504,7 +509,8 @@ impl Compiler<'_, '_> {
         }
         // Layers of the wanted pictures in drawing order, top first: each
         // must be above (lower than) the next one.
-        let mut layers: Vec<Option<u32>> = want.iter().map(|w| self.shown.get(&w.0).map(|s| s.layer)).collect();
+        // (A tint's black backing has its own layer under them all.)
+        let mut layers: Vec<Option<u32>> = want.iter().map(|w| if w.0 == TINT_BACKING { Some(BACKING_LAYER) } else { self.shown.get(&w.0).map(|s| s.layer) }).collect();
         let mut crowded = false;
         for i in 0..want.len() {
             if layers[i].is_some() {
@@ -531,7 +537,12 @@ impl Compiler<'_, '_> {
                 .iter()
                 .map(|w| self.shown.get(&w.0).filter(|_| self.motion_until.contains_key(&w.0) || fading_move(&w.0) || self.objects.get(&w.0).is_some_and(|o| o.shake.is_some())).map(|s| s.layer))
                 .collect();
-            layers = spread(&kept).unwrap_or_else(|| spread(&vec![None; want.len()]).unwrap());
+            let backing = want.last().is_some_and(|w| w.0 == TINT_BACKING);
+            let n = want.len() - usize::from(backing);
+            layers = spread(&kept[..n]).unwrap_or_else(|| spread(&vec![None; n]).unwrap());
+            if backing {
+                layers.push(Some(BACKING_LAYER));
+            }
         }
         // A picture still fading out whose layer another takes: gone now.
         let mut freed = Vec::new();
@@ -1111,6 +1122,11 @@ fn from_end(keys: Vec<MotionKey>) -> Vec<MotionKey> {
     let last = *keys.last().unwrap();
     keys.into_iter().map(|k| MotionKey { x: k.x - last.x, y: k.y - last.y, zoom: k.zoom * 100 / last.zoom.max(1), zoom_y: k.zoom_y * 100 / last.zoom_y.max(1), angle: k.angle - last.angle, ..k }).collect()
 }
+
+/// The black backing under a whole-screen tint (crk.exe 0042db00) and
+/// its layer, below every picture's.
+const TINT_BACKING: &str = "\u{1}tint backing";
+const BACKING_LAYER: u32 = MAX_LAYER + 1;
 
 /// Layers for pictures in drawing order (top first): the given ones kept,
 /// the others spread evenly between them (all of them evenly when none is

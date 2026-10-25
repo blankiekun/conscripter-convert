@@ -2,25 +2,35 @@ use super::*;
 
 #[test]
 fn a_sepia_effect_tints_the_pictures_below_it() {
-    // dja038_03: `CreateEffect(…, "Sepia")` at 2000, faded in at once.
-    let story = r#"
+    // dja038_03: `CreateEffect(…, "Sepia")` at 2000, faded in at once,
+    // over a bust alone: the exe (crk.exe 0042db00) tints the black around
+    // it too, so a black backing goes under it, tinted; an opaque
+    // background filling the screen hides that backing.
+    let sepia = |bg: &str| {
+        let story = format!(r#"
 scene a.nss
-{
-	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+{{
+	CreateTexture("bg", 100, 0, 0, "{bg}");
 	CreateTexture("bar", 10000, 0, 0, "cg/bg/b.png");
 	Wait(100);
 	CreateEffect("効果", 2000, 0, 0, 1024, 576, "Sepia");
 	Fade("効果", 0, 1000, null, true);
 	Wait(100);
-}
-"#;
-    let c = compile(story, LIBRARY);
-    let tinted: Vec<u32> = c.ops.iter().filter_map(|op| match op {
-        Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREY_WEIGHTS)) => Some(*layer),
-        _ => None,
-    }).collect();
-    assert_eq!(tinted.len(), 1, "{:?}", c.ops);
-    assert!(!c.notes.keys().any(|n| n.starts_with("CreateEffect Sepia")), "{:?}", c.notes);
+}}
+"#);
+        let c = compile(&story, LIBRARY);
+        let tinted: Vec<u32> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREY_WEIGHTS)) => Some(*layer),
+            _ => None,
+        }).collect();
+        let backing = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.sprite.as_ref().is_some_and(|s| s.image.starts_with("color/000000_")))));
+        assert!(!c.notes.keys().any(|n| n.starts_with("CreateEffect Sepia")), "{:?}", c.notes);
+        (tinted.len(), backing, c.ops)
+    };
+    let (n, backing, ops) = sepia("cg/st/bust.png");
+    assert_eq!((n, backing), (2, true), "{ops:?}");
+    let (n, backing, ops) = sepia("cg/bg/a.jpg");
+    assert_eq!((n, backing), (1, false), "{ops:?}");
 }
 
 #[test]
