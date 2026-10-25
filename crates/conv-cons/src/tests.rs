@@ -165,13 +165,14 @@ csp %conv_name_text
 print 1
 #FFE193一#FFFFFF行目
 #FFE193学校#FFFFFFに―――
-if ?conv_link_visited[0] == 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FFE193\",\"#FFCA5E\"
-if ?conv_link_visited[0] != 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#DDB9FF\",\"#CC96FF\"
+if ?conv_link_open[0] == 0 && ?conv_link_visited[0] == 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FFE193\",\"#FFCA5E\"
+if ?conv_link_open[0] == 0 && ?conv_link_visited[0] != 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#DDB9FF\",\"#CC96FF\"
+if ?conv_link_open[0] != 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FFFFFF\",\"#FFFFFF\"
 *conv_link1_wait
-if ?conv_link_visited[0] == 0 lsp 6,\":c;>49,1,#FFE193\",107,532
-if ?conv_link_visited[0] != 0 lsp 6,\":c;>49,1,#DDB9FF\",107,532
-lsp 7,\":c;>49,1,#000000\",108,533
-spbtn %conv_link0,1
+if ?conv_link_open[0] == 0 && ?conv_link_visited[0] == 0 lsp 6,\":c;>49,1,#FFE193\",107,532
+if ?conv_link_open[0] == 0 && ?conv_link_visited[0] != 0 lsp 6,\":c;>49,1,#DDB9FF\",107,532
+if ?conv_link_open[0] == 0 lsp 7,\":c;>49,1,#000000\",108,533
+if ?conv_link_open[0] == 0 spbtn %conv_link0,1
 print 1
 btnwait %9
 csp %conv_link0
@@ -182,7 +183,9 @@ textclear
 if %9 != 1 goto *conv_link1_1
 mov ?conv_link_visited[0],1
 pushscreen 62,999
+mov ?conv_link_open[0],1
 gosub *s10_l1
+mov ?conv_link_open[0],0
 popscreen
 setwindow3 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452
 print 1
@@ -209,7 +212,7 @@ fn link_scenes_nest_at_most_seven_deep() {
     ]);
     s.window = Some(window());
     let text = emit(&s);
-    assert!(text.contains("\nif %conv_overlay_depth < 7 spbtn %conv_link0,1\n"), "{text}");
+    assert!(text.contains("\nif %conv_overlay_depth < 7 && ?conv_link_open[0] == 0 spbtn %conv_link0,1\n"), "{text}");
     // popscreen leaves the overlay's handle (over 999) as the scene left it.
     assert!(text.contains("sub %conv_overlay_depth,1\ncsp %conv_overlay\nif %conv_overlay_slot != 0 lsp %conv_overlay_slot,"), "{text}");
 }

@@ -263,6 +263,9 @@ const LINK_UNDERLINE_SPRITES: std::ops::Range<u32> = MENU_SPRITES.start..MENU_SP
 /// Global flags: link target n (in order of first use) was visited,
 /// `?conv_link_visited[n]`, declared when the script has links.
 const LINK_VISITED: &str = "conv_link_visited";
+/// Flags: link target n's scene is open (its link's `gosub` runs),
+/// `?conv_link_open[n]`; links to it are plain text meanwhile.
+const LINK_OPEN: &str = "conv_link_open";
 /// How many link targets there can be.
 const LINK_TARGETS: usize = 200;
 /// Global flags the player unlocks, kept by name (`defarr ...,global`).
@@ -433,6 +436,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
     }
     if script.ops.iter().any(|op| matches!(op, Op::Text { links, .. } if links.iter().any(|l| l.target.is_some()))) {
         writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
+        writeln!(out, "defarr {LINK_OPEN},{LINK_TARGETS}").unwrap();
     }
     for flags in [&CG_SEEN, &movies::SEEN, &SCENE_UNLOCKED, &PROGRESS, &replay::REPLAYED] {
         writeln!(out, "{}", flags.define()).unwrap();

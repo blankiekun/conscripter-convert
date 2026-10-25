@@ -71,6 +71,7 @@ impl<'a> Emitter<'a> {
         let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, ref mut text_goes_on, ref mut strings, fading: ref mut fading_slots, ref shake_lists } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| format!("?{LINK_VISITED}[{}]", link_targets.iter().position(|&t| t == target).unwrap());
+        let open = |target: &str| format!("?{LINK_OPEN}[{}]", link_targets.iter().position(|&t| t == target).unwrap());
     if let Op::Text { .. } = op {
         for line in transition.take().unwrap_or_default() {
             writeln!(out, "{line}").unwrap();
@@ -705,10 +706,19 @@ impl<'a> Emitter<'a> {
                 // rubyon draws sprite text a line gap lower too.
                 let sprite_y = if has_ruby { y - gap as i32 } else { y };
                 let flag = visited(link.target.as_deref().unwrap());
-                for (test, colour, hover) in [("==", LINK_COLOR, LINK_HOVER_COLOR), ("!=", LINK_VISITED_COLOR, LINK_VISITED_HOVER_COLOR)] {
+                // A link to a scene already open on the link stack is
+                // plain text, no button.
+                // src: Saihate exe 0x492bb0 case 0xb, 0x464870, 0x48e500
+                let open = open(link.target.as_deref().unwrap());
+                let plain = crate::colours_and_sizes(text.chars().count(), styles).0.swap_remove(link.start);
+                for (test, colour, hover) in [
+                    (format!("{open} == 0 && {flag} == 0"), LINK_COLOR, LINK_HOVER_COLOR),
+                    (format!("{open} == 0 && {flag} != 0"), LINK_VISITED_COLOR, LINK_VISITED_HOVER_COLOR),
+                    (format!("{open} != 0"), plain.as_str(), plain.as_str()),
+                ] {
                     writeln!(
                         out,
-                        "if {flag} {test} 0 strsp {slot},\"{}\",{x},{sprite_y},{},1,{size},{size},1,{gap},0,1,\"{colour}\",\"{hover}\"",
+                        "if {test} strsp {slot},\"{}\",{x},{sprite_y},{},1,{size},{size},1,{gap},0,1,\"{colour}\",\"{hover}\"",
                         escape(&word),
                         // ONScripter wraps a full-width character one column early.
                         link.len + 1
@@ -718,9 +728,9 @@ impl<'a> Emitter<'a> {
                 // 1 px under the glyphs, as wide as the word's cells.
                 let (ux, uy, uw) = (x + 2, y + size as i32 + 1, link.len as u32 * (size + 1) - 1);
                 for (test, colour) in [("==", LINK_COLOR), ("!=", LINK_VISITED_COLOR)] {
-                    writeln!(underlines, "if {flag} {test} 0 lsp {line},\":c;>{uw},1,{colour}\",{ux},{uy}").unwrap();
+                    writeln!(underlines, "if {open} == 0 && {flag} {test} 0 lsp {line},\":c;>{uw},1,{colour}\",{ux},{uy}").unwrap();
                 }
-                writeln!(underlines, "lsp {},\":c;>{uw},1,#000000\",{},{}", line + 1, ux + 1, uy + 1).unwrap();
+                writeln!(underlines, "if {open} == 0 lsp {},\":c;>{uw},1,#000000\",{},{}", line + 1, ux + 1, uy + 1).unwrap();
             }
             let bar = script.button_bar.as_ref();
             writeln!(out, "*{page}_wait").unwrap();
@@ -729,9 +739,11 @@ impl<'a> Emitter<'a> {
                 // Clears the buttons: register the words after it.
                 writeln!(out, "gosub *{}", menu::BAR_DRAW).unwrap();
             }
-            for (n, slot) in (0..clickable.len()).map(link_sprite).enumerate() {
-                if let Some(depth) = link_depth {
-                    write!(out, "if {depth} < {MAX_LINK_DEPTH} ").unwrap();
+            for ((n, slot), link) in (0..clickable.len()).map(link_sprite).enumerate().zip(clickable) {
+                let open = open(link.target.as_deref().unwrap());
+                match link_depth {
+                    Some(depth) => write!(out, "if {depth} < {MAX_LINK_DEPTH} && {open} == 0 ").unwrap(),
+                    None => write!(out, "if {open} == 0 ").unwrap(),
                 }
                 writeln!(out, "spbtn {slot},{}", n + 1).unwrap();
             }
@@ -798,7 +810,9 @@ impl<'a> Emitter<'a> {
                 if root_returns > 0 {
                     writeln!(out, "add {LINK_NEST},1").unwrap();
                 }
+                writeln!(out, "mov {},1", open(target)).unwrap();
                 writeln!(out, "gosub *{}", label(target)).unwrap();
+                writeln!(out, "mov {},0", open(target)).unwrap();
                 if root_returns > 0 {
                     writeln!(out, "sub {LINK_NEST},1").unwrap();
                 }
