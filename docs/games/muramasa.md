@@ -39,8 +39,6 @@ Known bugs:
   left out (md05_027a's `@mbgm15`). Emitting it restarts the song on
   the first path (184 places): needs a `bgm` that keeps the same
   music playing (engine, as `popscreen`'s) or a run-time check.
-- `--original-archives` (`docs/original-archives.md`) fails with
-  `--english`.
 - `layer\uncensored\` unchecked on a censored CG.
 - Left out: `$SYSTEM_text_interval` 128 and `$SYSTEM_text_waitkey` false: the
   scripts set them only around the 6 staff rolls, pictures with no text page.
