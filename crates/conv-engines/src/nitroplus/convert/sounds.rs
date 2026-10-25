@@ -192,7 +192,8 @@ impl<'a> Compiler<'a, '_> {
                 self.music_refused = true;
                 continue;
             }
-            let (path, bgm, looped, fade_ms, volume, loop_ms, pan) = (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume, s.loop_ms, s.pan);
+            let (path, bgm, looped, fade_ms, volume, loop_ms, pan, keep) =
+                (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume, s.loop_ms, s.pan, std::mem::take(&mut s.keep));
             let file = match loop_ms {
                 Some((start, end)) if looped => self.assets.looped_sound(&path, start, end),
                 _ => self.assets.sound(&path),
@@ -223,7 +224,8 @@ impl<'a> Compiler<'a, '_> {
                     if percent(volume) < 100 {
                         self.ops.push(Op::SoundVolume { file: None, percent: percent(volume), ms: 0 });
                     }
-                    self.ops.push(Op::BgmPlay { file: file.clone(), fade_in_ms: fade_ms });
+                    let file = file.clone();
+                    self.ops.push(if keep { Op::BgmKeep { file, fade_in_ms: fade_ms } } else { Op::BgmPlay { file, fade_in_ms: fade_ms } });
                 }
             } else {
                 if fade_ms > 0 {

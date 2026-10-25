@@ -785,6 +785,9 @@ struct SoundObject {
     /// Faded to 0 by `SetVolume`: when it stops ([`Compiler::sound_clock`]),
     /// as the exe's fade thread (`0x459980`) stops it at the fade's end.
     stops_at: Option<u64>,
+    /// Played again at a story file's start while playing ([`Compiler::entry_music`]):
+    /// it starts only if it isn't the music playing ([`Op::BgmKeep`]).
+    keep: bool,
 }
 
 /// A sound's ramp: to (per mille), over ms, along a tempo ([`Op::SoundEase`]).
@@ -1002,6 +1005,10 @@ struct Compiler<'a, 'b> {
     /// (md05_027a's `CreateTextureSP` of the ev253 md05_027 left up).
     entry_shown: std::collections::BTreeSet<String>,
     redraw: std::collections::BTreeSet<String>,
+    /// The music playing as a story file began (as `entry_shown`): its
+    /// `Play` there starts it, though the first path had it playing
+    /// (md05_027a's `SoundPlay("@mbgm15")` after md05_027b).
+    entry_music: std::collections::BTreeSet<String>,
     /// The particle layers running ([`Kind::Particles`]), as last synced.
     particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
     /// The lens drawn ([`Kind::Lens`]), as last synced.
@@ -1218,6 +1225,7 @@ struct State<'a> {
     shown: BTreeMap<String, Shown>,
     entry_shown: std::collections::BTreeSet<String>,
     redraw: std::collections::BTreeSet<String>,
+    entry_music: std::collections::BTreeSet<String>,
     particle_layers: BTreeMap<u32, conv_core::ir::Particles>,
     lens: Option<ScreenEffect>,
     font_size: i64,
@@ -1247,6 +1255,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shown: BTreeMap::new(),
             entry_shown: Default::default(),
             redraw: Default::default(),
+            entry_music: Default::default(),
             particle_layers: BTreeMap::new(),
             lens: None,
             pending_ms: 0,

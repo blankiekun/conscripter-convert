@@ -83,6 +83,7 @@ impl<'a> Compiler<'a, '_> {
             shown: self.shown.clone(),
             entry_shown: self.entry_shown.clone(),
             redraw: self.redraw.clone(),
+            entry_music: self.entry_music.clone(),
             particle_layers: self.particle_layers.clone(),
             lens: self.lens.clone(),
             font_size: self.font_size,
@@ -99,6 +100,7 @@ impl<'a> Compiler<'a, '_> {
         self.shown = s.shown;
         self.entry_shown = s.entry_shown;
         self.redraw = s.redraw;
+        self.entry_music = s.entry_music;
         self.particle_layers = s.particle_layers;
         self.lens = s.lens;
         self.font_size = s.font_size;

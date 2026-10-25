@@ -223,6 +223,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         // again is placed anew.
         c.entry_shown = c.shown.keys().cloned().collect();
         c.redraw.clear();
+        c.entry_music = c.objects.iter().filter(|(_, o)| matches!(&o.kind, Kind::Sound(s) if s.bgm && s.playing.is_some())).map(|(n, _)| n.clone()).collect();
         // Story flags may hold anything when another path reaches the file.
         for (k, &v) in &c.flags {
             c.vars.insert(k.clone(), Value::Runtime(v));

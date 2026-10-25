@@ -120,14 +120,21 @@ const NAME_PLATE_SPRITE: &str = "%conv_name_plate";
 /// The define section's named variables (`defvar`, `defstr`): the
 /// click-wait icon's place ([`WAIT_ICON_AT`]), a runtime choice's options
 /// ([`runtime_option`]) and backlog line ([`RUNTIME_LOG`]).
-fn names_define() -> String {
+fn names_define(script: &Script) -> String {
     let mut lines = vec!["defvar conv_wait_icon_x".to_string(), "defvar conv_wait_icon_y".to_string()];
     for n in 0..RUNTIME_OPTIONS {
         lines.push(format!("defstr conv_choice_text{n}"));
         lines.push(format!("defvar conv_choice_x{n}"));
     }
     lines.push("defstr conv_log_line".to_string());
+    if tracks_bgm(script) {
+        lines.push(format!("defstr {}", &BGM_NAME[1..]));
+    }
     lines.join("\n")
+}
+/// The script has an [`Op::BgmKeep`] ([`BGM_NAME`]).
+fn tracks_bgm(script: &Script) -> bool {
+    script.ops.iter().any(|op| matches!(op, Op::BgmKeep { .. }))
 }
 const NAME_SPRITES_DEFINE: &str = "defvar conv_name_text\ndefvar conv_name_plate\nspnew %conv_name_text,ui\nspnew %conv_name_plate,ui";
 /// `humanz`: with `windowback`, sprites up to it (and `ui` handles) are
@@ -422,7 +429,7 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
         picture_gallery::define(&mut out, g);
     }
     writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
-    writeln!(out, "{}", names_define()).unwrap();
+    writeln!(out, "{}", names_define(script)).unwrap();
     writeln!(out, "{}", links_define()).unwrap();
     if let Some(s) = &script.picture_settings {
         picture_settings::define(&mut out, s, &script.language);
@@ -600,7 +607,11 @@ pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
         // A new game's play time.
         writeln!(out, "{}", save_grid::NEW_GAME).unwrap();
     }
-    let se = SeChannels { volumes: script.ops.iter().any(|op| matches!(op, Op::SoundVolume { .. })), ..Default::default() };
+    let se = SeChannels {
+        volumes: script.ops.iter().any(|op| matches!(op, Op::SoundVolume { .. })),
+        tracks_bgm: tracks_bgm(script),
+        ..Default::default()
+    };
     // The next sound effect isn't played while skipping (Op::SeNotSkipped).
     let se_not_skipped = false;
     // The next static's fade in (Op::NoiseFadeIn).
@@ -1772,13 +1783,26 @@ struct SeChannels {
     pan_preset: bool,
     /// Channels playing a looped sound, which another sound doesn't take.
     looping: HashSet<u32>,
+    /// The script has an [`Op::BgmKeep`]: the music commands keep the
+    /// file playing in [`BGM_NAME`].
+    tracks_bgm: bool,
 }
+
+/// The music playing (`path`'s form, empty for none), kept when the script
+/// has an [`Op::BgmKeep`]; a load restores it with the music.
+const BGM_NAME: &str = "$conv_bgm";
 
 /// Channels for looped sounds when every one of [`SE_CHANNELS`] has one
 /// (続・殺戮のジャンゴ's chorus: 16 parts at once); 10 is the choices' shot.
 const SE_OVERFLOW: std::ops::RangeInclusive<u32> = 11..=49;
 
 impl SeChannels {
+    /// After a music command: `name` plays now ([`BGM_NAME`]).
+    fn bgm_name(&self, out: &mut String, name: &str) {
+        if self.tracks_bgm {
+            writeln!(out, "mov {BGM_NAME},\"{name}\"").unwrap();
+        }
+    }
     /// The channel the next [`SeChannels::start`] takes: the next of
     /// [`SE_CHANNELS`] in turn without a looped sound, or else an
     /// overflow one.

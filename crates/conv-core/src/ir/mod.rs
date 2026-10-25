@@ -488,6 +488,9 @@ pub enum Op {
     /// Switch to another text window layout; the page starts empty.
     SetWindow(TextWindow),
     BgmPlay { file: String, fade_in_ms: u32 },
+    /// [`Op::BgmPlay`] unless `file` is the music playing already: a story
+    /// file's start that one path reaches with it playing and others without.
+    BgmKeep { file: String, fade_in_ms: u32 },
     BgmStop { fade_out_ms: u32 },
     /// Pause; a click ends it early.
     Wait { ms: u32 },
