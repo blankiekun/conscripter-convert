@@ -53,7 +53,10 @@ every-frame passes), all settled (PNG gamma: `nitroplus/png_gamma.rs`):
 - Fine: `+0x3c8` (relative place) has 5 clearing commands, of which the corpus uses ours; `+0x384`,
   `+0x3ec`-`+0x3f4`, `+0x409` (Fade only), `+0x484`, 005293d0, 005295b0, DAT_00531a40 writers match;
   windowed present is a 1:1 SRCCOPY BitBlt of a 32-bit DIB (cb_00468070); the D3D8 path (00469b30,
-  full screen only) is A8R8G8B8, no blend, LINEAR scale; no gamma ramp. JPEG DCT method unchecked.
+  full screen only) is A8R8G8B8, no blend, LINEAR scale; no gamma ramp. JPEG: libjpeg 6b defaults
+  (loader 0044bea0), bit-exact with ours (muramasa.md). Open (lead's call): the 691 q90 zoom
+  copies are up to 27 levels off, mean up to 1.8 (5 samples, jpeg_loss.tsv); PNG copies: max 3,
+  +675 MB (1355 to 2029 MB, `--loose`); see muramasa.md.
 
 ## Build
 
