@@ -251,6 +251,10 @@ pub struct Game {
     /// variable that is 1 on coming back to the title (TitleSet's `$Logo`):
     /// both compiled again with it 1, at [`OPENING_BACK_LABEL`] (and `1`).
     title_opening: (&'static str, &'static str, &'static str),
+    /// The screen gamma the exe's PNG loader corrects a picture's `gAMA`
+    /// to ([`crate::nitroplus::png_gamma`]); `None`: pictures copied as
+    /// they are.
+    pub screen_gamma: Option<f64>,
 }
 
 impl Game {
@@ -282,6 +286,7 @@ impl Game {
         fade_tempo: None,
         boot_logos: ("", ""),
         title_opening: ("", "", ""),
+        screen_gamma: None,
     };
 
     /// Fills `script`'s system screens.

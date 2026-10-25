@@ -62,11 +62,14 @@ pub struct NpaAssets<'a> {
     /// The output files copied unchanged from an NPA (`--original-archives`
     /// drops them: the engine reads them from the archive).
     pub copied: Vec<String>,
+    /// The exe's PNG gamma ([`super::png_gamma`]): pictures whose
+    /// colours it changes are written corrected.
+    pub screen_gamma: Option<f64>,
 }
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, font: Vec::new(), base_root: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H), copied: Vec::new() }
+        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, font: Vec::new(), base_root: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H), copied: Vec::new(), screen_gamma: None }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -142,6 +145,10 @@ impl<'a> NpaAssets<'a> {
                 return None;
             }
         };
+        if !self.out.dry_run && let Some(fixed) = self.screen_gamma.filter(|_| out.ends_with(".png")).and_then(|s| super::png_gamma::correct(&data, s)) {
+            self.out.write(out, &fixed);
+            return Some(fixed);
+        }
         self.out.write(out, &data);
         if out == path {
             self.copied.push(path);
