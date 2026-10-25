@@ -83,6 +83,7 @@ impl<'a> Compiler<'a, '_> {
             shown: self.shown.clone(),
             entry_shown: self.entry_shown.clone(),
             redraw: self.redraw.clone(),
+            entry_music: self.entry_music.clone(),
             particle_layers: self.particle_layers.clone(),
             lens: self.lens.clone(),
             font_size: self.font_size,
@@ -99,6 +100,7 @@ impl<'a> Compiler<'a, '_> {
         self.shown = s.shown;
         self.entry_shown = s.entry_shown;
         self.redraw = s.redraw;
+        self.entry_music = s.entry_music;
         self.particle_layers = s.particle_layers;
         self.lens = s.lens;
         self.font_size = s.font_size;
@@ -419,6 +421,15 @@ impl<'a> Compiler<'a, '_> {
         if leaves.iter().any(|l| l.state.shown != leaves[0].state.shown) {
             self.note("branches of a runtime if end with different pictures");
             reconcile_shown(&mut merged.shown, &leaves);
+        }
+        // Music one branch left playing and another not (a fast skip's
+        // `SoundStop` and the read path's music): its next `Play` starts it
+        // only if it isn't playing ([`Op::BgmKeep`]).
+        for (name, o) in &leaves[0].state.objects {
+            let playing = |s: &State| matches!(s.objects.get(name).map(|o| &o.kind), Some(Kind::Sound(t)) if t.bgm && t.playing.is_some());
+            if matches!(&o.kind, Kind::Sound(s) if s.bgm) && leaves.iter().any(|l| playing(&l.state) != playing(&leaves[0].state)) {
+                merged.entry_music.insert(name.clone());
+            }
         }
         self.restore(merged);
     }

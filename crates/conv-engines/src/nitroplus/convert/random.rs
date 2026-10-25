@@ -185,6 +185,7 @@ fn sound(op: &Op) -> bool {
             | Op::SoundRate { .. }
             | Op::SoundEase { .. }
             | Op::BgmPlay { .. }
+            | Op::BgmKeep { .. }
             | Op::BgmStop { .. }
             | Op::BgmLater { .. }
             | Op::BgmCrossfade { .. }

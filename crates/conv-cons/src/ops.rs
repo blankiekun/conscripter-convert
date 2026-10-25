@@ -866,26 +866,40 @@ impl<'a> Emitter<'a> {
             }
             writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
             writeln!(out, "bgm \"{}\"", path(file)).unwrap();
+            se.bgm_name(out, &path(file));
+        }
+        Op::BgmKeep { file, fade_in_ms } => {
+            // One line: `if` holds for the rest of it.
+            let f = path(file);
+            let volume = if se.volumes && !std::mem::take(&mut se.preset) { "chvolfade -1,100:" } else { "" };
+            writeln!(out, "if {BGM_NAME} != \"{f}\" {volume}bgmfadein {fade_in_ms}:bgm \"{f}\":mov {BGM_NAME},\"{f}\"").unwrap();
         }
         Op::BgmCrossfade { file, ms } => {
             if se.volumes && !std::mem::take(&mut se.preset) {
                 writeln!(out, "chvolfade -1,100").unwrap();
             }
             writeln!(out, "bgm \"{}\",{ms}", path(file)).unwrap();
+            se.bgm_name(out, &path(file));
         }
         Op::BgmLater { file, after_ms: 0, looped } => {
             writeln!(out, "bgmfadein 0").unwrap();
             // mp3save: played once, but a load plays it again (bgmonce's isn't saved)
             writeln!(out, "{} \"{}\"", if *looped { "bgm" } else { "mp3save" }, path(file)).unwrap();
+            se.bgm_name(out, &if *looped { path(file) } else { String::new() });
         }
         Op::BgmLater { file, after_ms, looped } => {
             writeln!(out, "bgmlater {after_ms},\"{}\"{}", path(file), if *looped { "" } else { ",0" }).unwrap();
+            se.bgm_name(out, &if *looped { path(file) } else { String::new() });
         }
-        Op::MusicRoll { .. } => roll::emit(out, i, op, script),
+        Op::MusicRoll { .. } => {
+            roll::emit(out, i, op, script);
+            se.bgm_name(out, "");
+        }
         Op::HoldMovie { file, prompt, sound } => hold_movie::hold_movie(out, se, file, prompt.as_ref(), sound.as_ref()),
         Op::BgmStop { fade_out_ms } => {
             writeln!(out, "bgmfadeout {fade_out_ms}").unwrap();
             writeln!(out, "bgmstop").unwrap();
+            se.bgm_name(out, "");
         }
         Op::Wait { ms } => writeln!(out, "{}delay {ms}", unless_auto(script, i)).unwrap(),
         Op::Pause { ms } => writeln!(out, "wait {ms}").unwrap(),
@@ -961,7 +975,7 @@ impl<'a> Emitter<'a> {
             // sounds).
             let next = script.ops.get(i + 1);
             se.preset = match (file, next) {
-                (None, Some(Op::BgmPlay { .. } | Op::BgmCrossfade { .. })) => true,
+                (None, Some(Op::BgmPlay { .. } | Op::BgmKeep { .. } | Op::BgmCrossfade { .. })) => true,
                 (Some(f), Some(Op::SePlay { file: g, .. })) => f == g,
                 _ => false,
             };
@@ -1013,6 +1027,7 @@ impl<'a> Emitter<'a> {
         Op::Movie { file, skippable } => {
             // The web build plays it in a <video> element over the game.
             writeln!(out, "bgmstop").unwrap();
+            se.bgm_name(out, "");
             writeln!(out, "mpegplay \"{}\",{}", path(file), u8::from(*skippable)).unwrap();
             if let Some(seen) = movies::seen(script, file) {
                 writeln!(out, "{seen}").unwrap();
