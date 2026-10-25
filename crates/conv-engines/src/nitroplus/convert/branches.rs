@@ -81,6 +81,8 @@ impl<'a> Compiler<'a, '_> {
             aliases: self.aliases.clone(),
             seq: self.seq,
             shown: self.shown.clone(),
+            entry_shown: self.entry_shown.clone(),
+            redraw: self.redraw.clone(),
             particle_layers: self.particle_layers.clone(),
             lens: self.lens.clone(),
             font_size: self.font_size,
@@ -95,6 +97,8 @@ impl<'a> Compiler<'a, '_> {
         self.aliases = s.aliases;
         self.seq = s.seq;
         self.shown = s.shown;
+        self.entry_shown = s.entry_shown;
+        self.redraw = s.redraw;
         self.particle_layers = s.particle_layers;
         self.lens = s.lens;
         self.font_size = s.font_size;

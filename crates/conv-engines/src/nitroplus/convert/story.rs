@@ -219,6 +219,10 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         not_compiled.remove(&name);
         entry_vars.insert(name.clone(), state.vars.clone());
         c.restore(state);
+        // Other paths reach the file with another screen: what it makes
+        // again is placed anew.
+        c.entry_shown = c.shown.keys().cloned().collect();
+        c.redraw.clear();
         // Story flags may hold anything when another path reaches the file.
         for (k, &v) in &c.flags {
             c.vars.insert(k.clone(), Value::Runtime(v));
