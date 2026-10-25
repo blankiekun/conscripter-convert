@@ -59,8 +59,9 @@ pub const SCREEN_H: i64 = 576;
 const BOOT: &str = "0_boot_開始スクリプト.nss";
 /// Highest IR sprite layer used.
 const MAX_LAYER: u32 = 900;
-// The game's sprites (62 + layer) stay under the menus' extra slots.
-const _: () = assert!(62 + MAX_LAYER < conv_core::alloc::MENU_MORE_SPRITES.start);
+// The game's sprites (62 + layer, the tint's backing at MAX_LAYER + 1)
+// stay under the menus' extra slots.
+const _: () = assert!(62 + MAX_LAYER + 1 < conv_core::alloc::MENU_MORE_SPRITES.start);
 /// The `$SYSTEM` variables locking the player's modes and speed
 /// ([`Op::ModeLock`], [`Op::NormalSpeed`]): set anew in each file, unknown
 /// where branches set them differently. `$SYSTEM_text_interval` (slower

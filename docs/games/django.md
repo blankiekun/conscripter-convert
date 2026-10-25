@@ -27,15 +27,14 @@ Active.
 | Save round trips | ✅ `--roundtrip-every` |
 | Web build | 🟡 title and story pages play in a browser; saves, sound, touch, the log's scrolling unchecked there |
 | Progression (`#Clear` flags to title and extras, congratulations) | 🟡 from the scripts, not played through |
-| `CreateEffect` Sepia (the only `CreateEffect`, dja038) | ❌ drawn as nothing |
+| `CreateEffect` Sepia (the only `CreateEffect`, dja038) | ✅ crk.exe 0042db00's tint, the black under the pictures too; frame-checked |
 
 Next:
 1. Play the web build through (saves from the screens, sound, the log, a
    bad end and back, the extras); fix what blocks or shows wrong.
 2. Play to the end with every bad end seen; check the title's EXTRA,
    LINER NOTES and the congratulations.
-3. Sepia (dja038).
-4. Release.
+3. Release.
 
 Static checks (`docs/new-game.md` steps 6-7; 14 fields, 52 names the exe reads, 5
 every-frame passes), all settled (PNG gamma: `nitroplus/png_gamma.rs`):
@@ -157,7 +156,7 @@ agrees; `NoLog`, `PushText`, `NoIcon` do nothing in both):
 |---|---|---|---|
 | `Request` `AddRender` / `SubRender` / `NormalRender` | 15 / 1 / 3 | additive / subtractive / normal blend | `spblend` add; the `SubRender` movie darkened |
 | `Request` `Smoothing` / `UnSmoothing` | 20 / 3 | texture filtering | nothing |
-| `CreateEffect(…, "Sepia")` | 1 (dja038) | sepia over the screen | not done |
+| `CreateEffect(…, "Sepia")` | 1 (dja038) | sepia over the screen (0042db00: grey = 28R+151G+77B over 256, B = grey, R = G = grey+30), black where no picture is too | the same filters on the pictures below it, over a black backing (`convert/sync.rs`) |
 | `CreateEffect` Rain / Drop | 0 (the 1.01 `nss.npa`; the counts once here were Muramasa's) | `parse_effect_name` 00422110 has Rain 00427810 (Muramasa's code), Drop 00425c30, FloatBubble 004273e0; no Lens | none needed |
 | `$SYSTEM_menu_lock` = 1 (title, ending roll) | 8 | no right-click menu, skip off | `skipoff:autooff`; the roll waits on `click` |
 
