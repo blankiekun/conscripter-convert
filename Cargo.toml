@@ -9,7 +9,7 @@ license = "GPL-3.0-or-later"
 
 [workspace.dependencies]
 ab_glyph = "0.2"
-aes = "0.8"
+aes = "0.9"
 anyhow = "1"
 bcdec_rs = "0.2"
 clap = { version = "4", features = ["derive"] }
