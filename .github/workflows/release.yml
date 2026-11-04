@@ -28,11 +28,11 @@ jobs:
           - {runner: windows-latest, suffix: x64_win, exe: .exe}
           - {runner: ubuntu-22.04, suffix: x64_linux, exe: ''} # an older glibc runs on more systems
           - {runner: ubuntu-22.04-arm, suffix: arm64_linux, exe: ''}
-          - {runner: macos-14, suffix: aarch64_darwin, exe: ''} # Apple silicon
+          - {runner: macos-15, suffix: aarch64_darwin, exe: ''} # Apple silicon
           # Intel Macs, built on Apple silicon (the Intel runners took twice
           # as long and are being retired): Rust cross-compiles, and an x64
           # Python runs PyInstaller and the bundle under Rosetta.
-          - {runner: macos-14, suffix: x64_darwin, exe: '', target: x86_64-apple-darwin, python_arch: x64}
+          - {runner: macos-15, suffix: x64_darwin, exe: '', target: x86_64-apple-darwin, python_arch: x64}
     runs-on: ${{ matrix.os.runner }}
     defaults:
       run:
@@ -62,7 +62,7 @@ jobs:
     # failed a quarter of its writes.)
     - uses: Swatinem/rust-cache@v2
       with:
-        key: ${{ matrix.os.suffix }} # two jobs run on macos-14
+        key: ${{ matrix.os.suffix }} # two jobs run on macos-15
         # The runner images' Rust differs while a new image rolls out
         # (windows-latest went from one to the next between two runs), and
         # with it in the key every run missed. Cargo itself rebuilds what
