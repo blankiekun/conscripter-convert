@@ -16,7 +16,7 @@ jobs:
   check:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
     - uses: Swatinem/rust-cache@v2
@@ -44,7 +44,7 @@ jobs:
   engine-on-master:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - run: |
         sha=$(git ls-tree HEAD engine | awk '{print $3}')
         status=$(gh api "repos/blankiekun/CONscripter/compare/master...$sha" --jq .status)
