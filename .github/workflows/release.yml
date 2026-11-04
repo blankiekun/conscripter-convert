@@ -42,7 +42,7 @@ jobs:
       # The converter, built for the matrix's target when it has one.
       CONVERTER: target/${{ matrix.os.target && format('{0}/', matrix.os.target) || '' }}release/conscripter-convert${{ matrix.os.exe }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     # build.rs needs only the engine's version.h, not the whole submodule:
     # the one file at the pinned commit.
@@ -81,14 +81,14 @@ jobs:
         fi
         file "$CONVERTER" || true
 
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v7
       with:
         python-version: '3.12'
         architecture: ${{ matrix.os.python_arch }}
         cache: pip
         cache-dependency-path: gui/requirements.txt
 
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: gui/fonts
         key: ipafont-${{ hashFiles('gui/fetch_fonts.py') }}
@@ -125,7 +125,7 @@ jobs:
         fi
         ls -l release
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: conscripter-convert_${{ matrix.os.suffix }}
         path: release/*
