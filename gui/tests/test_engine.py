@@ -138,6 +138,17 @@ class Install(unittest.TestCase):
         self.assertEqual(Image.open(io.BytesIO(engine.ico_to_png(made))).size, (128, 128))
         self.assertEqual(engine.png_to_icns(png.getvalue())[:4], b"icns")
 
+    def test_ico_of_tiny_pictures(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("no Pillow")
+        for size in ((1, 1), (200, 10)):
+            png = io.BytesIO()
+            Image.new("RGBA", size, (0, 0, 200, 255)).save(png, "PNG")
+            made = engine.png_to_ico(png.getvalue())
+            self.assertEqual(Image.open(io.BytesIO(made)).format, "ICO")
+
 
 if __name__ == "__main__":
     unittest.main()
