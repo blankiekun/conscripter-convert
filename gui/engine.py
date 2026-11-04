@@ -194,8 +194,8 @@ def png_to_ico(png: bytes) -> bytes:
     """An .ico of the picture at its own size and the usual smaller ones."""
     from PIL import Image
     im = Image.open(io.BytesIO(png)).convert("RGBA")
-    side = min(256, max(im.size))
-    sizes = [(s, s) for s in (16, 24, 32, 48, 64, 128, 256) if s <= side]
+    side = min(256, *im.size)
+    sizes = [(s, s) for s in (16, 24, 32, 48, 64, 128, 256) if s <= side] or [(side, side)]
     buf = io.BytesIO()
     im.save(buf, "ICO", sizes=sizes)
     return buf.getvalue()

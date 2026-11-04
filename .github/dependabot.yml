@@ -17,3 +17,11 @@ updates:
       actions:
         patterns: ["*"]
 
+  - package-ecosystem: pip
+    directory: /gui
+    schedule:
+      interval: monthly
+    groups:
+      pip:
+        patterns: ["*"]
+        update-types: [minor, patch]
