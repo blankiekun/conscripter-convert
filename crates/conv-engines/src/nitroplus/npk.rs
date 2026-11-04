@@ -27,8 +27,8 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::Mutex;
 
-use aes::cipher::{BlockDecrypt, KeyInit};
-use aes::{Aes256, Block};
+use aes::cipher::{BlockCipherDecrypt, KeyInit};
+use aes::Aes256;
 use thiserror::Error;
 
 use crate::read::{Reader, Truncated};
@@ -82,7 +82,7 @@ fn decrypt(cipher: &Aes256, iv: &[u8; 16], data: &mut [u8]) {
     let mut prev = *iv;
     for chunk in data.as_chunks_mut::<16>().0 {
         let next = *chunk;
-        cipher.decrypt_block(Block::from_mut_slice(chunk));
+        cipher.decrypt_block(chunk.into());
         chunk.iter_mut().zip(prev).for_each(|(b, p)| *b ^= p);
         prev = next;
     }
